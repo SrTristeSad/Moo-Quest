@@ -93,6 +93,31 @@ com uma figura improvisada.
 **NAO CONCLUIDO: nao afirmar paridade 1:1 ate que a lista inteira seja
 testada de ponta a ponta.**
 
+## Correcoes do renderizador de referencia — etapa seguinte
+
+- Os rotulos de jogadores e animais agora seguem `client/src/index.js`:
+  nomes dos animais retirados de `shared/config.js::cowNames`, barras de vida
+  abaixo de cada personagem na distancia `scale + nameY`, e equipe com
+  a cor verde de HP original.
+- A invisibilidade de rotulo/HP para o visual identificado pelo indice 10
+  respeita a logica original: o proprio jogador e companheiros de equipe
+  ainda enxergam seu nome.
+- Os emblemas `crown.png` e `skull.png` sao carregados da pasta original
+  `client/public/img/icons/`, com as mesmas dimensoes de `shared/config.js`.
+- Os nomes personalizados usam fonte de fallback, **nao** a fonte WOFF2
+  original, pois ainda nao existe uma conversao local licenciada e validada
+  para o formato TTF aceito pelo LÖVE. Portanto, ainda nao existe igualdade
+  grafica pixel a pixel.
+- O pacote `C` recebido depois da morte remove a posicao antiga do jogador
+  local e espera seu novo `D` enviado pelo servidor. Isso impede desenhar
+  um renascimento em coordenadas obsoletas; o Node decide a nova posicao.
+- Os testes `tests/reference_render.lua` e `tests/world_state.lua`
+  agora verificam regras de visibilidade, nomes, posicao dos rotulos,
+  nova posicao do jogador apos renascimento e preservacao do marcador de morte.
+- A verificacao externa `VERIFICAR-PARTIDA-NODE.bat` continua sendo um teste
+  do **servidor Node**, nao da execucao Lua. O cliente nao foi validado
+  de ponta a ponta em uma instalacao Windows nesta etapa.
+
 ## Direitos sobre as artes
 
 O codigo do repositorio declara Apache-2.0, mas o proprio autor informa que
