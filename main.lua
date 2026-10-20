@@ -131,7 +131,7 @@ function love.draw()
   love.graphics.print("MOO-QUEST | CLIENTE LUA / LOVE 2D",36,36,0,1.6)
   love.graphics.setColor(0.28,0.40,0.33)
   love.graphics.rectangle("fill",36,82,w-72,2)
-  line(107,"Servidor ORIGINAL: al007ex/moomoo-clone (sem modificacoes)")
+  line(107,"Servidor: motor Node original do al007ex/moomoo-clone (config local adicional)")
   line(144,"Endereco: http://127.0.0.1:8080  |  Jogo: LC  |  Transporte: WebSocket original")
   if startupError then
     love.graphics.setColor(1,0.65,0.46)
@@ -160,7 +160,7 @@ function love.draw()
   end
   love.graphics.setColor(0.67,0.77,0.71)
   love.graphics.printf("R: tentar novamente/renascer   |   WASD: movimento apos spawn   |   ESC: sair\n"..
-    "Servidor original em Node.js; nenhuma simulacao Lua, ponte TCP ou alteracao do servidor.",
+    "Motor Node.js original; sem servidor Lua, proxy ou modificacoes nas regras de jogo.",
     36,h-115,w-72)
 end
 
