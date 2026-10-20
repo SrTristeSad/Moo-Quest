@@ -1,12 +1,15 @@
-# Transport adapter (experimental)
+# Transporte de rede — servidor ORIGINAL
 
-`src/net/websocket_client.lua` now implements a nonblocking **plain ws://** client for LuaSocket, including HTTP upgrade, frame processing, outgoing client masking, ping/pong and basic socket lifecycle.
+O cliente LÖVE nao cria um servidor ou ponte customizada. O unico destino esperado e o servidor reconstruido original de `al007ex/moomoo-clone`, com:
 
-Dependencies are injected:
-- `socket`: LuaSocket-compatible TCP factory.
-- `secureRandom(n)`: cryptographically secure bytes. **Do not use math.random** for WebSocket masking or upgrade nonces.
-- `sha1(data)`: SHA-1 digest returning 20 raw bytes; LÖVE's `love.data.hash("sha1", data)` is a candidate.
+- `GET http://127.0.0.1:8080/ping`: descobre o identificador de build.
+- `ws://127.0.0.1:8080/s/LC?b=<build>`: conexao WebSocket diretamente ao servidor.
+- `src/net/websocket_client.lua`: handshake HTTP WebSocket e framing RFC6455.
+- `src/net/secure_random.lua`: aleatoriedade criptografica do sistema operacional.
+- `src/protocol/bootstrap.lua`: interpreta primeiro `io-init` em MessagePack.
+- `src/protocol/original_build.lua`: le dados do build da instalacao local original, sem editar esses arquivos.
+- `src/protocol/original_crypto.lua` e `original_session.lua`: implementam misturador de chave, tabelas de ID, HMAC, mascaramento e sequencia do protocolo original.
 
-This module is not automatically started from `main.lua` because the project has not yet bundled a Windows LuaSocket dependency or a verified secure random provider. Connecting it prematurely would crash or fail on machines without those components.
+**Importante:** a API original pode exigir token de entrada, `?u=` (bundle oficial), autenticacao, seal e telemetria. A conexao inicial ainda nao fornece todos esses requisitos; pacote de spawn e gameplay **nao sao enviados ate o ingresso ser implementado legitimamente**. Em caso de recusa, o cliente exibe o erro, e nao simula uma partida.
 
-Remaining limitations: no wss/TLS, no fragmented frames, no extension negotiation, no connection timeout, no reconnect policy, and no game-level authenticated session. Test the module with a controlled local WebSocket echo server before integrating gameplay. The upstream game server will still enforce its own build, ticket, bundle and transport integrity checks.
+O codigo-fonte do Node.js original continua **intacto**. A ponte TCP 17017 e a simulacao paralela Lua foram removidas.
