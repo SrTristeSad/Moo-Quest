@@ -1,30 +1,38 @@
 # Moo-Quest
 
-**Objetivo principal inegociável:** recriar em **Lua**, para jogar **localmente no Windows**, **100% das funcionalidades** verificadas do projeto [al007ex/moomoo-clone](https://github.com/al007ex/moomoo-clone), sem inventar mudanças nem chamar protótipos de jogo pronto.
+**Objetivo:** reproduzir no **cliente nativo Lua + LÖVE 2D (Windows)** a experiência e os recursos funcionais do projeto [al007ex/moomoo-clone](https://github.com/al007ex/moomoo-clone), usando o **servidor reconstruído original em Node.js**. Primeiro rodará na própria máquina; futuramente o mesmo servidor Node poderá ser adaptado para hospedagem online.
 
-- **Regra principal:** [docs/REGRA-PRINCIPAL.md](docs/REGRA-PRINCIPAL.md) — prevalece sobre planos/documentos anteriores em caso de conflito.
-- **Matriz de paridade:** [docs/PARIDADE.md](docs/PARIDADE.md) — lista os sistemas e seus testes de aceitação.
-- **Referência congelada:** `06f7c1ca965a7628671676c8d9a7efd3997bb5e7` (v1.9.4-dev). Atualizações de referência exigem comparação explícita.
-- **Auditoria do estado atual:** [docs/AUDITORIA-2026-10-20.md](docs/AUDITORIA-2026-10-20.md).
+**Versão-base fixa:** [al007ex/moomoo-clone@06f7c1ca965a7628671676c8d9a7efd3997bb5e7](https://github.com/al007ex/moomoo-clone/tree/06f7c1ca965a7628671676c8d9a7efd3997bb5e7).
 
-## Escopo fechado
+A documentação [docs/REGRA-PRINCIPAL.md](docs/REGRA-PRINCIPAL.md) contém os requisitos atualizados. A [matriz de paridade](docs/PARIDADE.md) mostra o que ainda falta.
 
-- **Cliente:** Lua + LÖVE 2D (Windows).
-- **Servidor final:** Lua local, autoritativo. JavaScript somente como referência de comportamento/teste durante o desenvolvimento, não como dependência de execução do produto final.
-- **Funcionalidades:** todo jogo-base, mundo/biomas, controles, coleta, combate, estruturas, itens, progressão, animais/chefes, UI, áudio, chat, clãs, social, loja, contas, administração e extras oferecidos pela referência.
-- **Prioridade:** primeiro a partida local real funcionando; depois alcançar paridade total; só então fazer alterações próprias.
-- **Sem 'faz de conta':** interfaces vazias e módulos isolados não contam como recursos concluídos.
+## Arquitetura aprovada
 
-## Situação verdadeira
+- **Cliente:** Lua + LÖVE 2D 11.5. Responsável por renderização, HUD, menus, controles, animações e áudio.
+- **Servidor:** Node.js original da referência, preservando as regras de física, spawn, recursos, combate, construções, progresso e animais. Não há mais duplicação da lógica do servidor em Lua no fluxo de jogo.
+- **Ligação nativa local:** adaptador `node-bridge/nativeBridge.js`, instalado no servidor baixado, escutando **somente 127.0.0.1:17017**. Recebe comandos idênticos aos pacotes de jogo (`M`, `9`, `D`, `F`, `z`, etc.) e os passa ao **handlePacket original**. O servidor responde com eventos originais, interpretados em `src/net/node_protocol.lua`.
+- **Futuro online:** manter o servidor Node.js, mas construir uma conexão remota autenticada, criptografada e com segurança apropriada. A ponte TCP atual é estritamente local: **não expor a porta 17017 à internet**.
+- **Legado:** `src/server/` mantém estudos antigos em Lua para comparação, mas **não é iniciado pelo cliente** e não é a fonte da lógica do jogo.
 
-**Primeira integração local escrita, ainda NÃO validada por execução em Windows.** A versão atual inclui um servidor Lua em thread LÖVE na porta TCP local `127.0.0.1:17017`, geração e transmissão do mundo, spawn real no servidor, movimentação autoritativa básica, coleta com o martelo padrão e construção de parede de madeira. O cliente recebe o estado do servidor e renderiza representações geométricas temporárias. **Isso não é um port completo nem prova que a execução está funcionando.** Nesta etapa, também foram portados os dados de todas as 16 armas, 23 itens, 6 projéteis, 14 grupos, 49 chapéus, 21 acessórios e 15 arquétipos de animais, com população, movimento e combate básico dos animais no servidor Lua. **Dados portados não equivalem a comportamentos implementados:** ainda faltam a IA completa dos chefes, efeitos das armas/equipamentos, PvP, contas, serviço social, HUD e a maioria dos sistemas da referência. Nenhuma partida Windows foi verificada até agora.
+## Iniciar no Windows
 
-**Executar no Windows:** veja [docs/EXECUTAR-LOCAL.md](docs/EXECUTAR-LOCAL.md). Primeiro, execute `TESTAR-WINDOWS.bat` para obter um relatório dos testes Lua no próprio LÖVE; depois, execute `INICIAR-WINDOWS.bat` para testar a partida local real. Ambos exigem LÖVE 11.5 instalado. O fluxo local Lua não precisa de Node.js. O antigo adaptador experimental WebSocket continua no repositório para auditoria e não é usado nessa execução.
+Pré-requisitos: Node.js 20+ com npm, LÖVE 2D 11.5 e PowerShell (Windows).
 
-## Licenciamento
+1. Baixe/extraia o repositório Moo-Quest.
+2. Rode **`PREPARAR-SERVIDOR.bat`** uma vez com internet: baixa o commit-base, extrai apenas `server/` e `shared/`, instala as dependências Node e aplica a ponte de cliente Lua.
+3. Rode **`TESTAR-WINDOWS.bat`** para verificar os módulos locais Lua (não substitui teste real).
+4. Rode **`INICIAR-WINDOWS.bat`**: inicia o Node numa janela separada e abre o cliente LÖVE.
 
-A referência contém arquivos do cliente oficial e recursos atribuídos a MooMoo.io/FRVR, que não podem ser automaticamente redistribuídos só porque o repositório inclui uma licença Apache-2.0. Recriar toda a **funcionalidade** com código Lua próprio e artes autorizadas; não copiar bundles, imagens ou marcas proprietárias sem permissão. Preservar licenças/avisos aplicáveis aos componentes efetivamente reaproveitados.
+O script de preparação não inclui nem redistribui os assets do cliente oficial. Veja [docs/EXECUTAR-LOCAL.md](docs/EXECUTAR-LOCAL.md).
 
-## Desenvolvimento
+## Status verificável
 
-Todos os avanços devem registrar funcionalidade, evidência de teste e situação em `docs/PARIDADE.md`. O critério final é rodar o jogo **localmente no Windows, sem dependência de servidor JavaScript nem serviços externos**.
+**Integração escrita, ainda NÃO validada em Windows após esta mudança de arquitetura.** O cliente envia spawn, direção de movimento, mira, ataque contínuo, seleção do martelo/parede e respawn ao servidor Node reconstruído e interpreta os eventos de jogadores, objetos, animais e recursos recebidos. Os desenhos continuam provisórios e **não equivalem visualmente ao jogo de referência**. Ainda faltam muitos sistemas do cliente: menus, inventário completo, equipamentos, armas secundárias, UI, biomas avançados, efeitos, animações, sons, chat/clãs, contas e funcionalidades sociais.
+
+Os testes automáticos anteriores do GitHub Actions registraram `failure` sem logs de passos disponíveis. A partida local **ainda precisa ser executada e auditada**.
+
+## Licenças e limites
+
+O código reconstruído da referência tem suas próprias condições de uso; o README upstream adverte que `client-official/` contém código e materiais de terceiros. **Não redistribuir bundles/arte protegida do cliente oficial sem licença apropriada.** O cliente Lua será uma implementação própria com recursos visuais autorizados.
+
+Não afirmar paridade completa até que todos os itens da matriz tenham testes de aceitação aprovados.
