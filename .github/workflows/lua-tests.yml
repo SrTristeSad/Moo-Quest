@@ -26,7 +26,7 @@ jobs:
       - name: Test standalone protocol and server logic
         run: |
           set -eu
-          for test in tests/handshake.lua tests/msgpack.lua tests/bootstrap.lua tests/upgrade.lua tests/websocket_frames.lua tests/websocket_client.lua tests/world.lua; do
+          for test in tests/handshake.lua tests/msgpack.lua tests/msgpack_gameplay.lua tests/bootstrap.lua tests/upgrade.lua tests/websocket_frames.lua tests/websocket_client.lua tests/world.lua; do
             echo "RUN $test"
             lua${{ matrix.version }} "$test"
           done
