@@ -4,6 +4,7 @@
 local C=require("src.game.config")
 local Catalog=require("src.game.catalog")
 local Objects=require("src.game.reference_objects")
+local Icons=require("src.game.reference_icons")
 local Assets=require("src.game.reference_assets")
 local Upgrades=require("src.game.reference_upgrades")
 local H={}
@@ -111,18 +112,7 @@ local function actionBar(world,w,h)
   for i,entry in ipairs(entries) do
     local x=origin+(i-1)*(slot+space)
     box(x,y,slot,slot)
-    if entry.kind=="weapon" then
-      Assets.draw("weapons",entry.data.src..".png",
-        x+slot/2,y+slot/2,62,62)
-    else
-      local image=Objects.sprite({id=entry.id})
-      if image then
-        color(1,1,1)
-        love.graphics.draw(image,x+slot/2,y+slot/2,0,
-          62/image:getWidth(),62/image:getHeight(),
-          image:getWidth()/2,image:getHeight()/2)
-      end
-    end
+    Icons.draw(entry.kind,entry.data,x+slot/2,y+slot/2,slot)
   end
 end
 local function chatBox(active,text,w,h)
