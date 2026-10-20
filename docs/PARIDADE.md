@@ -9,10 +9,10 @@ Estados: `pendente`, `em desenvolvimento`, `implementado sem teste de ponta a po
 | ID | Sistema de referência | Status da parte Lua | Critério para aprovar |
 | --- | --- | --- | --- |
 | P01 | Inicio Windows / motor Node original | correcao de instalacao criada, teste Windows pendente | Preparacao reutiliza download, adiciona config local ausente e confirma /ping do Node |
-| P02 | Sessao, ticket, spawn e retorno | nao integrado | /api/join, ingresso legitimo, spawn C/D, morte e respawn |
-| P03 | Transporte e eventos da partida | em desenvolvimento | WebSocket original, io-init, sessao assinada e pacotes decodificados |
+| P02 | Sessao, ticket, spawn e retorno | implementado parcialmente em codigo, sem teste de ponta a ponta | POST /api/join em localhost, token tk: valido, C/D reais, morte e respawn |
+| P03 | Transporte e eventos da partida | implementado parcialmente em codigo, sem teste Windows | WebSocket original, io-init, HMAC, mascaramento, eventos decodificados e telemetria local vazia |
 | P04 | Mapa completo e câmera | em desenvolvimento | biomas, área secreta, zoom, culling e mundo completo |
-| P05 | WASD, mira, seleção e ações | em desenvolvimento | comandos 9, D, F e z confirmados pelo servidor |
+| P05 | WASD, mira e acoes | em desenvolvimento (9, D e F ligados, sem teste; z pendente) | comandos autenticados de movimento, mira, mouse, inventario confirmados pelo servidor |
 | P06 | Recursos, coleta e dano em objetos | em desenvolvimento | coleta real atualiza recursos, XP e status |
 | P07 | 16 armas, variantes e projéteis | pendente | controles, desenho, ataques, recarga, efeitos e upgrades |
 | P08 | 23 itens, 14 grupos e construções | em desenvolvimento | seleções, custos, limite, reparos e objetos sincronizados |
@@ -35,10 +35,10 @@ Estados: `pendente`, `em desenvolvimento`, `implementado sem teste de ponta a po
 
 - `PREPARAR-SERVIDOR.bat` reutiliza o original baixado, supre somente `anticheat/config.js` quando ausente e executa o Node original num teste temporario em localhost. A politica de compatibilidade e documentada em `docs/CONFIG-LOCAL.md`, **nao representa os valores originais** e nao deve ser usada online.
 - Ponte TCP anterior removida. O cliente nao cria uma rota alternativa no Node original.
-- `src/net/original_client.lua`, `src/net/websocket_client.lua`, `src/net/secure_random.lua` implementam a sondagem HTTP e tentativa de conexao WebSocket diretamente ao servidor original em 8080.
-- `src/protocol/original_crypto.lua`, `src/protocol/original_build.lua`, `src/protocol/original_session.lua` implementam as tabelas, chave e frames binarios do protocolo original (integracao e testes reais pendentes).
-- `main.lua` mostra a etapa real da conexao, sem gerar mapa ou jogador simulado. Falta ingresso autenticado, spawn, receber/renderizar eventos de mundo e interface de jogo.
-- `tests/original_client.lua` e `tests/original_session.lua` testam os modulos de WebSocket e criptografia independentemente; execucao ponta a ponta ainda nao realizada.
+- `src/net/original_join.lua` emite ticket guest **pela propria API local `/api/join`** (usa o stand-in local de captcha que o autor publicou); `src/net/original_client.lua`, `src/net/websocket_client.lua` e `src/net/secure_random.lua` usam esse ticket em WebSocket `?token=tk:...`, com consulta `/ping` em 8080.
+- `src/protocol/original_crypto.lua`, `src/protocol/original_build.lua`, `src/protocol/original_session.lua` implementam tabelas, chave e frames binarios. `INICIAR-WINDOWS.bat` indica, **somente para leitura**, o caminho do build original. A integracao real precisa ser testada.
+- `main.lua` solicita o spawn pelo pacote original `M`, apresenta o ID somente apos o Node confirmar `C`, mostra posicao real recebida pelo pacote `a` e envia WASD, mira, clique e renascimento pelo protocolo original; ainda nao ha renderizacao grafica fiel.
+- `tests/original_join.lua`, `tests/original_client.lua` e `tests/original_session.lua` exercitam as requisicoes/tabelas/criptografia com mocks. **Nao substituem teste real no Windows**.
 
 ## Não confundir os resultados
 
