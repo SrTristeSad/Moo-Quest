@@ -61,12 +61,32 @@ async function download(){
 
 async function restoreUnpublishedConfig(){
   const target=path.join(DEST,"server","src","anticheat","config.js");
-  if(await exists(target)){
-    log("anticheat/config.js existente: preservado, sem substituicao.");
-    return;
-  }
   const source=path.join(ROOT,"support","local-anticheat-config.js");
   if(!(await exists(source)))throw Error("Moo-Quest nao inclui support/local-anticheat-config.js");
+  const current=await fs.readFile(source,"utf8");
+  if(await exists(target)){
+    // Existing author/custom files are never changed. Migrate ONLY the exact
+    // previous Moo-Quest template, identified byte-for-byte and with our
+    // explicit local-compatibility installation notice.
+    const old=current
+      .replace("// Native Lua cannot supply official browser bundle seals. Disable ONLY browser-specific\\n// gates in this local config; other auth, sequence, HMAC, rate limits remain active.\\n","")
+      .replace("enforceBundle: false, // Native Lua has no browser JS bundle; LOCAL ONLY.","enforceBundle: true,")
+      .replace("mode: 0, // No browser bundle to bind; keyed HMAC + ticket remain enabled.","mode: 2,");
+    const existing=await fs.readFile(target,"utf8");
+    const notice=path.join(DEST,"LOCAL-COMPATIBILITY-NOTICE.txt");
+    if(existing===old && await exists(notice)){
+      await fs.writeFile(target,current,{flag:"w"});
+      log("Configuracao Moo-Quest anterior atualizada para cliente Lua nativo (APENAS localhost).");
+      log("Ticket, origem, versao de build, HMAC e limites de pacotes continuam exigidos.");
+    }else{
+      log("anticheat/config.js existente/customizado: preservado sem substituicao.");
+      if(existing.includes("enforceBundle: true") || /mode:\\s*2[\\s,]/.test(existing)){
+        log("[AVISO] A configuracao existente exige bundle/seal de navegador; Lua pode ser recusado.");
+        log("[AVISO] Nao sobrescrevi configuracao desconhecida. Consulte docs/CONFIG-LOCAL.md.");
+      }
+    }
+    return;
+  }
   await fs.mkdir(path.dirname(target),{recursive:true});
   // wx: create missing file only. NEVER overwrite a legitimate original file.
   const handle=await fs.open(target,"wx");
