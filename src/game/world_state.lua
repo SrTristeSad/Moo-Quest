@@ -114,6 +114,14 @@ function World:apply(name,args)
     end
     for _,sid in ipairs(hidden) do self.animals[sid]=nil end
     return true
+  elseif name=="6" then
+    -- client/src/index.js receiveChat(sid,message): 3000ms speech bubble.
+    local p=self.players[args[1]]
+    if p and type(args[2])=="string" then
+      p.chatMessage=args[2]
+      p.chatCountdown=3000
+    end
+    return true
   elseif name=="J" then
     -- The JavaScript client invokes findAIBySID(sid):startAnim().
     local ai=self.animals[args[1]]
@@ -213,6 +221,9 @@ function World:update(dt)
   for _,group in ipairs({self.players,self.animals}) do
     for _,entity in pairs(group) do
       Animation.update(entity,dt)
+      if entity.chatCountdown and entity.chatCountdown>0 then
+        entity.chatCountdown=math.max(0,entity.chatCountdown-dt*1000)
+      end
       if entity.interp then
         entity.interp=math.min(1.7,entity.interp+dt*1000/170)
         entity.visualX=entity.fromX+(entity.toX-entity.fromX)*entity.interp
