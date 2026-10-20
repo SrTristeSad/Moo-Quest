@@ -2,6 +2,12 @@ package.path="./?.lua;./?/init.lua;"..package.path
 local World=require("src.game.world_state")
 local Hud=require("src.game.reference_hud")
 local w=World.new()
+assert(Hud.formatResource(nil)=="0")
+assert(Hud.formatResource({})=="0")
+assert(Hud.formatResource(0)=="0")
+assert(Hud.formatResource(500)=="500")
+assert(Hud.formatResource(20000)=="20.0k")
+
 local width,height=1280,720
 assert(Hud.hitTest(w,width,height,width/2,height-60)==nil)
 assert(w:apply("C",{0}))
