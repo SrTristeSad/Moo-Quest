@@ -98,7 +98,7 @@ local function drawProjectiles(world,camera,w,h,layer)
       if src then
         love.graphics.push()
         love.graphics.translate(x,y)
-        love.graphics.rotate((p.dir or 0)+(p.dirPlus or 0))
+        love.graphics.rotate(View.playerDrawAngle(p))
         if src.src then
           Assets.draw("weapons",src.src..".png",0,0,
             (src.scale or 100)*camera.zoom,(src.scale or 100)*camera.zoom)
@@ -184,6 +184,9 @@ local function playerBody(p,dt)
   if build>=0 then drawHeldItem(build,scale) end
   Shapes.circle(0,0,scale,col,Shapes.outline)
   drawHat(p)
+end
+function View.playerDrawAngle(player)
+  return (player.dir or 0)+(player.dirPlus or 0)
 end
 local function drawPlayer(p,camera,dt)
   local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
