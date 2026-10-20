@@ -1,0 +1,135 @@
+-- Direct Lua/LÖVE equivalents of Canvas shapes in client/src/index.js:
+-- renderCircle, renderStar, renderBlob, renderRect, renderRectCircle,
+-- renderTriangle and renderLeaf. No invented art assets.
+local P={}
+local pi=math.pi
+local cos,sin=math.cos,math.sin
+P.outline="#525252"
+P.darkOutline="#3d3f42"
+P.width=5.5
+
+function P.color(hex,alpha)
+  if type(hex)~="string" or not hex:match("^#%x%x%x%x%x%x$") then
+    hex=P.outline
+  end
+  love.graphics.setColor(
+    tonumber(hex:sub(2,3),16)/255,
+    tonumber(hex:sub(4,5),16)/255,
+    tonumber(hex:sub(6,7),16)/255,
+    alpha or 1)
+end
+
+function P.path(points,fillColor,strokeColor,width)
+  if #points<6 then return end
+  if fillColor then
+    P.color(fillColor)
+    love.graphics.polygon("fill",points)
+  end
+  if strokeColor then
+    P.color(strokeColor)
+    love.graphics.setLineWidth(width or P.width)
+    love.graphics.setLineJoin("miter")
+    love.graphics.polygon("line",points)
+  end
+end
+
+function P.circle(x,y,r,fillColor,strokeColor,width)
+  if type(r)~="number" or r<=0 then return end
+  if fillColor then
+    P.color(fillColor);love.graphics.circle("fill",x,y,r)
+  end
+  if strokeColor then
+    P.color(strokeColor);love.graphics.setLineWidth(width or P.width)
+    love.graphics.circle("line",x,y,r)
+  end
+end
+
+-- Exact radial vertices used by JS renderStar (two vertices per spike).
+function P.star(spikes,outer,inner,fillColor,strokeColor,width)
+  local pts={}
+  local angle=3*pi/2
+  local step=pi/spikes
+  for _=1,spikes do
+    pts[#pts+1]=cos(angle)*outer;pts[#pts+1]=sin(angle)*outer
+    angle=angle+step
+    pts[#pts+1]=cos(angle)*inner;pts[#pts+1]=sin(angle)*inner
+    angle=angle+step
+  end
+  P.path(pts,fillColor,strokeColor,width)
+end
+
+-- JS renderBlob uses one random quadratic Bezier segment per spike.
+-- LÖVE polygons approximate those same quadratic segments using samples.
+function P.blob(spikes,outer,inner,fillColor,strokeColor,width)
+  local pts={0,-inner}
+  local x0,y0=0,-inner
+  local rot=3*pi/2
+  local step=pi/spikes
+  for _=1,spikes do
+    local maxR=math.floor(outer*1.2)
+    local minR=math.ceil(outer+0.9)
+    local rad=math.max(minR,math.floor(minR+love.math.random()*math.max(1,maxR-minR+1)))
+    local cx,cy=cos(rot+step)*rad,sin(rot+step)*rad
+    local x1,y1=cos(rot+2*step)*inner,sin(rot+2*step)*inner
+    for j=1,12 do
+      local t=j/12
+      local a=(1-t)*(1-t);local b=2*(1-t)*t;local c=t*t
+      pts[#pts+1]=a*x0+b*cx+c*x1
+      pts[#pts+1]=a*y0+b*cy+c*y1
+    end
+    x0,y0=x1,y1
+    rot=rot+2*step
+  end
+  P.path(pts,fillColor,strokeColor,width)
+end
+
+function P.rect(x,y,w,h,fillColor,strokeColor,width)
+  if fillColor then
+    P.color(fillColor)
+    love.graphics.rectangle("fill",x-w/2,y-h/2,w,h)
+  end
+  if strokeColor then
+    P.color(strokeColor)
+    love.graphics.setLineWidth(width or P.width)
+    love.graphics.rectangle("line",x-w/2,y-h/2,w,h)
+  end
+end
+
+-- Canvas renderRectCircle rotates identical bars around the shared centre.
+function P.rectCircle(x,y,s,sw,seg,fillColor,strokeColor,width)
+  local n=math.ceil(seg/2)
+  love.graphics.push()
+  love.graphics.translate(x,y)
+  for _=1,n do
+    P.rect(0,0,s*2,sw,fillColor,strokeColor,width)
+    love.graphics.rotate(pi/n)
+  end
+  love.graphics.pop()
+end
+
+function P.triangle(s,color)
+  local h=s*math.sqrt(3)/2
+  P.path({0,-h/2,-s/2,h/2,s/2,h/2},color,nil)
+end
+
+function P.leaf(x,y,length,r,fillColor,strokeColor,width)
+  local ex=x+length*cos(r)
+  local ey=y+length*sin(r)
+  local spread=length*0.4
+  local mx=(x+ex)/2
+  local my=(y+ey)/2
+  local nx,ny=cos(r+pi/2)*spread,sin(r+pi/2)*spread
+  local pts={x,y}
+  for j=1,12 do
+    local t=j/12
+    pts[#pts+1]=(1-t)^2*x+2*(1-t)*t*(mx+nx)+t*t*ex
+    pts[#pts+1]=(1-t)^2*y+2*(1-t)*t*(my+ny)+t*t*ey
+  end
+  for j=1,12 do
+    local t=j/12
+    pts[#pts+1]=(1-t)^2*ex+2*(1-t)*t*(mx-nx)+t*t*x
+    pts[#pts+1]=(1-t)^2*ey+2*(1-t)*t*(my-ny)+t*t*y
+  end
+  P.path(pts,fillColor,strokeColor,width)
+end
+return P
