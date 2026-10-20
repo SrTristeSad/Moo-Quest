@@ -107,3 +107,17 @@ A principal verificacao do cliente nativo ainda e
 - O cliente **nao esta concluido**: faltam menus, animacoes/efeitos
   completos, validacao do cliente Lua no Windows e comparacao visual fiel
   com a referencia.
+
+## Sincronizacao do catalogo original de animais
+
+O servidor Node original envia o pacote `A` antes do nascimento do personagem.
+Esse pacote inclui `animals`: identificador, nome, arquivo de sprite, escala,
+escala de desenho, vida e tipo de animal. O Lua agora armazena essa lista em
+`src/game/world_state.lua` e consulta os valores **efetivamente enviados pelo
+Node** ao renderizar os animais, seus nomes e suas barras de vida. Apenas quando
+o servidor nao envia metadados de algum indice o cliente usa o catalogo Lua
+transcrito da mesma referencia. Nenhum boi ou vaca extra foi criado.
+
+A nova verificacao em `tests/world_state.lua` assegura que o pacote `A`
+recebido do Node tem prioridade sobre o catalogo estatico. Isso nao altera
+as regras, a IA nem o servidor.
