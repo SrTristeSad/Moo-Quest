@@ -1,5 +1,6 @@
 -- Protocol-driven game state. All entities originate in packets from the Node server.
 -- Packet layouts: al007ex/moomoo-clone/server/src/moomoo/server.js (pinned baseline).
+local Catalog=require("src.game.catalog")
 local World={}
 World.__index=World
 local function number(v) return type(v)=="number" and v==v and v~=math.huge and v~=-math.huge end
@@ -171,7 +172,6 @@ function World:apply(name,args)
 end
 function World:update(dt)
   if type(dt)~="number" or dt<=0 then return end
-  local Catalog=require("src.game.catalog")
   for _,o in pairs(self.objects) do
     if type(o.id)=="number" then
       local item=Catalog.itemById(o.id)
@@ -179,7 +179,7 @@ function World:update(dt)
         o.dir=(o.dir or 0)+item.turnSpeed*dt*1000
       end
     end
-    o.wiggleX=(o.wiggleX or 0)*math.pow(0.99,dt*1000)
+    o.wiggleX=(o.wiggleX or 0)*(0.99^(dt*1000))
     o.wiggleY=(o.wiggleY or 0)*math.pow(0.99,dt*1000)
   end
   for sid,p in pairs(self.projectiles) do
