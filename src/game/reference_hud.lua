@@ -82,7 +82,7 @@ local function ageBar(world,w,h)
   color(1,1,1)
   love.graphics.rectangle("fill",w/2-157,h-111,314*ratio,10,3,3)
 end
-local function actionBar(world,w,h)
+local function actionBarEntries(world)
   local weapons=world.inventory.weapons
   local items=world.inventory.items
   local entries={}
@@ -98,6 +98,10 @@ local function actionBar(world,w,h)
       if data then entries[#entries+1]={kind="item",id=id,data=data} end
     end
   end
+  return entries
+end
+local function actionBar(world,w,h)
+  local entries=actionBarEntries(world)
   local count=#entries
   if count==0 then return end
   local slot,space=66,10
@@ -130,6 +134,24 @@ local function chatBox(active,text,w,h)
   love.graphics.setFont(fontMedium)
   color(1,1,1)
   love.graphics.print((text or "").."|",bx+9,by+10)
+end
+-- Native LÖVE click target maps to original actionBarItem onclick/selectToBuild.
+-- CSS: 66 x 66, 5px margins on each side, bottom 17px.
+function H.hitTest(world,w,h,x,y)
+  if type(x)~="number" or type(y)~="number" then return nil end
+  local entries=actionBarEntries(world)
+  if #entries==0 then return nil end
+  local slot,space=66,10
+  local origin=(w-(#entries*(slot+space)-space))/2
+  local top=h-83
+  if y<top or y>=top+slot then return nil end
+  for i,entry in ipairs(entries) do
+    local left=origin+(i-1)*(slot+space)
+    if x>=left and x<left+slot then
+      return entry.id,entry.kind=="weapon"
+    end
+  end
+  return nil
 end
 function H.draw(world,chatActive,chatText)
   fonts()
