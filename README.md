@@ -9,8 +9,8 @@ Referencia congelada: [commit 06f7c1c](https://github.com/al007ex/moomoo-clone/t
 ## Status real
 
 - **Implementado em codigo:** cliente LÖVE, MessagePack, WebSocket RFC6455, consulta `GET /ping`, **POST /api/join (ticket guest valido emitido pelo proprio Node local)**, conexao direta com `?b=<build>&token=tk:<ticket>`, leitura do `io-init`, chave/tabelas autenticadas e envio do pacote original `M` (spawn). Eventos `C` e `a` sao processados para exibir ID e coordenadas autoritativas; WASD, mira e clique enviam comandos reais. **Esta integracao ainda nao foi validada de ponta a ponta no Windows.**
-- **Nao implementado:** login de contas, selo do bundle oficial quando exigido (seal 2), resposta completa a probes/telemetria, renderizacao de gameplay fiel, menus, artes licenciadas, inventario, armas, som e recursos visuais equivalentes. A requisicao guest usa **o stand-in de captcha da propria API local** (aceita um booleano); nao se aplica a servidores publicos.
-- **Jogabilidade grafica ainda nao concluida.** O fluxo de ticket/spawn agora esta escrito em codigo, mas somente uma execucao real com evento `C` recebido comprova que a sessao ingressou. O cliente nao usa a antiga simulacao Lua nem a ponte `nativeBridge.js`.
+- **Nao implementado:** login de contas, selo do bundle oficial quando exigido (seal 2), resposta completa a probes/telemetria, sprites de gameplay fieis, menus completos, artes licenciadas, renderizacao completa de armas/construcoes, som e demais recursos visuais equivalentes. O inventario recebe dados de rede, mas ainda nao possui HUD 1:1. A requisicao guest usa **o stand-in de captcha da propria API local** (aceita um booleano); nao se aplica a servidores publicos.
+- **Viewport do mundo em desenvolvimento:** o cliente agora guarda jogadores, objetos, animais e recursos enviados nos pacotes Node `C/D/a/H/I/N/O/Q/G/T/U/V/P` e desenha o terreno **somente quando o Node confirma a partida e envia a posicao**. A camera segue a coordenada do jogador, recebida do servidor. As formas vetoriais dos personagens/objetos sao temporarias e **nao equivalem aos sprites finais 1:1**. O cliente nao usa a antiga simulacao Lua nem a ponte `nativeBridge.js`.
 
 ### Bloqueio encontrado na propria referencia
 
@@ -37,3 +37,14 @@ A referencia contem materiais da FRVR e do cliente oficial identificados como de
 ## Proxima implementacao
 
 Validar a inicializacao no Windows apos o reparo da configuracao, completar o ingresso por **ticket autentico da API existente** e integridade apropriada ao cliente nativo; verificar spawn real antes de renderizar mundo. Nenhuma simulacao Lua ou substituicao do servidor.
+
+## Etapa de cliente grafico (em andamento)
+
+- `src/game/world_state.lua` aplica snapshots **reais** dos pacotes do Node. Nenhum animal, objeto ou jogador e criado aleatoriamente pelo cliente.
+- `src/game/reference_view.lua` desenha o terreno nas dimensoes e cores de referencia e visualiza entidades **somente apos o spawn**. As silhuetas ainda sao substitutos vetoriais temporarios; nao representam a arte definitiva.
+- WASD, mouse, espaco, teclas numericas, Q (consumivel), E (auto coleta), X (travar direcao) e R (ping do mapa quando vivo) enviam comandos equivalentes a referencia.
+- Para verificar apenas se o **servidor esta aceitando tickets**, inicie o Node e execute `VERIFICAR-CONEXAO.bat`. O teste faz `/ping` + `/api/join` + WebSocket e espera io-init real. Isto **nao testa o cliente Lua nem o spawn**.
+- `INICIAR-WINDOWS.bat` agora aguarda o servidor responder `/ping` antes de iniciar LÖVE.
+- `tests/world_state.lua` verifica os formatos publicados dos snapshots e foi registrado nos testes Lua. Executar teste unitario nao equivale a validar uma partida real no Windows.
+
+**Status: cliente INCOMPLETO.** Nenhuma reproducao 1:1 foi validada de ponta a ponta; ainda faltam renderizacao fiel, animacoes, interface, colisoes visuais, inventario e recursos sociais, entre outros sistemas.
