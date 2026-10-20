@@ -4,6 +4,8 @@
 local Original=require("src.net.original_client")
 local World=require("src.game.world_state")
 local View=require("src.game.reference_view")
+local Hud=require("src.game.reference_hud")
+local Assets=require("src.game.reference_assets")
 local Camera=require("src.camera")
 local Input=require("src.input")
 local Pack=require("src.protocol.msgpack")
@@ -22,9 +24,10 @@ local playerX,playerY=nil,nil
 local serverPackets=0
 local died=false
 local heartbeatClock=0
+local frameDelta=0
 
 function love.load()
-  love.graphics.setDefaultFilter("nearest","nearest")
+  love.graphics.setDefaultFilter("linear","linear")
   camera=Camera.new()
   if os.getenv("MOOQUEST_TESTS")=="1" then
     diagnostic=require("src.test_runner").run()
@@ -50,6 +53,7 @@ local function angle(y,x)
 end
 
 function love.update(dt)
+  frameDelta=dt
   if diagnostic or not client then return end
   client:update()
   for _,evt in ipairs(client:drain()) do
@@ -86,9 +90,10 @@ function love.update(dt)
       end
     end
   end
+  world:update(dt)
   local localPlayer=world:localPlayer()
   if localPlayer and localPlayer.x and localPlayer.y and camera then
-    camera:follow(localPlayer.x,localPlayer.y)
+    camera:followReference(localPlayer.x,localPlayer.y,dt)
   end
   if client.state=="spawn_confirmed" and not died then
     heartbeatClock=heartbeatClock+dt
@@ -148,16 +153,16 @@ function love.draw()
   local p=world:localPlayer()
   if client and client.state=="spawn_confirmed" and not died
     and p and p.x and p.y then
-    View.draw(world,camera)
-    -- HUD values are supplied by server N/T/G packets, not fabricated locally.
-    love.graphics.setColor(0,0,0,0.35)
-    love.graphics.rectangle("fill",12,12,340,54,8,8)
-    love.graphics.setColor(1,1,1)
-    love.graphics.print(string.format("%s  |  HP %d/%d  |  Age %d",
-      tostring(p.name or "Jogador"),p.health or 0,p.maxHealth or 100,world.age),22,21)
-    love.graphics.print(string.format("Wood %d  Food %d  Stone %d  Gold %d",
-      world.resources.wood or 0,world.resources.food or 0,
-      world.resources.stone or 0,world.resources.points or 0),22,42)
+    View.draw(world,camera,frameDelta)
+    Hud.draw(world)
+    -- When a reference PNG is absent, report the missing local source.
+    -- Never substitute a generated image or fabricated gameplay entity.
+    if #Assets.missing()>0 then
+      love.graphics.setColor(0,0,0,0.7)
+      love.graphics.rectangle("fill",12,12,520,40,4,4)
+      love.graphics.setColor(1,0.82,0.62)
+      love.graphics.print("Artes originais ausentes: execute PREPARAR-SERVIDOR.bat",20,23)
+    end
     return
   end
   love.graphics.setColor(0.12,0.18,0.15)
