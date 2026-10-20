@@ -2,7 +2,7 @@
 
 **Baseline:** [al007ex/moomoo-clone@06f7c1ca965a7628671676c8d9a7efd3997bb5e7](https://github.com/al007ex/moomoo-clone/tree/06f7c1ca965a7628671676c8d9a7efd3997bb5e7).
 
-**Nova regra:** o servidor Node.js **já contém** a simulação das mecânicas da referência. O trabalho do Moo-Quest agora se concentra na **conexão, renderização e controles do cliente Lua**. Não é necessário portar o Game/Player/AI do servidor para Lua. A antiga documentação de módulos `src/server/` é histórica: esses módulos **não são executados pelo cliente atual**.
+**Nova regra:** o servidor Node.js **já contém** a simulação das mecânicas da referência. O trabalho do Moo-Quest agora se concentra na **conexão, renderização e controles do cliente Lua**. Não é necessário portar o Game/Player/AI do servidor para Lua. Os antigos módulos `src/server/` foram removidos da árvore atual; seu histórico permanece no GitHub. **O único servidor em uso é Node.js.**
 
 Estados: `pendente`, `em desenvolvimento`, `implementado sem teste de ponta a ponta`, `verificado em Windows`. **Nenhum dos sistemas foi ainda verificado em Windows após esta mudança de arquitetura.**
 
