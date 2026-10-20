@@ -21,7 +21,7 @@ for _,v in ipairs(Catalog.hats) do hatById[v.id]=v end
 for _,v in ipairs(Catalog.accessories) do tailById[v.id]=v end
 local function see(e,camera,w,h,scale)
   if type(e.x)~="number" or type(e.y)~="number" then return false end
-  local x,y=camera:worldToScreen(e.x,e.y)
+  local x,y=camera:worldToScreen(e.visualX or e.x,e.visualY or e.y)
   local s=(scale or e.scale or 120)*camera.zoom
   return x+s>=0 and x-s<=w and y+s>=0 and y-s<=h
 end
@@ -89,7 +89,7 @@ end
 local function drawProjectiles(world,camera,w,h,layer)
   for _,p in pairs(world.projectiles) do
     if (p.layer or 0)==layer and see(p,camera,w,h,180) then
-      local x,y=camera:worldToScreen(p.x,p.y)
+      local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
       local src=type(p.indx)=="number" and
         Catalog.projectiles[p.indx+1] or nil
       if src then
@@ -111,7 +111,7 @@ end
 local function renderAnimal(a,camera)
   local kind=Animals.byId(a.index)
   if not kind or not kind.src then return end
-  local x,y=camera:worldToScreen(a.x,a.y)
+  local x,y=camera:worldToScreen(a.visualX or a.x,a.visualY or a.y)
   -- renderAI: tmpScale = scale * 1.2 * spriteMlt
   local radius=kind.scale*1.2*(kind.spriteMlt or 1)*camera.zoom
   Assets.draw("animals",kind.src..".png",x,y,radius*2,radius*2,
@@ -195,7 +195,7 @@ end
 local function labels(world,camera,w,h)
   for _,p in pairs(world.players) do
     if p.x and p.y and p.invisible~=1 and see(p,camera,w,h) then
-      local x,y=camera:worldToScreen(p.x,p.y)
+      local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
       local scale=(p.scale or C.playerScale)*camera.zoom
       local name=(p.team and "["..tostring(p.team).."] " or "")..
         tostring(p.name or "")
