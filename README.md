@@ -22,6 +22,7 @@ Pré-requisitos: Node.js 20+ com npm, LÖVE 2D 11.5 e PowerShell (Windows).
 2. Rode **`PREPARAR-SERVIDOR.bat`** uma vez com internet: baixa o commit-base, extrai apenas `server/` e `shared/`, instala as dependências Node e aplica a ponte de cliente Lua.
 3. Rode **`TESTAR-WINDOWS.bat`** para verificar os módulos locais Lua (não substitui teste real).
 4. Rode **`INICIAR-WINDOWS.bat`**: inicia o Node numa janela separada e abre o cliente LÖVE.
+5. Com o Node já rodando, abra **`TESTAR-NODE-WINDOWS.bat`** para verificar por uma segunda conexão que o Game original confirmou spawn e movimentação.
 
 O script de preparação não inclui nem redistribui os assets do cliente oficial. Veja [docs/EXECUTAR-LOCAL.md](docs/EXECUTAR-LOCAL.md).
 
