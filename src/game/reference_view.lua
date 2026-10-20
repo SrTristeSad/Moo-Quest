@@ -233,25 +233,109 @@ local function drawChatBubble(p,x,y,scale)
   love.graphics.print(content,cx-tw/2,cy-chatFont:getHeight()/2)
   love.graphics.setFont(previous)
 end
+-- Render labels at original Canvas world coordinates; CSS HUD is separate.
+function View.isTeammate(world,p)
+  local me=world:localPlayer()
+  return p.sid==world.sid or (me and type(me.team)=="string"
+    and #me.team>0 and p.team==me.team) or false
+end
+function View.playerNameVisible(world,p)
+  -- JS hides the name and health bar of enemy skin 10 (Assassin).
+  return p.skin~=10 or View.isTeammate(world,p)
+end
+function View.animalName(a)
+  local kind=Animals.byId(a.index)
+  if not kind then return nil end
+  if type(kind.name)=="string" then return kind.name end
+  if type(a.nameIndex)=="number" and a.nameIndex%1==0 then
+    return C.cowNames[a.nameIndex+1]
+  end
+  return nil
+end
+local labelFonts={}
+local function font(size)
+  size=math.max(10,math.floor(size))
+  if not labelFonts[size] then labelFonts[size]=love.graphics.newFont(size) end
+  return labelFonts[size]
+end
+local function labelText(content,sz)
+  if type(content)~="string" or content=="" then return 0 end
+  local f=font(sz)
+  love.graphics.setFont(f)
+  local w=f:getWidth(content)
+  local top=-C.nameY
+  -- JS uses strokeText with darkOutlineColor and rounded 8/11px stroke.
+  Shapes.color(Shapes.darkOutline)
+  local radius=(sz==30) and 4 or 5.5
+  for i=0,7 do
+    local angle=i*pi/4
+    love.graphics.print(content,-w/2+cos(angle)*radius,
+      top-f:getHeight()/2+sin(angle)*radius)
+  end
+  love.graphics.setColor(1,1,1)
+  love.graphics.print(content,-w/2,top-f:getHeight()/2)
+  return w
+end
+local function labelHealth(health,maxHealth,friendly)
+  if type(health)~="number" or health<=0
+    or type(maxHealth)~="number" or maxHealth<=0 then return end
+  local bar=C.healthBarWidth
+  local pad=C.healthBarPad
+  local ratio=math.max(0,math.min(1,health/maxHealth))
+  Shapes.color(Shapes.darkOutline)
+  love.graphics.rectangle("fill",-bar-pad,C.nameY,bar*2+pad*2,17,8,8)
+  Shapes.color(friendly and "#8ecc51" or "#cc5151")
+  love.graphics.rectangle("fill",-bar,C.nameY+pad,bar*2*ratio,
+    17-pad*2,7,7)
+end
 local function labels(world,camera,w,h)
+  local previous=love.graphics.getFont()
+  for _,p in pairs(world.players) do
+    if p.x and p.y and p.invisible~=1 and see(p,camera,w,h) then
+      if View.playerNameVisible(world,p) then
+        local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
+        local s=p.scale or C.playerScale
+        love.graphics.push()
+        love.graphics.translate(x,y-s*camera.zoom)
+        love.graphics.scale(camera.zoom)
+        local name=(type(p.team)=="string" and
+          "["..p.team.."] " or "")..tostring(p.name or "")
+        local textWidth=labelText(name,30)
+        if p.isLeader==1 or p.isLeader==true then
+          Assets.draw("icons","crown.png",
+            -textWidth/2-C.crownPad-C.crownIconScale/2,-C.nameY-5,
+            C.crownIconScale,C.crownIconScale)
+        end
+        if p.icon==1 then
+          Assets.draw("icons","skull.png",
+            textWidth/2+C.crownPad+C.crownIconScale/2,-C.nameY-5,
+            C.crownIconScale,C.crownIconScale)
+        end
+        labelHealth(p.health,p.maxHealth,View.isTeammate(world,p))
+        love.graphics.pop()
+      end
+    end
+  end
+  for _,a in pairs(world.animals) do
+    if a.x and a.y and see(a,camera,w,h) then
+      local kind=Animals.byId(a.index)
+      if kind then
+        local x,y=camera:worldToScreen(a.visualX or a.x,a.visualY or a.y)
+        love.graphics.push()
+        love.graphics.translate(x,y-(kind.scale or 75)*camera.zoom)
+        love.graphics.scale(camera.zoom)
+        labelText(View.animalName(a),kind.nameScale or 30)
+        labelHealth(a.health,kind.health,false)
+        love.graphics.pop()
+      end
+    end
+  end
+  love.graphics.setFont(previous)
+  -- In client/src/index.js speech bubbles come after all world name/HP labels.
   for _,p in pairs(world.players) do
     if p.x and p.y and p.invisible~=1 and see(p,camera,w,h) then
       local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
-      local scale=(p.scale or C.playerScale)*camera.zoom
-      local name=(p.team and "["..tostring(p.team).."] " or "")..
-        tostring(p.name or "")
-      love.graphics.setColor(1,1,1,1)
-      love.graphics.printf(name,x-125,y-scale-39,250,"center")
-      drawChatBubble(p,x,y,scale)
-      if type(p.health)=="number" and type(p.maxHealth)=="number"
-        and p.maxHealth>0 and p.health>0 then
-        local bar=50*2*camera.zoom
-        local ratio=math.max(0,math.min(1,p.health/p.maxHealth))
-        Shapes.color(Shapes.darkOutline)
-        love.graphics.rectangle("fill",x-bar/2-4.5,y+scale+34,bar+9,17,8)
-        Shapes.color(p.sid==world.sid and "#8ecc51" or "#cc5151")
-        love.graphics.rectangle("fill",x-bar/2,y+scale+38.5,bar*ratio,8,4)
-      end
+      drawChatBubble(p,x,y,(p.scale or C.playerScale)*camera.zoom)
     end
   end
 end
