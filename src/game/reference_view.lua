@@ -81,7 +81,30 @@ local function drawObjectLayer(world,camera,w,h,layer)
   for _,o in pairs(world.objects) do
     if Objects.layer(o)==layer and see(o,camera,w,h,tonumber(o.scale) or 100) then
       local x,y=camera:worldToScreen(o.x,o.y)
-      Objects.draw(o,x,y,camera.zoom)
+      Objects.draw(o,x+(o.wiggleX or 0)*camera.zoom,
+        y+(o.wiggleY or 0)*camera.zoom,camera.zoom)
+    end
+  end
+end
+local function drawProjectiles(world,camera,w,h,layer)
+  for _,p in pairs(world.projectiles) do
+    if (p.layer or 0)==layer and see(p,camera,w,h,180) then
+      local x,y=camera:worldToScreen(p.x,p.y)
+      local src=type(p.indx)=="number" and
+        Catalog.projectiles[p.indx+1] or nil
+      if src then
+        love.graphics.push()
+        love.graphics.translate(x,y)
+        love.graphics.rotate(p.dir or 0)
+        if src.src then
+          Assets.draw("weapons",src.src..".png",0,0,
+            (src.scale or 100)*camera.zoom,(src.scale or 100)*camera.zoom)
+        elseif src.indx==1 then
+          Shapes.circle(0,0,(src.scale or 20)*camera.zoom,
+            "#939393",Shapes.outline)
+        end
+        love.graphics.pop()
+      end
     end
   end
 end
@@ -195,6 +218,7 @@ function View.draw(world,camera,dt)
   ground(camera,w,h)
   grid(camera,w,h)
   drawObjectLayer(world,camera,w,h,-1)
+  drawProjectiles(world,camera,w,h,0)
   for _,p in pairs(world.players) do
     if (p.zIndex or 0)==0 and p.x and p.y and p.invisible~=1
       and see(p,camera,w,h) then drawPlayer(p,camera,dt or 0) end
@@ -204,6 +228,7 @@ function View.draw(world,camera,dt)
     if kind and see(a,camera,w,h,kind.scale*2.4) then renderAnimal(a,camera) end
   end
   drawObjectLayer(world,camera,w,h,0)
+  drawProjectiles(world,camera,w,h,1)
   drawObjectLayer(world,camera,w,h,1)
   for _,p in pairs(world.players) do
     if (p.zIndex or 0)==1 and p.x and p.y and p.invisible~=1
