@@ -21,7 +21,7 @@ end
 function World.new()
   return setmetatable({
     sid=nil,spawned=false,dead=false,players={},objects={},animals={},projectiles={},
-    resources={},inventory={weapons={},items={}},leaderboard={},
+    resources={},itemCounts={},inventory={weapons={},items={}},leaderboard={},
     xp=0,maxXP=0,age=1,upgradePoints=0,upgradeAge=0,
     minimapData={},mapPings={},mapMarker=nil,lastDeath=nil,
     packets=0,lastPacket=nil
@@ -43,6 +43,7 @@ function World:apply(name,args)
     self.xp=0;self.maxXP=300;self.age=1
     self.upgradePoints=0;self.upgradeAge=2
     self.resources={}
+    self.itemCounts={}
     return true
   elseif name=="D" then
     -- [id,sid,name,x,y,dir,health,maxHealth,scale,skinColor,...]
@@ -212,6 +213,12 @@ function World:apply(name,args)
     local data=array(args[1])
     if args[2]==1 then self.inventory.weapons=data
     elseif args[2]==0 then self.inventory.items=data end
+    return true
+  elseif name=="S" then
+    -- server/src/moomoo/modules/player.js changeItemCount(index,value).
+    if validId(args[1]) and number(args[2]) then
+      self.itemCounts[args[1]]=args[2]
+    end
     return true
   elseif name=="T" then
     if number(args[1]) then self.xp=args[1] end
