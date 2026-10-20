@@ -23,10 +23,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y lua${{ matrix.version }}
-      - name: Test active Lua client and Node protocol adapters
+      - name: Test WebSocket and handshake for unmodified original Node server
         run: |
           set -eu
-          for test in tests/msgpack.lua tests/msgpack_gameplay.lua tests/local_frames.lua tests/local_client.lua tests/node_protocol.lua tests/catalog.lua; do
+          for test in tests/handshake.lua tests/msgpack.lua tests/msgpack_gameplay.lua tests/bootstrap.lua tests/upgrade.lua tests/websocket_frames.lua tests/websocket_client.lua tests/original_client.lua tests/catalog.lua; do
             echo "RUN $test"
             lua${{ matrix.version }} "$test"
           done
