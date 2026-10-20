@@ -120,8 +120,13 @@ function World:apply(name,args)
     end
     return true
   elseif name=="R" then
-    local data=array(args[1])
-    for _,sid in ipairs(data) do self.objects[sid]=nil end
+    -- client/src/index.js killObjects(ownerSid): remove every item of that owner.
+    local ownerSid=args[1]
+    if validId(ownerSid) then
+      for sid,o in pairs(self.objects) do
+        if o.owner==ownerSid then self.objects[sid]=nil end
+      end
+    end
     return true
   elseif name=="L" then
     local direction,sid=args[1],args[2]
