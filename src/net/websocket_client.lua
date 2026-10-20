@@ -58,7 +58,7 @@ function Client:connect(host,port,path)
     return false,self.error
   end
   self.out=Upgrade.request(host,port,path,key)
-  self.state="connecting"
+  self.state=(ok or connectError=="already connected") and "upgrading" or "tcp_connecting"
   return true
 end
 function Client:send(payload,opcode)
@@ -76,6 +76,14 @@ function Client:close()
 end
 function Client:update()
   if not self.tcp then return end
+  -- Wait for TCP writability before sending the HTTP upgrade request.
+  if self.state=="tcp_connecting" then
+    if type(self.socketLib.select)~="function" then self:fail("socket.select required");return end
+    local _,writable,selectError=self.socketLib.select(nil,{self.tcp},0)
+    if selectError and selectError~="timeout" then self:fail(selectError);return end
+    if not writable or #writable==0 then return end
+    self.state="upgrading"
+  end
   -- Nonblocking LuaSocket send returns (sent, err, last) with indices into supplied string.
   if #self.out>0 then
     local sent,err,last=self.tcp:send(self.out)
@@ -87,7 +95,7 @@ function Client:update()
   local chunk=data or partial or ""
   if #chunk>0 then self.input=self.input..chunk end
   if #self.input>self.maxBuffer then self:fail("incoming buffer too large");return end
-  if self.state=="connecting" then
+  if self.state=="upgrading" then
     local at=self.input:find("\r\n\r\n",1,true)
     if at then
       local header=self.input:sub(1,at+3)
