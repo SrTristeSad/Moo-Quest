@@ -274,6 +274,11 @@ function love.keypressed(key)
       return
     end
     if key=="r" then client:send("S",{1});return end
+    if key=="c" then
+      local p=world:localPlayer()
+      if p and p.x and p.y then world.mapMarker={x=p.x,y=p.y} end
+      return
+    end
     if key=="q" and world.inventory.items[1]~=nil then
       client:send("z",{world.inventory.items[1],false});return
     end
@@ -350,6 +355,10 @@ function love.mousepressed(x,y,button)
   if chatOpen then return end
   if button==1 then
     local w,h=love.graphics.getDimensions()
+    if Hud.mapHitTest(w,h,x,y) then
+      client:send("S",{1})
+      return
+    end
     local upgradeIndex=Upgrades.hitTest(world,w,x,y)
     if upgradeIndex~=nil then
       client:send("H",{upgradeIndex})
