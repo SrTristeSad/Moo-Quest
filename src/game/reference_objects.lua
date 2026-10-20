@@ -168,12 +168,20 @@ local function buildSprite(key,size,rotation,draw)
   return image
 end
 
-function O.sprite(obj)
+function O.sprite(obj,asIcon)
   local item=type(obj.id)=="number" and Catalog.itemById(obj.id) or nil
   if item then
-    local key="item:"..tostring(item.id)
+    -- getItemSprite(asIcon): action bar uses 0-degree rotation and a stroke
+    -- scaled to canvas width/81. World items use a 90-degree rotation.
+    local key=(asIcon and "item-icon:" or "item:")..tostring(item.id)
     local size=item.scale*2.5+P.width+(item.spritePadding or 0)
-    return buildSprite(key,size,pi/2,function() return drawItem(item) end)
+    return buildSprite(key,size,asIcon and 0 or pi/2,function()
+      local originalWidth=P.width
+      if asIcon then P.width=originalWidth*(math.floor(size)/81) end
+      local ok=drawItem(item)
+      P.width=originalWidth
+      return ok
+    end)
   end
   local typ,scale=obj.type,obj.scale
   if type(typ)~="number" or type(scale)~="number" then return nil end
