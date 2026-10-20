@@ -10,6 +10,7 @@ M.paths={
   "tests/websocket_frames.lua",
   "tests/websocket_client.lua",
   "tests/original_client.lua",
+  "tests/original_join.lua",
   "tests/original_session.lua",
   "tests/catalog.lua"
 }
