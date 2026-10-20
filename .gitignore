@@ -9,3 +9,6 @@ logs/
 node-runtime/
 *.log
 *.love
+
+# Local copy of the reference client's third-party PNGs; never commit
+assets/reference/
