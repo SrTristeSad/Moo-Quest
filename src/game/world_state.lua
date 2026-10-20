@@ -206,7 +206,7 @@ function World:update(dt)
       end
     end
     o.wiggleX=(o.wiggleX or 0)*(0.99^(dt*1000))
-    o.wiggleY=(o.wiggleY or 0)*math.pow(0.99,dt*1000)
+    o.wiggleY=(o.wiggleY or 0)*(0.99^(dt*1000))
   end
   for sid,p in pairs(self.projectiles) do
     if p.skipMov then
