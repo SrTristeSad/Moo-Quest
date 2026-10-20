@@ -203,6 +203,33 @@ function love.keypressed(key)
   if key=="escape" then love.event.quit();return end
   if diagnostic then return end
   input:keypressed(key)
+  -- Mirror the reference client's default gameplay bindings.
+  if client and client.state=="spawn_confirmed" and not died then
+    if key=="e" then client:send("K",{1});return end
+    if key=="x" then client:send("K",{0});return end
+    if key=="r" then client:send("S",{1});return end
+    if key=="q" and world.inventory.items[1]~=nil then
+      client:send("z",{world.inventory.items[1],false});return
+    end
+    local slot=tonumber(key)
+    if slot and slot>=1 and slot<=9 then
+      local weapons=world.inventory.weapons
+      local items=world.inventory.items
+      if weapons[slot]~=nil then
+        client:send("z",{weapons[slot],true})
+      else
+        local item=items[slot-#weapons]
+        if item~=nil then client:send("z",{item,false}) end
+      end
+      return
+    end
+    if key=="space" then
+      local w,h=love.graphics.getDimensions()
+      local mx,my=love.mouse.getPosition()
+      client:send("F",{1,angle(my-h/2,mx-w/2)})
+      return
+    end
+  end
   if key=="r" and client then
     if died and client.state=="spawn_confirmed" then
       local ok,reason=client:send("M",{
@@ -229,6 +256,17 @@ function love.keypressed(key)
 end
 function love.keyreleased(key)
   if not diagnostic then input:keyreleased(key) end
+  if key=="space" and client and client.state=="spawn_confirmed" then
+    client:send("F",{0,Pack.null})
+  end
+end
+function love.focus(focused)
+  if not focused and client and client.state=="spawn_confirmed" then
+    client:send("e",{})
+    client:send("F",{0,Pack.null})
+    input.keys={}
+    lastMove=false
+  end
 end
 function love.mousepressed(_,_,button)
   if diagnostic or not client or client.state~="spawn_confirmed" or died then return end
