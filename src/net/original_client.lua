@@ -1,7 +1,8 @@
--- DIRECT client of unmodified al007ex/moomoo-clone WebSocket endpoint.
--- No nativeBridge, no unofficial local TCP framing.
--- Incomplete: the original server requires build-pinned encrypted gameplay
--- frames, join ticket and browser seal/telemetry. This module does NOT fake them.
+-- DIRECT client of the original al007ex/moomoo-clone WebSocket endpoint.
+-- The reconstructed Node game logic is unchanged (a missing local config
+-- file can be added by the Windows installer). No custom TCP gateway.
+-- Uses the original /api/join ticket, pinned authenticated transport, and
+-- original spawn messages. Browser-specific bundle seal still unsupported.
 local SocketWS=require("src.net.websocket_client")
 local Bootstrap=require("src.protocol.bootstrap")
 local Random=require("src.net.secure_random")
