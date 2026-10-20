@@ -61,3 +61,11 @@ Validar no Windows `/api/join -> io-init -> M -> C` e recepcao dos objetos/anima
 - Os novos testes `tests/reference_animation.lua`, `tests/reference_upgrades.lua` e `tests/world_state.lua` verificam protocolos e estado sem simular um jogo completo. O GitHub Actions pode falhar antes de executar os jobs na plataforma; uma falha sem etapas executadas nao comprova problema no Lua nem sucesso. O teste real deve ser feito no LÖVE 2D no Windows.
 
 **Meta continua a mesma:** cliente Lua reproduzindo o original, Node.js como servidor autoritativo e **nenhuma mudanca de design ou de jogabilidade sem pedido**.
+
+## Porte de interacao / minimapa do cliente JavaScript
+
+Nesta etapa, o cliente Lua passou a oferecer **clique nos itens e nas armas da barra original**, sem converter o clique em ataque. Mouse e Espaco gerenciam juntos a acao `F`, e a tecla X mantem a mira fixa ate ser acionada novamente. As miniaturas de armas usam a rotacao original de 225 graus, enquanto miniaturas de construcao usam o sprite do `getItemSprite(asIcon=true)` (sem a rotacao de 90 graus dos itens no mundo).
+
+Os pacotes autoritativos `7` e `9` agora atualizam posicoes da equipe e pings de mapa: o minimapa 130x130 mostra circulos brancos na escala da referencia, a posicao da morte, e o efeito expansivo conforme o cliente JS. Clique no minimapa e R enviam ping, enquanto C marca a posicao atual. Nao sao entidades inventadas pelo Lua.
+
+Teste local: `TESTAR-WINDOWS.bat` roda os testes do codigo Lua via LÖVE. O `INICIAR-WINDOWS.bat` abre a conexao real ao Node. **Nenhum sucesso de teste foi declarado sem execucao**. Menus completos e paridade grafica pixel a pixel continuam pendentes.
