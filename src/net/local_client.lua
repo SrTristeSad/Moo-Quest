@@ -1,5 +1,6 @@
--- Client-side nonblocking loopback TCP link for Moo-Quest native Lua server.
+-- Client-side nonblocking loopback TCP link for the reconstructed Node.js server.
 -- Uses the framed MessagePack API defined in src/net/local_frames.lua.
+-- This module is transport-only: server authority stays with Node.js.
 local Frames=require("src.net.local_frames")
 local Client={}
 Client.__index=Client
@@ -14,6 +15,8 @@ end
 function Client:connect(port)
   if self.socket then return false,"connection active" end
   self.port=port or 17017
+  self.input,self.output,self.messages="","",{}
+  self.error=nil
   local sock,err=self.socketLib.tcp()
   if not sock then self.state="failed";self.error=err;return false,err end
   sock:settimeout(0)
