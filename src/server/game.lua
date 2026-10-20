@@ -6,6 +6,7 @@ local World=require("src.server.world")
 local Player=require("src.server.player")
 local Config=require("src.game.config")
 local Catalog=require("src.game.catalog")
+local Animals=require("src.server.animals")
 local Game={}
 Game.__index=Game
 local pi=math.pi
@@ -38,9 +39,10 @@ function Game.new(options)
   options=options or {}
   local world=options.world or World.new(options)
   if options.generate~=false then world:generate() end
+  local animals=options.animals or Animals.new(world)
   return setmetatable({
     world=world,config=world.config or Config,players={},nextSid=0,
-    elapsed=0
+    animals=animals,elapsed=0
   },Game)
 end
 function Game:worldPacket()
@@ -60,6 +62,9 @@ function Game:playerPacket()
   end
   return {"players",out}
 end
+function Game:animalPacket()
+  return self.animals:packet()
+end
 function Game:statusPacket(p)
   return {"status",p.sid,p.wood,p.food,p.stone,p.points,p.XP,p.age,p.health}
 end
@@ -77,7 +82,7 @@ function Game:join(id,name)
   p.itemCounts={}
   p.lastAttack=-1000
   self.players[id]=p
-  return p,{self:worldPacket(),{"welcome",p.sid,p.name},self:statusPacket(p),self:playerPacket()}
+  return p,{self:worldPacket(),{"welcome",p.sid,p.name},self:statusPacket(p),self:playerPacket(),self:animalPacket()}
 end
 function Game:leave(id)
   self.players[id]=nil
@@ -102,6 +107,16 @@ function Game:attack(p)
           p.maxXP=p.maxXP*1.2
           p.upgradePoints=p.upgradePoints+1
         end
+        hits=hits+1
+        changed=true
+      end
+    end
+  end
+  for _,animal in ipairs(self.animals.list) do
+    if animal.alive and not animal.submerged and animal.spawnCounter==0 then
+      local range=distance(p.x,p.y,animal.x,animal.y)-animal.scale*1.8
+      if range<=weapon.range and angleDiff(atan2(animal.y-p.y,animal.x-p.x),p.dir)<=self.config.gatherAngle then
+        self.animals:hit(animal,p,weapon)
         hits=hits+1
         changed=true
       end
@@ -181,6 +196,7 @@ function Game:tick(delta)
   for _,p in pairs(self.players) do
     p:tick(delta)
   end
+  self.animals:tick(delta,self.players)
   return self:playerPacket()
 end
 return Game
