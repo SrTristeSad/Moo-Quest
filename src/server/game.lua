@@ -11,6 +11,15 @@ local pi=math.pi
 local function finite(v)
   return type(v)=="number" and v==v and v~=math.huge and v~=-math.huge
 end
+local Pack=require("src.protocol.msgpack")
+local function atan2(y,x)
+  if math.atan2 then return math.atan2(y,x) end
+  if x>0 then return math.atan(y/x) end
+  if x<0 then return math.atan(y/x)+(y>=0 and math.pi or -math.pi) end
+  if y>0 then return math.pi/2 end
+  if y<0 then return -math.pi/2 end
+  return 0
+end
 local function distance(x,y,a,b)
   local dx,dy=x-a,y-b
   return math.sqrt(dx*dx+dy*dy)
@@ -80,7 +89,7 @@ function Game:attack(p)
   for _,o in ipairs(self.world.objects) do
     if o.active and not o.isItem and o.type>=0 and o.type<=3 then
       local dist=distance(p.x,p.y,o.x,o.y)-o.scale
-      if dist<=65 and angleDiff(math.atan2 and math.atan2(o.y-p.y,o.x-p.x) or math.atan(o.y-p.y,o.x-p.x),p.dir)<=pi/2.6 then
+      if dist<=65 and angleDiff(atan2(o.y-p.y,o.x-p.x),p.dir)<=pi/2.6 then
         local resource=({"wood","food","stone","points"})[o.type+1]
         local count=(o.type==3 and 5 or 1)
         p[resource]=p[resource]+count
@@ -134,7 +143,9 @@ function Game:command(id,packet)
   if not p or type(packet)~="table" then return {} end
   local action=packet[1]
   if action=="move" then
-    p:setMoveDir(packet[2]==require("src.protocol.msgpack").null and nil or packet[2])
+    local direction=packet[2]
+    if direction==Pack.null then direction=nil end
+    p:setMoveDir(direction)
   elseif action=="aim" then
     p:setAim(packet[2])
   elseif action=="attack" then
