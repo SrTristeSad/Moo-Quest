@@ -1,6 +1,7 @@
 local Camera=require("src.camera")
 local Input=require("src.input")
 local Client=require("src.net.local_client")
+local AnimalTypes=require("src.game.animals")
 local camera,input,client,serverThread
 local serverStatus="Iniciando servidor Lua..."
 local world=nil
@@ -144,10 +145,8 @@ local function drawAnimals(w,h)
       love.graphics.setColor(0.25,0.16,0.14)
       love.graphics.rectangle("fill",x-r*0.7,y+r+6,r*1.4,5)
       -- Full health values are sent by the authoritative Lua server.
-      local typeHealth={[0]=500,[1]=800,[2]=1800,[3]=2800,[4]=300,[5]=300,
-        [6]=18000,[7]=20000,[8]=7000,[9]=900,[10]=3200,[11]=480000,
-        [12]=650,[13]=500,[14]=250}
-      local max=typeHealth[animal.index] or 1
+      local def=AnimalTypes.byId(animal.index)
+      local max=def and def.health or 1
       love.graphics.setColor(0.25,0.76,0.33)
       love.graphics.rectangle("fill",x-r*0.7,y+r+6,r*1.4*math.max(0,math.min(1,animal.health/max)),5)
     end
