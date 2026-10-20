@@ -5,6 +5,10 @@ assert(w:localPlayer()==nil and w.spawned==false)
 assert(w:apply("C",{42}) and w.spawned and w.sid==42)
 assert(w.inventory.weapons[1]==0 and #w.inventory.items==4)
 assert(w.inventory.items[1]==0 and w.inventory.items[4]==10)
+
+assert(w:apply("S",{6,3}) and w.itemCounts[6]==3)
+assert(w:apply("S",{6,2}) and w.itemCounts[6]==2)
+
 assert(w.maxXP==300 and w.upgradeAge==2)
 assert(w:apply("D",{{"socket-1",42,"Player",100,200,1.5,85,100,35,0}}))
 assert(w:localPlayer().name=="Player" and w:localPlayer().health==85)
