@@ -181,6 +181,18 @@ function Game:command(id,packet)
   elseif action=="attack" then
     local hit=self:attack(p)
     if hit then return {hit,self:statusPacket(p)} end
+  elseif action=="respawn" then
+    if p.alive then return {} end
+    p:spawn()
+    local c=self.config
+    local initial=(c.unlimitedResources and c.unlimitedAmount) or 0
+    p.wood,p.food,p.stone,p.points=initial,initial,initial,initial
+    p.XP,p.maxXP,p.age,p.upgradePoints=0,300,1,0
+    p.weaponIndex=0
+    p.items={0,3,6,10}
+    p.itemCounts={}
+    p.lastAttack=self.elapsed-1000
+    return {{"respawned",p.sid},self:statusPacket(p),self:playerPacket()}
   elseif action=="build" then
     local ok,result=self:buildWall(p,packet[2])
     if ok then
