@@ -2,11 +2,14 @@
 -- No shell Lua installation or network connection required.
 local M={}
 M.paths={
+  "tests/handshake.lua",
   "tests/msgpack.lua",
   "tests/msgpack_gameplay.lua",
-  "tests/local_frames.lua",
-  "tests/local_client.lua",
-  "tests/node_protocol.lua",
+  "tests/bootstrap.lua",
+  "tests/upgrade.lua",
+  "tests/websocket_frames.lua",
+  "tests/websocket_client.lua",
+  "tests/original_client.lua",
   "tests/catalog.lua"
 }
 function M.run()
