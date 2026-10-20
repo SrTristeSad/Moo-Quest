@@ -3,6 +3,7 @@ local Input=require("src.input")
 local Client=require("src.net.local_client")
 local AnimalTypes=require("src.game.animals")
 local camera,input,client,serverThread
+local testResults=nil
 local serverStatus="Iniciando servidor Lua..."
 local world=nil
 local players={}
@@ -227,6 +228,10 @@ end
 
 function love.load()
   love.graphics.setDefaultFilter("nearest","nearest")
+  if os.getenv("MOOQUEST_TESTS")=="1" then
+    testResults=require("src.test_runner").run()
+    return
+  end
   camera=Camera.new()
   camera.zoom=1
   input=Input.new()
@@ -241,6 +246,7 @@ function love.resize(w,h)
   if camera then camera:resize(w,h) end
 end
 function love.update(dt)
+  if testResults then return end
   input:update(dt)
   if serverThread then
     local fatal=serverThread:getError()
@@ -301,6 +307,25 @@ function love.update(dt)
   end
 end
 function love.draw()
+  if testResults then
+    love.graphics.clear(0.075,0.10,0.12)
+    love.graphics.setColor(1,1,1)
+    love.graphics.print("MOO-QUEST | DIAGNOSTICO LUA / LOVE 2D",28,24,0,1.5)
+    love.graphics.print(string.format("Aprovados: %d   Falhas: %d",testResults.passed,testResults.failed),28,66)
+    for i,row in ipairs(testResults.rows) do
+      love.graphics.setColor(row.pass and 0.40 or 1,row.pass and 0.90 or 0.45,row.pass and 0.54 or 0.38)
+      love.graphics.print((row.pass and "OK   " or "FALHA ")..row.path,28,98+(i-1)*27)
+      if not row.pass then
+        love.graphics.setColor(0.96,0.78,0.63)
+        local short=row.error:gsub("[\\r\\n]+"," "):sub(1,110)
+        love.graphics.print(short,405,98+(i-1)*27)
+      end
+    end
+    love.graphics.setColor(1,1,1)
+    love.graphics.print("Relatorio: "..tostring(testResults.reportPath or testResults.reportError or "nao disponivel"),28,543)
+    love.graphics.print("Copie o relatorio para investigar falhas. ESC encerra.",28,571)
+    return
+  end
   local w,h=love.graphics.getDimensions()
   drawGround(w,h)
   drawObjects(w,h)
@@ -333,6 +358,10 @@ function love.draw()
   love.graphics.print("Marco inicial, paridade incompleta. Artes vetoriais temporarias.",w-460,12)
 end
 function love.keypressed(key)
+  if testResults then
+    if key=="escape" then love.event.quit() end
+    return
+  end
   if key=="escape" then love.event.quit()
   elseif key=="1" then selected=3
   elseif key=="2" then selected=0
@@ -342,15 +371,17 @@ function love.keypressed(key)
   end
   input:keypressed(key)
 end
-function love.keyreleased(key) input:keyreleased(key) end
+function love.keyreleased(key) if input then input:keyreleased(key) end end
 function love.mousepressed(x,y,button)
+  if not input then return end
   input:mousepressed(x,y,button)
   if button==1 and selected==3 and client and client.state=="open" and selfPlayer() then
     client:queue({"build",aimAngle()})
   end
 end
-function love.mousereleased(x,y,button) input:mousereleased(x,y,button) end
+function love.mousereleased(x,y,button) if input then input:mousereleased(x,y,button) end end
 function love.quit()
+  if testResults then return end
   if client then client:close() end
   love.thread.getChannel("moo_server_control"):push("stop")
 end
