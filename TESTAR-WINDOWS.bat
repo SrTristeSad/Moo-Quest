@@ -14,11 +14,16 @@ if not defined LOVEEXE (
  exit /b 1
 )
 set "MOOQUEST_TESTS=1"
-echo Abrindo testes dos modulos do cliente Lua...
+set "MOOQUEST_TESTS_EXIT=1"
+echo Executando testes Lua. O comando encerra automaticamente ao terminar.
+echo Se algum teste falhar, o arquivo BAT retornara erro em vez de OK falso.
 "%LOVEEXE%" "%GAME_DIR%"
 set "EXITCODE=%ERRORLEVEL%"
 if not "%EXITCODE%"=="0" (
- echo [ERRO] O testador terminou com erro.
+ echo [ERRO] Pelo menos um teste Lua falhou ou o LÖVE encerrou com erro.
+ echo O relatorio detalhado fica na pasta de dados moo_quest do LÖVE.
  pause
+) else (
+ echo [OK] Todos os testes executados pelo LÖVE foram aprovados.
 )
 exit /b %EXITCODE%
