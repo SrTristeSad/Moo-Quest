@@ -21,6 +21,14 @@ end
 
 function P.path(points,fillColor,strokeColor,width)
   if #points<6 then return end
+  -- Canvas closePath is implicit. Strip the duplicate final vertex for triangulation.
+  local dx=points[#points-1]-points[1]
+  local dy=points[#points]-points[2]
+  if dx*dx+dy*dy<0.000001 and #points>6 then
+    local clipped={}
+    for i=1,#points-2 do clipped[i]=points[i] end
+    points=clipped
+  end
   if fillColor then
     P.color(fillColor)
     -- LÖVE fill only supports convex polygons; Canvas stars and blobs are concave.
