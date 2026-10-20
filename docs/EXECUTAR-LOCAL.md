@@ -1,6 +1,6 @@
 # Executar cliente Lua contra o servidor ORIGINAL do moomoo-clone
 
-**Status atual: conexao WebSocket e leitura inicial do handshake em desenvolvimento. Nao jogavel.** O motor Node.js e o mesmo da referencia, sem ponte TCP especial nem servidor Lua. Uma unica configuracao de compatibilidade pode ser adicionada localmente se o upstream nao a publicar.
+**Status atual: fluxo de ticket guest e pedido de spawn implementados em codigo, ainda sem teste real de ponta a ponta. O renderizador grafico continua pendente.** O motor Node.js e o mesmo da referencia, sem ponte TCP especial nem servidor Lua. Uma unica configuracao de compatibilidade pode ser adicionada localmente se o upstream nao a publicar.
 
 ## Requisitos no Windows
 
@@ -13,8 +13,8 @@
 1. Inicie o servidor do jeito previsto pelo **proprio projeto original**, sem alterar seus arquivos.
 2. Verifique `http://127.0.0.1:8080/ping` no navegador. O resultado precisa conter `"status":"ok"` e `"build":"..."`.
 3. Extraia o Moo-Quest e execute `INICIAR-WINDOWS.bat`. Se o servidor responder ao /ping, o script **nao inicia outra copia**, somente o LÖVE.
-4. O cliente procura o build atraves de `/ping`, abre o WebSocket original (`/s/LC?b=<build>`) e tenta ler `io-init`. O codigo de recusa aparece na propria tela.
-5. `R` tenta novamente; `ESC` fecha o cliente.
+4. O cliente procura o build atraves de `/ping`, usa `POST /api/join` para pedir um ticket guest de uso unico ao Node e abre o WebSocket original (`/s/LC?b=<build>&token=tk:<ticket>`). Depois de `io-init`, usa o arquivo de build do Node para assinar o pacote de spawn. O codigo de recusa aparece na propria tela.
+5. `R` tenta conectar novamente apos falha e recebe um ticket novo; `ESC` fecha o cliente. O cliente mostra `SPAWN CONFIRMADO` somente se o Node mandar pacote `C`. Quando isso acontecer, WASD envia movimento ao Node e a posicao retornada por `a` aparece na tela.
 
 ## Caso voce precise instalar o servidor original
 
@@ -32,13 +32,16 @@ Leia [CONFIG-LOCAL.md](CONFIG-LOCAL.md) para entender exatamente quais valores s
 
 ## Testes do cliente
 
-Execute `TESTAR-WINDOWS.bat`: uma tela lista testes de MessagePack, WebSocket, handshake e sondagem HTTP. O arquivo `test-results.txt` e salvo no diretorio de dados do LÖVE, mostrado na tela.
+Execute `TESTAR-WINDOWS.bat`: uma tela lista testes de MessagePack, WebSocket, emissao do ticket guest na API, handshake, criptografia e sondagem HTTP. O arquivo `test-results.txt` e salvo no diretorio de dados do LÖVE, mostrado na tela.
 
 **Aprovacao de testes unitarios nao valida uma partida.**
 
 ## Interpretacao das mensagens
 
 - `GET /ping falhou`: nao ha servidor original acessivel.
+- `API /api/join HTTP 403: captcha`: o servidor recusou o stand-in local de CAPTCHA, e o ingresso precisa ser revisado.
+- `API /api/join HTTP 403: locked`: o servidor aplicou um bloqueio temporario; aguarde o prazo indicado.
+- `SPAWN CONFIRMADO`: o Node aceitou um pacote `M` autenticado e retornou `C`.
 - `HTTP 400/500`: servidor respondeu com erro na consulta inicial.
 - `WebSocket original aberto`: negociacao de transporte concluida, mas nao indica que entrou no jogo.
 - `io-init original recebido`: o primeiro pacote do servidor foi reconhecido, **ainda falta autenticar a sessao**.
@@ -47,9 +50,24 @@ Execute `TESTAR-WINDOWS.bat`: uma tela lista testes de MessagePack, WebSocket, h
 - `4003`: servidor exige login.
 - `4004`: origem incompatível.
 
-## Ainda falta antes de jogar
+## Evidencia da correção da imagem enviada
 
-A referencia utiliza ingresso por `/api/join`, verificacao de build/bundle, tabelas aleatorias de pacotes, chave por sessao e frames assinados/mascarados, alem de integridade do cliente. A primeira conexao atual **nao falsifica** esse protocolo. O cliente ainda precisa implementar a negociacao integral legitimamente antes de receber eventos de jogo, desenhar mapa real ou permitir WASD.
+A imagem da ultima execucao apresentou:
+
+- Node original iniciou em `http://127.0.0.1:8080`.
+- O build retornado por `/ping` foi reconhecido pelo Lua.
+- A conexao foi recusada com `4001` e o Node explicou: **missing or invalid join ticket**.
+- `official client is not built yet - run npm run build` se refere ao cliente JavaScript do navegador. **O cliente Lua nao precisa compilar o navegador para solicitar um ticket guest nem para receber `io-init` quando nao ha bundle oficial ativo.** Compilar o cliente JS pode ativar selo de bundle (mode 2), ainda nao suportado pelo cliente Lua.
+
+A correcao implementada agora envia o `POST /api/join` original primeiro. A API da referencia possui um CAPTCHA de teste local: **ela apenas verifica se o campo `captcha` esta presente**. O cliente Lua usa esse modo guest local. Isso NAO significa suporte a verificacao CAPTCHA real em servidores publicos.
+
+Depois de receber um ticket autentico, o cliente envia o ticket em `?token=tk:<ticket>`, le `io-init`, carrega o `protocol-build.json` **somente para leitura** e solicita spawn com o pacote original `M`. Se a chave e as regras coincidirem, o Node responde com `C` e `a`; o cliente mostra o ID e as coordenadas retornadas. A propria origem do spawn deve ser confirmada pela nova execucao do Windows.
+
+**O renderizador completo e as interfaces do MooMoo.io continuam pendentes.** Nenhuma parte de gameplay e simulada localmente.
+
+### Requisito do arquivo de build
+
+O `INICIAR-WINDOWS.bat` informa ao LÖVE a variavel `MOOQUEST_BUILD_FILE` apontando ao `node-runtime/server/data/protocol-build.json` gerado pelo servidor original. O Lua le esse arquivo sem modifica-lo. Se o servidor original estiver rodando em outra pasta, ajuste `MOOQUEST_SERVER_DIR` e execute o `.bat` novamente.
 
 ### Licenciamento
 
