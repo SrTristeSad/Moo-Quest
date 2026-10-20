@@ -103,6 +103,9 @@ function love.update(dt)
         movementClock=0
         lastMove=false
         lastAim=nil
+        -- The reference client's addPlayer(isYou) snaps the camera on spawn.
+        -- Reset smoothing when respawning or entering a new match.
+        if camera then camera.hasTarget=false end
         lockDir=false
         mouseAttack=false
         spaceAttack=false
@@ -323,6 +326,7 @@ function love.keypressed(key)
     died=false
     heartbeatClock=0
     world=World.new()
+    if camera then camera.hasTarget=false end
     local ok,err=client:connect()
     if not ok then startupError=err end
   end
