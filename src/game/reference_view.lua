@@ -113,7 +113,7 @@ local function drawProjectiles(world,camera,w,h,layer)
       if src then
         love.graphics.push()
         love.graphics.translate(x,y)
-        love.graphics.rotate(View.playerDrawAngle(p))
+        love.graphics.rotate(p.dir or 0)
         if src.src then
           Assets.draw("weapons",src.src..".png",0,0,
             (src.scale or 100)*camera.zoom,(src.scale or 100)*camera.zoom)
@@ -210,7 +210,7 @@ local function drawPlayer(p,camera,dt)
   love.graphics.translate(x,y)
   -- client/src/index.js renderPlayers: player.dir + player.dirPlus.
   -- The previous port updated K attack animation but never drew its swing.
-  love.graphics.rotate((p.dir or 0)+(p.dirPlus or 0))
+  love.graphics.rotate(View.playerDrawAngle(p))
   love.graphics.scale(camera.zoom)
   playerBody(p,dt)
   love.graphics.pop()
