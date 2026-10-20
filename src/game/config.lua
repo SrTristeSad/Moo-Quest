@@ -3,6 +3,12 @@
 -- These are the authoritative reference values for world generation.
 local C = {
   mapScale = 14400,
+  inSandbox = true,
+  unlimitedResources = true,
+  unlimitedAmount = 1000000,
+  maxPlayers = 40,
+  maxPlayersHard = 50,
+  gatherAngle = math.pi/2.6,
   colGrid = 10,
   areaCount = 7,
   treesPerArea = 9,
