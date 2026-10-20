@@ -1,39 +1,39 @@
 # Moo-Quest
 
-**Objetivo:** reproduzir no **cliente nativo Lua + LÖVE 2D (Windows)** a experiência e os recursos funcionais do projeto [al007ex/moomoo-clone](https://github.com/al007ex/moomoo-clone), usando o **servidor reconstruído original em Node.js**. Primeiro rodará na própria máquina; futuramente o mesmo servidor Node poderá ser adaptado para hospedagem online.
+**Decisao do projeto:** o Moo-Quest tera **apenas o CLIENTE desenvolvido em Lua/LÖVE 2D**. A simulacao, as regras, os animais, o combate, a construcao, os itens, as contas e os demais sistemas continuam no **servidor original de [al007ex/moomoo-clone](https://github.com/al007ex/moomoo-clone)**, executado primeiro localmente e depois possivelmente online.
 
-**Versão-base fixa:** [al007ex/moomoo-clone@06f7c1ca965a7628671676c8d9a7efd3997bb5e7](https://github.com/al007ex/moomoo-clone/tree/06f7c1ca965a7628671676c8d9a7efd3997bb5e7).
+**Regra obrigatoria: nao alterar o servidor original, nao criar outro servidor e nao usar uma ponte/protocolo alternativo.**
 
-A documentação [docs/REGRA-PRINCIPAL.md](docs/REGRA-PRINCIPAL.md) contém os requisitos atualizados. A [matriz de paridade](docs/PARIDADE.md) mostra o que ainda falta.
+Referencia congelada: [commit 06f7c1c](https://github.com/al007ex/moomoo-clone/tree/06f7c1ca965a7628671676c8d9a7efd3997bb5e7).
 
-## Arquitetura aprovada
+## Status real
 
-- **Cliente:** Lua + LÖVE 2D 11.5. Responsável por renderização, HUD, menus, controles, animações e áudio.
-- **Servidor:** Node.js original da referência, preservando as regras de física, spawn, recursos, combate, construções, progresso e animais. Não há mais duplicação da lógica do servidor em Lua no fluxo de jogo.
-- **Ligação nativa local:** adaptador `node-bridge/nativeBridge.js`, instalado no servidor baixado, escutando **somente 127.0.0.1:17017**. Recebe comandos idênticos aos pacotes de jogo (`M`, `9`, `D`, `F`, `z`, etc.) e os passa ao **handlePacket original**. O servidor responde com eventos originais, interpretados em `src/net/node_protocol.lua`.
-- **Futuro online:** manter o servidor Node.js, mas construir uma conexão remota autenticada, criptografada e com segurança apropriada. A ponte TCP atual é estritamente local: **não expor a porta 17017 à internet**.
-- **Servidor Lua anterior:** retirado da árvore atual; permanece somente no histórico do GitHub. A simulação usada no jogo é exclusivamente a do Node.js.
+- **Implementado em codigo:** cliente LÖVE, codec MessagePack basico/estendido, WebSocket TCP nao bloqueante com mascara RFC6455, consulta `GET /ping` para descobrir o build, tentativa de conexao em `ws://127.0.0.1:8080/s/LC?b=...`, decodificacao do handshake inicial `io-init`, diagnosticador na tela, testes unitarios.
+- **Nao implementado:** autenticacao completa do protocolo original (token de entrada/conta, chave por build, tabela de pacotes, mensagens autenticadas e verificacoes do cliente), renderizacao completa de gameplay, menus, artes licenciadas, inventario, armas, som e recursos visuais equivalentes.
+- **Nao jogavel ainda.** Abrir a janela LÖVE ou concluir o handshake WebSocket NAO significa que o jogador entrou no mundo. O cliente nao usa mais a antiga simulacao Lua nem a ponte `nativeBridge.js`.
 
-## Iniciar no Windows
+### Bloqueio encontrado na propria referencia
 
-Pré-requisitos: Node.js 20+ com npm, LÖVE 2D 11.5 e PowerShell (Windows).
+No commit upstream fixado, `server/src/anticheat/index.js` importa `./config.js`, mas `server/src/anticheat/config.js` **nao existe no Git daquele commit**. Isso impede iniciar aquele servidor Node sem obter uma versao original que contenha o arquivo. **Nao vamos inventar ou alterar regras anticheat** para contornar o problema.
 
-1. Baixe/extraia o repositório Moo-Quest.
-2. Rode **`PREPARAR-SERVIDOR.bat`** uma vez com internet: baixa o commit-base, extrai apenas `server/` e `shared/`, instala as dependências Node e aplica a ponte de cliente Lua.
-3. Rode **`TESTAR-WINDOWS.bat`** para verificar os módulos locais Lua (não substitui teste real).
-4. Rode **`INICIAR-WINDOWS.bat`**: inicia o Node numa janela separada e abre o cliente LÖVE.
-5. Com o Node já rodando, abra **`TESTAR-NODE-WINDOWS.bat`** para verificar por uma segunda conexão que o Game original confirmou spawn e movimentação.
+O cliente Lua pode tentar conectar com **qualquer instancia original ja funcionando em `127.0.0.1:8080`**, sem modifica-la. Caso o servidor aceite apenas o cliente web oficial, a tela mostrara o erro retornado; nao existe simulacao de sucesso.
 
-O script de preparação não inclui nem redistribui os assets do cliente oficial. Veja [docs/EXECUTAR-LOCAL.md](docs/EXECUTAR-LOCAL.md).
+## Windows
 
-## Status verificável
+Necessarios LÖVE 2D 11.5 e Node.js 20+ (para executar o servidor).
 
-**Integração escrita, ainda NÃO validada em Windows após esta mudança de arquitetura.** O cliente envia spawn, direção de movimento, mira, ataque contínuo, seleção do martelo/parede e respawn ao servidor Node reconstruído e interpreta os eventos de jogadores, objetos, animais e recursos recebidos. Os desenhos continuam provisórios e **não equivalem visualmente ao jogo de referência**. Ainda faltam muitos sistemas do cliente: menus, inventário completo, equipamentos, armas secundárias, UI, biomas avançados, efeitos, animações, sons, chat/clãs, contas e funcionalidades sociais.
+1. Extraia [o ZIP atualizado](https://github.com/SrTristeSad/Moo-Quest/archive/refs/heads/main.zip).
+2. Se voce ja tem o servidor original funcionando localmente em `127.0.0.1:8080`, **nao precisa preparar outro**. Abra `INICIAR-WINDOWS.bat`.
+3. Caso precise baixar a referencia, abra `PREPARAR-SERVIDOR.bat`: baixa o commit original **sem modificacoes** e testa se os arquivos necessarios existem. No commit atual, avisa sobre `config.js` ausente.
+4. `TESTAR-WINDOWS.bat` executa os testes do cliente Lua; isso nao substitui teste de conexao e gameplay.
+5. O cliente mostra a etapa real da conexao e possiveis codigos de recusa (4001, 4002, 4003, 4004).
 
-Os testes automáticos anteriores do GitHub Actions registraram `failure` sem logs de passos disponíveis. A partida local **ainda precisa ser executada e auditada**.
+Leia [docs/EXECUTAR-LOCAL.md](docs/EXECUTAR-LOCAL.md), [docs/REGRA-PRINCIPAL.md](docs/REGRA-PRINCIPAL.md) e [docs/PARIDADE.md](docs/PARIDADE.md).
 
-## Licenças e limites
+## Licenciamento
 
-O código reconstruído da referência tem suas próprias condições de uso; o README upstream adverte que `client-official/` contém código e materiais de terceiros. **Não redistribuir bundles/arte protegida do cliente oficial sem licença apropriada.** O cliente Lua será uma implementação própria com recursos visuais autorizados.
+A referencia contem materiais da FRVR e do cliente oficial identificados como de terceiros. Os arquivos do cliente oficial nao serao copiados para o Moo-Quest ou redistribuidos por este repositorio sem a autorizacao necessaria. Somente arte e codigo com licenca apropriada podem ser usados na versao final.
 
-Não afirmar paridade completa até que todos os itens da matriz tenham testes de aceitação aprovados.
+## Proxima implementacao
+
+Completar o protocolo **existente** do servidor (obter ticket legito, carregar parametros dinamicos do build, autenticar e ler pacotes sem modificar o servidor), validar entrada real em um mundo, depois portar renderizador, menu, HUD, armas e demais interfaces ate atingir a paridade funcional.
