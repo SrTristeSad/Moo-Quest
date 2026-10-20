@@ -5,6 +5,7 @@ local Original=require("src.net.original_client")
 local World=require("src.game.world_state")
 local View=require("src.game.reference_view")
 local Hud=require("src.game.reference_hud")
+local Upgrades=require("src.game.reference_upgrades")
 local Assets=require("src.game.reference_assets")
 local Camera=require("src.camera")
 local Input=require("src.input")
@@ -324,9 +325,16 @@ function love.focus(focused)
     lastMove=false
   end
 end
-function love.mousepressed(_,_,button)
+function love.mousepressed(x,y,button)
   if diagnostic or not client or client.state~="spawn_confirmed" or died then return end
+  if chatOpen then return end
   if button==1 then
+    local w=love.graphics.getWidth()
+    local upgradeIndex=Upgrades.hitTest(world,w,x,y)
+    if upgradeIndex~=nil then
+      client:send("H",{upgradeIndex})
+      return
+    end
     local w,h=love.graphics.getDimensions()
     local mx,my=love.mouse.getPosition()
     client:send("F",{1,angle(my-h/2,mx-w/2)})
