@@ -17,7 +17,7 @@ g:tick(1000/9)
 assert(player.x>start)
 g:command("local",{"move",M.null})
 assert(player.moveDir==nil)
-player.x,player.y=840,1000
+player.x,player.y=855,1000
 player.xVel,player.yVel=0,0
 player.dir=0
 local before=player.stone
