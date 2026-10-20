@@ -8,7 +8,7 @@ local function array(v) return type(v)=="table" and v or {} end
 
 function World.new()
   return setmetatable({
-    sid=nil,spawned=false,dead=false,players={},objects={},animals={},
+    sid=nil,spawned=false,dead=false,players={},objects={},animals={},projectiles={},
     resources={},inventory={weapons={},items={}},leaderboard={},
     xp=0,maxXP=0,age=1,upgradePoints=0,upgradeAge=0,
     packets=0,lastPacket=nil
@@ -35,7 +35,7 @@ function World:apply(name,args)
     p.health=number(d[7]) and d[7] or 100
     p.maxHealth=number(d[8]) and d[8] or 100
     p.scale=number(d[9]) and d[9] or 35
-    p.skinColor=d[10] or 0;p.clan=d[13]
+    p.skinColor=d[10] or 0;p.clan=type(d[13])=="string" and d[13] or nil
     p.morph=d[14];p.dive=d[15];p.invisible=d[16];p.disguised=d[17]
     self.players[id]=p
     return true
@@ -56,8 +56,12 @@ function World:apply(name,args)
       if validId(sid) then
         local p=self.players[sid] or {sid=sid}
         p.buildIndex=attrs[i+1];p.weaponIndex=attrs[i+2];p.variant=attrs[i+3]
-        p.team=attrs[i+4];p.isLeader=attrs[i+5]
-        p.skin=attrs[i+6];p.tail=attrs[i+7];p.icon=attrs[i+8];p.zIndex=attrs[i+9]
+        p.team=type(attrs[i+4])=="string" and attrs[i+4] or nil
+        p.isLeader=attrs[i+5]
+        p.skin=type(attrs[i+6])=="number" and attrs[i+6] or 0
+        p.tail=type(attrs[i+7])=="number" and attrs[i+7] or 0
+        p.icon=attrs[i+8]
+        p.zIndex=type(attrs[i+9])=="number" and attrs[i+9] or 0
         self.players[sid]=p
       end
     end
@@ -70,7 +74,9 @@ function World:apply(name,args)
       local sid,x,y=data[i],data[i+1],data[i+2]
       if validId(sid) and number(x) and number(y) then
         self.objects[sid]={sid=sid,x=x,y=y,dir=data[i+3],scale=data[i+4],
-          type=data[i+5],id=data[i+6],owner=data[i+7]}
+          type=data[i+5],
+          id=type(data[i+6])=="number" and data[i+6] or nil,
+          owner=data[i+7]}
       end
     end
     return true
@@ -95,7 +101,40 @@ function World:apply(name,args)
     if p and number(args[2]) then p.health=args[2] end
     return true
   elseif name=="E" then
-    -- E is player socket ID, not necessarily the numeric sid: hidden list handles despawn.
+    -- E carries the socket ID, unlike the numeric SID in player-position snapshots.
+    for sid,p in pairs(self.players) do
+      if p.id==args[1] then self.players[sid]=nil end
+    end
+    return true
+  elseif name=="R" then
+    local data=array(args[1])
+    for _,sid in ipairs(data) do self.objects[sid]=nil end
+    return true
+  elseif name=="L" then
+    local direction,sid=args[1],args[2]
+    local o=self.objects[sid]
+    if o and number(direction) then
+      o.wiggleX=(o.wiggleX or 0)+10*math.cos(direction)
+      o.wiggleY=(o.wiggleY or 0)+10*math.sin(direction)
+    end
+    return true
+  elseif name=="M" then
+    local sid,dir=args[1],args[2]
+    if self.objects[sid] and number(dir) then self.objects[sid].dir=dir end
+    return true
+  elseif name=="X" then
+    -- Projectile: x,y,dir,remainingRange,speed,projectileType,layer,sid.
+    local x,y,dir,range,speed,typ,layer,sid=
+      args[1],args[2],args[3],args[4],args[5],args[6],args[7],args[8]
+    if number(x) and number(y) and number(dir) and number(range)
+      and number(speed) and validId(sid) then
+      self.projectiles[sid]={sid=sid,x=x,y=y,dir=dir,range=range,
+        speed=speed,indx=typ,layer=layer or 0,skipMov=true}
+    end
+    return true
+  elseif name=="Y" then
+    local p=self.projectiles[args[1]]
+    if p and number(args[2]) then p.range=args[2] end
     return true
   elseif name=="P" then
     self.dead=true;self.spawned=false
@@ -129,6 +168,32 @@ function World:apply(name,args)
     return true
   end
   return false
+end
+function World:update(dt)
+  if type(dt)~="number" or dt<=0 then return end
+  local Catalog=require("src.game.catalog")
+  for _,o in pairs(self.objects) do
+    if type(o.id)=="number" then
+      local item=Catalog.itemById(o.id)
+      if item and item.turnSpeed then
+        o.dir=(o.dir or 0)+item.turnSpeed*dt*1000
+      end
+    end
+    o.wiggleX=(o.wiggleX or 0)*math.pow(0.99,dt*1000)
+    o.wiggleY=(o.wiggleY or 0)*math.pow(0.99,dt*1000)
+  end
+  for sid,p in pairs(self.projectiles) do
+    if p.skipMov then
+      p.skipMov=false
+    else
+      local distance=p.speed*dt*1000
+      distance=math.min(distance,p.range)
+      p.x=p.x+distance*math.cos(p.dir)
+      p.y=p.y+distance*math.sin(p.dir)
+      p.range=p.range-distance
+      if p.range<=0 then self.projectiles[sid]=nil end
+    end
+  end
 end
 function World:localPlayer()
   return self.sid and self.players[self.sid] or nil
