@@ -35,6 +35,13 @@ function World:apply(name,args)
   if name=="C" then
     if not validId(args[1]) then return false end
     self.sid=args[1];self.spawned=true;self.dead=false
+    -- server/src/moomoo/modules/player.js::spawn initializes this in Node;
+    -- the JavaScript client's Player.spawn() mirrors it locally.
+    -- The server does not send V on each new spawn, only when inventory changes.
+    self.inventory={weapons={0},items={0,3,6,10}}
+    self.xp=0;self.maxXP=300;self.age=1
+    self.upgradePoints=0;self.upgradeAge=2
+    self.resources={}
     return true
   elseif name=="D" then
     -- [id,sid,name,x,y,dir,health,maxHealth,scale,skinColor,...]
