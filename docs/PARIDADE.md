@@ -10,7 +10,7 @@ Cada item abaixo representa **funcionalidade real presente na referência**, nã
 | P01 | Inicialização Windows e servidor local Lua | `server/src/index.js`, `package.json` | não iniciado | Abrir ambos e jogar sem JavaScript/serviços externos |
 | P02 | Conexão, sessão e entrada guest/conta | `server/src/network/`, `server/src/api/` | em desenvolvimento | Handshake, login local, spawn, disconnect e reconexão reais |
 | P03 | Serialização, eventos e sincronização | `server/src/protocol/`, `server/src/network/packets.js` | em desenvolvimento | Todas as mensagens necessárias resultam nos mesmos estados |
-| P04 | Mundo/terreno, zonas, câmera e biomas | `shared/config.js`, `server/src/moomoo/server.js` | não iniciado | Geometria, rio, neve, deserto, câmera e limites conferidos |
+| P04 | Mundo/terreno, zonas, câmera e biomas | `shared/config.js`, `server/src/moomoo/server.js` | em desenvolvimento (geração natural e geometria Lua, não integrada) | Geometria, rio, neve, deserto, câmera e limites conferidos |
 | P05 | Jogador, spawn, controle, morte/respawn | `server/src/moomoo/modules/player.js` | não iniciado | WASD, apontar, ataque, colisão, morte/retorno corretos |
 | P06 | Recursos, mineração e coleta | `shared/config.js`, `server/src/moomoo/modules/objectManager.js` | não iniciado | Árvores/arbustos/rochas/ouro, recursos reais e respawns equivalentes |
 | P07 | Armas e variantes, projéteis e dano | `shared/config/items.js`, `server/src/moomoo/modules/projectileManager.js` | não iniciado | Todas as armas, tiros, alcance, dano e XP equivalentes |
@@ -29,6 +29,14 @@ Cada item abaixo representa **funcionalidade real presente na referência**, nã
 | P20 | Administração, comandos, poderes e avisos | `server/src/admin/console.js`, README | não iniciado | Comandos aplicam efeitos reais, inclusive eventos de reinício |
 | P21 | Recursos extras 1.9.1/1.9.4 | README seções 'New in' | não iniciado | Cada item anunciado nas duas versões possui caso de teste |
 | P22 | Distribuição e regressão Windows | regra do projeto | não iniciado | Instalador/pacote testado, teste de partida e regressão |
+
+## Evidência de implementação parcial (2026-10-20)
+
+- Mundo/recursos: `src/game/config.lua`, `src/server/world.lua`, `src/game/geometry.lua` — traduções iniciais do algoritmo e geometrias da referência fixada.
+- Codificador de protocolo: `src/protocol/msgpack.lua` inclui mapas e números fracionários; ainda sem transporte de jogo integrado.
+- Testes escritos: `tests/world.lua`, `tests/geometry.lua` e `tests/msgpack_gameplay.lua`.
+- `.github/workflows/lua-tests.yml` foi criado. As primeiras execuções do GitHub Actions falharam antes de produzir passos/logs consultáveis; **não há aprovação de testes** nem teste local de partida.
+- Nenhum dos itens da matriz está `verificado localmente`.
 
 ## Procedimento
 
