@@ -2,6 +2,7 @@
 -- Packet layouts: al007ex/moomoo-clone/server/src/moomoo/server.js (pinned baseline).
 local Catalog=require("src.game.catalog")
 local Animation=require("src.game.reference_animation")
+local Animals=require("src.game.animals")
 local World={}
 World.__index=World
 local function number(v) return type(v)=="number" and v==v and v~=math.huge and v~=-math.huge end
@@ -24,6 +25,7 @@ function World.new()
     resources={},itemCounts={},inventory={weapons={},items={}},leaderboard={},
     xp=0,maxXP=0,age=1,upgradePoints=0,upgradeAge=0,
     minimapData={},mapPings={},mapMarker=nil,lastDeath=nil,
+    serverAnimals={},teams={},
     packets=0,lastPacket=nil
   },World)
 end
@@ -33,7 +35,27 @@ function World:apply(name,args)
   args=array(args)
   self.packets=self.packets+1
   self.lastPacket=name
-  if name=="C" then
+  if name=="A" then
+    -- server/src/moomoo/server.js addPlayer sends server-authoritative
+    -- permitted animal display metadata before any gameplay spawn.
+    local handshake=args[1]
+    if type(handshake)~="table" then return false end
+    local kinds=handshake.animals
+    if type(kinds)=="table" then
+      local received={}
+      for _,kind in ipairs(kinds) do
+        if type(kind)=="table" and validId(kind.id) and
+          type(kind.src)=="string" and
+          kind.src:match("^[%w_%-]+$") and
+          number(kind.scale) and kind.scale>0 then
+          received[kind.id]=kind
+        end
+      end
+      if next(received) then self.serverAnimals=received end
+    end
+    if type(handshake.teams)=="table" then self.teams=handshake.teams end
+    return true
+  elseif name=="C" then
     if not validId(args[1]) then return false end
     self.sid=args[1];self.spawned=true;self.dead=false
     -- The Node sends a fresh D after every C. Do not render the previous
@@ -283,6 +305,10 @@ function World:update(dt)
       if p.range<=0 then self.projectiles[sid]=nil end
     end
   end
+end
+function World:animalKind(id)
+  if not validId(id) then return nil end
+  return self.serverAnimals[id] or Animals.byId(id)
 end
 function World:localPlayer()
   return self.sid and self.players[self.sid] or nil
