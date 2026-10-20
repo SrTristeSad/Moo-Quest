@@ -8,9 +8,9 @@ Estados: `pendente`, `em desenvolvimento`, `implementado sem teste de ponta a po
 
 | ID | Sistema de referência | Status da parte Lua | Critério para aprovar |
 | --- | --- | --- | --- |
-| P01 | Início Windows/servidor local | implementado sem teste de ponta a ponta | PREPARAR-SERVIDOR, Node, LÖVE e desligamento sem falhas |
-| P02 | Sessão guest, entrada e retorno | em desenvolvimento | pacote original M, spawn C/D, morte e respawn |
-| P03 | Transporte e eventos da partida | em desenvolvimento | TCP local traduz pacote MessagePack, estado e desconexão |
+| P01 | Inicio Windows/servidor original intacto | bloqueado pelo upstream (config.js ausente) | Servidor original inicializa e responde /ping; cliente LÖVE abre sem erros |
+| P02 | Sessao, ticket, spawn e retorno | nao integrado | /api/join, ingresso legitimo, spawn C/D, morte e respawn |
+| P03 | Transporte e eventos da partida | em desenvolvimento | WebSocket original, io-init, sessao assinada e pacotes decodificados |
 | P04 | Mapa completo e câmera | em desenvolvimento | biomas, área secreta, zoom, culling e mundo completo |
 | P05 | WASD, mira, seleção e ações | em desenvolvimento | comandos 9, D, F e z confirmados pelo servidor |
 | P06 | Recursos, coleta e dano em objetos | em desenvolvimento | coleta real atualiza recursos, XP e status |
@@ -33,24 +33,24 @@ Estados: `pendente`, `em desenvolvimento`, `implementado sem teste de ponta a po
 
 ## Implementado no código atual
 
-- `PREPARAR-SERVIDOR.bat` e `tools/prepare-node-server.mjs`: baixar o **servidor Node original**, congelado por commit, sem redistribuir o cliente oficial.
-- `node-bridge/nativeBridge.js`: ponte TCP **restrita ao loopback**, que encaminha pacotes para o `handlePacket` original e repassa eventos do servidor Node, preservando sua autoridade.
-- `src/net/local_client.lua`: conexão não bloqueante; `src/net/local_frames.lua`: MessagePack com comprimento explícito e limitação de tamanho.
-- `src/net/node_protocol.lua`: conversão parcial de eventos originais (`A`, `C`, `D`, `a`, `H`, `I`, `N`, `O`, `P`, `E`, `Q`, `T`, `B`, `6`) para estado do renderizador Lua.
-- `main.lua`: lógica apenas de cliente Lua, sem iniciar thread do servidor; conexão, spawn, movimento, mira, seleção de parede/martelo, ataque e heartbeat ocioso. Desenhos **temporários**.
-- `tests/node_protocol.lua`: testes de mensagens interpretadas. `TESTAR-NODE-WINDOWS.bat` testa a **conexão real** com o servidor Node por spawn e movimentação; `TESTAR-WINDOWS.bat` testa módulos Lua.
+- `PREPARAR-SERVIDOR.bat` baixa a versao original completa sem alterar os arquivos JavaScript; verifica a existencia dos arquivos do upstream.
+- Ponte TCP anterior removida. O cliente nao cria uma rota alternativa no Node original.
+- `src/net/original_client.lua`, `src/net/websocket_client.lua`, `src/net/secure_random.lua` implementam a sondagem HTTP e tentativa de conexao WebSocket diretamente ao servidor original em 8080.
+- `src/protocol/original_crypto.lua`, `src/protocol/original_build.lua`, `src/protocol/original_session.lua` implementam as tabelas, chave e frames binarios do protocolo original (integracao e testes reais pendentes).
+- `main.lua` mostra a etapa real da conexao, sem gerar mapa ou jogador simulado. Falta ingresso autenticado, spawn, receber/renderizar eventos de mundo e interface de jogo.
+- `tests/original_client.lua` e `tests/original_session.lua` testam os modulos de WebSocket e criptografia independentemente; execucao ponta a ponta ainda nao realizada.
 
 ## Não confundir os resultados
 
 - **Escrever um módulo ou teste não comprova sua execução.** Os testes no GitHub Actions continuam sem um resultado aprovado confiável no histórico consultado.
-- O jogo da imagem anterior foi feito com **servidor Lua** e não comprova o novo caminho Node. A nova configuração requer execução e evidência próprias.
+- A imagem anterior foi produzida com simulacao do servidor Lua que foi removida; nao comprova comunicacao com o servidor original.
 - Os catálogos completos de `src/game/catalog.lua` e `src/game/animals.lua` são **dados de referência**. Sua presença não prova funcionamento de cada item, sprite, animação, ataque, economia ou efeito.
 - O cliente ainda usa geometria provisória; a referência inclui visuais cujo uso está sujeito a direitos de terceiros.
 - **Não afirmar 100% antes que todos os itens P01-P22 estejam verificados em Windows.**
 
 ## Próxima ordem de trabalho
 
-1. Executar `PREPARAR-SERVIDOR.bat`, `TESTAR-NODE-WINDOWS.bat` e `INICIAR-WINDOWS.bat`, corrigindo falhas com logs.
+1. Obter uma copia original do servidor que realmente inicialize: o commit fixado nao possui `server/src/anticheat/config.js`, embora o importe. Nao alterar o servidor para mascarar o problema.
 2. Completar interpretação dos demais pacotes e paridade da interface e visualização.
 3. Equipamentos, loja, inventário, progressão, construções, combate e animais.
 4. Social, conta, clã, eventos, ajustes e ferramentas especiais.
