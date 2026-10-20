@@ -8,9 +8,9 @@ Referencia congelada: [commit 06f7c1c](https://github.com/al007ex/moomoo-clone/t
 
 ## Status real
 
-- **Implementado em codigo:** cliente LÖVE, MessagePack, WebSocket RFC6455, consulta `GET /ping`, tentativa de conexao direta ao servidor original, reconhecimento de `io-init`, leitura sem edicao de parametros de build, derivacao de chaves/tabelas e codecs de pacotes autenticados com HMAC. Testes de vetores do protocolo foram adicionados; integracao fim a fim nao validada.
-- **Nao implementado:** ingresso autenticado por `/api/join` (ticket/conta), verificacao de integridade da aplicacao web quando exigida (seal 2), resposta a sondagens de integridade, envio do spawn apos ingresso valido, renderizacao de gameplay, menus, artes licenciadas, inventario, armas, som e recursos visuais equivalentes.
-- **Nao jogavel ainda.** Abrir a janela LÖVE ou concluir o handshake WebSocket NAO significa que o jogador entrou no mundo. O cliente nao usa mais a antiga simulacao Lua nem a ponte `nativeBridge.js`.
+- **Implementado em codigo:** cliente LÖVE, MessagePack, WebSocket RFC6455, consulta `GET /ping`, **POST /api/join (ticket guest valido emitido pelo proprio Node local)**, conexao direta com `?b=<build>&token=tk:<ticket>`, leitura do `io-init`, chave/tabelas autenticadas e envio do pacote original `M` (spawn). Eventos `C` e `a` sao processados para exibir ID e coordenadas autoritativas; WASD, mira e clique enviam comandos reais. **Esta integracao ainda nao foi validada de ponta a ponta no Windows.**
+- **Nao implementado:** login de contas, selo do bundle oficial quando exigido (seal 2), resposta completa a probes/telemetria, renderizacao de gameplay fiel, menus, artes licenciadas, inventario, armas, som e recursos visuais equivalentes. A requisicao guest usa **o stand-in de captcha da propria API local** (aceita um booleano); nao se aplica a servidores publicos.
+- **Jogabilidade grafica ainda nao concluida.** O fluxo de ticket/spawn agora esta escrito em codigo, mas somente uma execucao real com evento `C` recebido comprova que a sessao ingressou. O cliente nao usa a antiga simulacao Lua nem a ponte `nativeBridge.js`.
 
 ### Bloqueio encontrado na propria referencia
 
@@ -26,7 +26,7 @@ Necessarios LÖVE 2D 11.5 e Node.js 20+ (para executar o servidor).
 2. Se voce ja tem o servidor original funcionando localmente em `127.0.0.1:8080`, **nao precisa preparar outro**. Abra `INICIAR-WINDOWS.bat`.
 3. Execute `PREPARAR-SERVIDOR.bat` atualizado, inclusive se o download anterior ja existe. Ele **reaproveita `node-runtime/`**, acrescenta somente `config.js` quando ausente, instala dependencias e testa o **servidor original** localmente por `/ping`, sem mudar outros arquivos JavaScript.
 4. `TESTAR-WINDOWS.bat` executa os testes do cliente Lua; isso nao substitui teste de conexao e gameplay.
-5. O cliente mostra a etapa real da conexao e possiveis codigos de recusa (4001, 4002, 4003, 4004).
+5. O cliente solicita ticket guest no Node antes de abrir a conexao, valida `io-init` e tenta spawn. O ID e a posicao aparecem somente se vierem nos pacotes originais `C` e `a`. Se o servidor responder 4001/4002/4003/4004, o motivo continua visivel.
 
 Leia [docs/EXECUTAR-LOCAL.md](docs/EXECUTAR-LOCAL.md), [docs/REGRA-PRINCIPAL.md](docs/REGRA-PRINCIPAL.md) e [docs/PARIDADE.md](docs/PARIDADE.md).
 
