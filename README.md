@@ -121,3 +121,21 @@ transcrito da mesma referencia. Nenhum boi ou vaca extra foi criado.
 A nova verificacao em `tests/world_state.lua` assegura que o pacote `A`
 recebido do Node tem prioridade sobre o catalogo estatico. Isso nao altera
 as regras, a IA nem o servidor.
+
+## Teste local com retorno confiavel
+
+O arquivo `TESTAR-WINDOWS.bat` agora executa a bateria de testes Lua
+automaticamente, **encerra o LÖVE com erro se algum teste falhar** e copia
+o relatorio `RELATORIO-TESTES-LUA.txt` ao lado do BAT. Esse relatorio
+e gerado localmente, nao deve ser adicionado ao Git e permite identificar
+o arquivo e a mensagem exata da falha. Um relatorio ausente indica que
+o LÖVE nao chegou ate a gravacao de resultados (por exemplo, erro de
+inicializacao) e o erro da janela/console deve ser consultado.
+
+O teste cobre também a recepcao do pacote `A` com as configuracoes visuais
+dos animais que o servidor original envia ao conectar. Isso evita depender
+de dados visuais presumidos pelo Lua para nomes e dimensoes de animais.
+
+**Status:** arquivos publicados no repositorio, mas ainda nao houve teste
+de ponta a ponta executado nesta sessao no computador Windows. O teste
+`VERIFICAR-PARTIDA-NODE.bat` valida Node separadamente, nao o Lua.
