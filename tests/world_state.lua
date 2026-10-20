@@ -2,6 +2,13 @@ package.path="./?.lua;./?/init.lua;"..package.path
 local World=require("src.game.world_state")
 local w=World.new()
 assert(w:localPlayer()==nil and w.spawned==false)
+assert(w:animalKind(0).src=="cow_1")
+assert(w:apply("A",{{animals={{id=0,src="cow_1",scale=72,health=510}},teams={"test"}}}))
+assert(w:animalKind(0).health==510, "Node A catalog must be authoritative")
+assert(w:animalKind(4).name=="Wolf", "fallback stays for older original builds")
+assert(#w.teams==1)
+assert(not w:apply("A",{"invalid-payload"}))
+
 assert(w:apply("C",{42}) and w.spawned and w.sid==42)
 assert(w.inventory.weapons[1]==0 and #w.inventory.items==4)
 assert(w.inventory.items[1]==0 and w.inventory.items[4]==10)
