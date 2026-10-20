@@ -43,14 +43,43 @@ local function resource(name,icon,value,x,y,left)
   end
 end
 local function minimap(world,w,h)
+  -- client/src/index.js renderMinimap: 130x130, bottom 20, left 20.
   local x,y=20,h-150
-  box(x,y,130,130)
+  local size=130
+  box(x,y,size,size)
+  for _,ping in ipairs(world.mapPings or {}) do
+    local ratio=math.max(0,math.min(1,ping.scale/40))
+    color(1,1,1,1-ratio)
+    love.graphics.setLineWidth(4)
+    love.graphics.circle("line",
+      x+ping.x/C.mapScale*size,
+      y+ping.y/C.mapScale*size,ping.scale)
+  end
   local p=world:localPlayer()
   if p and p.x and p.y then
     color(1,1,1)
-    love.graphics.circle("fill",x+p.x/C.mapScale*130,
-      y+p.y/C.mapScale*130,3)
+    love.graphics.circle("fill",x+p.x/C.mapScale*size,
+      y+p.y/C.mapScale*size,7)
   end
+  color(1,1,1,0.35)
+  local positions=world.minimapData or {}
+  for i=1,#positions-1,2 do
+    if type(positions[i])=="number" and type(positions[i+1])=="number" then
+      love.graphics.circle("fill",x+positions[i]/C.mapScale*size,
+        y+positions[i+1]/C.mapScale*size,7)
+    end
+  end
+  local function mark(position,r,g,b)
+    if not position then return end
+    color(r,g,b)
+    local mx=x+position.x/C.mapScale*size
+    local my=y+position.y/C.mapScale*size
+    love.graphics.setLineWidth(3)
+    love.graphics.line(mx-7,my-7,mx+7,my+7)
+    love.graphics.line(mx-7,my+7,mx+7,my-7)
+  end
+  mark(world.lastDeath,252/255,85/255,83/255)
+  mark(world.mapMarker,1,1,1)
 end
 local function leaderboard(world,w)
   local count=math.min(10,#world.leaderboard)
@@ -124,6 +153,10 @@ local function chatBox(active,text,w,h)
   love.graphics.setFont(fontMedium)
   color(1,1,1)
   love.graphics.print((text or "").."|",bx+9,by+10)
+end
+function H.mapHitTest(w,h,x,y)
+  return type(x)=="number" and type(y)=="number"
+    and x>=20 and x<150 and y>=h-150 and y<h-20
 end
 -- Native LÖVE click target maps to original actionBarItem onclick/selectToBuild.
 -- CSS: 66 x 66, 5px margins on each side, bottom 17px.
