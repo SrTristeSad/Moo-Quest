@@ -1,6 +1,6 @@
 # Executar cliente Lua contra o servidor ORIGINAL do moomoo-clone
 
-**Status atual: conexao WebSocket e leitura inicial do handshake em desenvolvimento. Nao jogavel.** O servidor **NAO** e modificado, e nao existe ponte TCP especial nem servidor Lua.
+**Status atual: conexao WebSocket e leitura inicial do handshake em desenvolvimento. Nao jogavel.** O motor Node.js e o mesmo da referencia, sem ponte TCP especial nem servidor Lua. Uma unica configuracao de compatibilidade pode ser adicionada localmente se o upstream nao a publicar.
 
 ## Requisitos no Windows
 
@@ -18,16 +18,17 @@
 
 ## Caso voce precise instalar o servidor original
 
-1. `PREPARAR-SERVIDOR.bat` baixa o commit original congelado para `node-runtime/` **sem alterar nenhuma linha do JavaScript da referencia**.
-2. Verifica se o codigo original esta completo e so entao instala as dependencias npm.
-3. `INICIAR-WINDOWS.bat` pode abrir o servidor em uma janela e o cliente Lua em outra.
-4. Alternativamente, defina a variavel `MOOQUEST_SERVER_DIR` com o caminho de uma copia original completa e funcional do repositorio. Nenhum arquivo sera editado nessa pasta.
+1. `PREPARAR-SERVIDOR.bat` baixa o commit original congelado para `node-runtime/`. **Se voce ja tentou instalar e recebeu erro sobre config.js, nao apague `node-runtime`: o novo preparador o reutiliza.**
+2. Se `server/src/anticheat/config.js` estiver faltando, copia **apenas esse arquivo** de `support/local-anticheat-config.js`, sem sobrescrever arquivos existentes. Essa configuracao e somente de **compatibilidade local**, nao os valores originais do autor.
+3. Instala as dependencias npm, inicia o servidor **Node original** temporariamente no localhost e verifica resposta HTTP real de `/ping`.
+4. Apos aparecer `[OK]`, `INICIAR-WINDOWS.bat` abre o servidor em uma janela e o cliente Lua em outra.
+5. Alternativamente, defina a variavel `MOOQUEST_SERVER_DIR` com o caminho de uma copia original completa e funcional do repositorio. Nenhum arquivo sera editado nessa pasta.
 
-### Bloqueio conhecido na referencia, identificado na auditoria
+### Arquivo ausente no upstream: instalacao agora reparavel
 
-No commit `06f7c1ca965a7628671676c8d9a7efd3997bb5e7`, a arvore publica nao possui `server/src/anticheat/config.js`, mas `server/src/anticheat/index.js` importa esse modulo. A inicializacao Node pode falhar com `ERR_MODULE_NOT_FOUND`. O instalador mostra o problema e interrompe a preparacao, porque voce determinou que **o servidor deve permanecer intacto**.
+O commit original nao publica `server/src/anticheat/config.js`, embora o arquivo seja importado por varios modulos do Node.js. O instalador agora acrescenta **somente** uma configuracao de compatibilidade local que exporta os campos exigidos pelo codigo-fonte existente. **Nao modifica a logica de jogo original.** Essa configuracao nao e uma recuperacao dos valores do autor, portanto NAO e adequada para uso publico/Internet.
 
-Para executar, e necessaria uma versao **original completa** fornecida pelo autor, ou uma copia original que voce ja tenha funcionando. Nao deve ser inventado um `config.js` com regras de seguranca arbitrarias. Este bloqueio nao e um problema do LÖVE ou do WebSocket em Lua.
+Leia [CONFIG-LOCAL.md](CONFIG-LOCAL.md) para entender exatamente quais valores sao fornecidos e suas limitacoes. A inicializacao e verificada automaticamente: se o servidor nao responder a `/ping`, o instalador informa erro com os logs reais.
 
 ## Testes do cliente
 
