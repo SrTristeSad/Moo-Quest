@@ -102,7 +102,16 @@ function Original:update()
       end
     elseif evt.kind=="close" then
       self.state="closed"
-      self.status="Servidor original encerrou a conexao (ticket/build/integridade)."
+      local raw=evt.value
+      local code=type(raw)=="string" and #raw>=2 and (raw:byte(1)*256+raw:byte(2)) or nil
+      local descriptions={
+        [4001]="ticket, banimento, limite de conexoes ou politica do servidor",
+        [4002]="versao do build ou bundle nao corresponde ao servidor",
+        [4003]="servidor exige conta autenticada",
+        [4004]="origem WebSocket nao aceita"
+      }
+      local description=code and descriptions[code] or "conexao encerrada"
+      self.status="Servidor original fechou WebSocket: "..(code and tostring(code) or "?").." - "..description
       self.error=self.status
     elseif evt.kind=="error" then
       self.state="failed"
