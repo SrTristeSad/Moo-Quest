@@ -2,7 +2,7 @@
 
 **Decisao do projeto:** o Moo-Quest tera **apenas o CLIENTE desenvolvido em Lua/LÖVE 2D**. A simulacao, as regras, os animais, o combate, a construcao, os itens, as contas e os demais sistemas continuam no **servidor original de [al007ex/moomoo-clone](https://github.com/al007ex/moomoo-clone)**, executado primeiro localmente e depois possivelmente online.
 
-**Regra obrigatoria: nao alterar o servidor original, nao criar outro servidor e nao usar uma ponte/protocolo alternativo.**
+**Regra obrigatoria:** usar o motor Node.js original, sem criar outro servidor, ponte TCP ou protocolo alternativo. O preparador **apenas complementa um arquivo de configuracao que o autor nao publicou**, sem sobrescrever nenhum arquivo do upstream. Essa configuracao e apenas para desenvolvimento local.
 
 Referencia congelada: [commit 06f7c1c](https://github.com/al007ex/moomoo-clone/tree/06f7c1ca965a7628671676c8d9a7efd3997bb5e7).
 
@@ -14,7 +14,7 @@ Referencia congelada: [commit 06f7c1c](https://github.com/al007ex/moomoo-clone/t
 
 ### Bloqueio encontrado na propria referencia
 
-No commit upstream fixado, `server/src/anticheat/index.js` importa `./config.js`, mas `server/src/anticheat/config.js` **nao existe no Git daquele commit**. Isso impede iniciar aquele servidor Node sem obter uma versao original que contenha o arquivo. **Nao vamos inventar ou alterar regras anticheat** para contornar o problema.
+No commit original, `server/src/anticheat/config.js` **nao foi publicado** e o `.gitignore` contem `config.js`. **O instalador corrigido supre apenas esse arquivo ausente usando `support/local-anticheat-config.js`, sem substituir o motor Node nem sobrescrever arquivos existentes.** Os valores desta configuracao de compatibilidade sao nossos, nao os valores privados do autor, e **nao devem ser usados em um servidor publico**. Veja [docs/CONFIG-LOCAL.md](docs/CONFIG-LOCAL.md).
 
 O cliente Lua pode tentar conectar com **qualquer instancia original ja funcionando em `127.0.0.1:8080`**, sem modifica-la. Caso o servidor aceite apenas o cliente web oficial, a tela mostrara o erro retornado; nao existe simulacao de sucesso.
 
@@ -24,7 +24,7 @@ Necessarios LÖVE 2D 11.5 e Node.js 20+ (para executar o servidor).
 
 1. Extraia [o ZIP atualizado](https://github.com/SrTristeSad/Moo-Quest/archive/refs/heads/main.zip).
 2. Se voce ja tem o servidor original funcionando localmente em `127.0.0.1:8080`, **nao precisa preparar outro**. Abra `INICIAR-WINDOWS.bat`.
-3. Caso precise baixar a referencia, abra `PREPARAR-SERVIDOR.bat`: baixa o commit original **sem modificacoes** e testa se os arquivos necessarios existem. No commit atual, avisa sobre `config.js` ausente.
+3. Execute `PREPARAR-SERVIDOR.bat` atualizado, inclusive se o download anterior ja existe. Ele **reaproveita `node-runtime/`**, acrescenta somente `config.js` quando ausente, instala dependencias e testa o **servidor original** localmente por `/ping`, sem mudar outros arquivos JavaScript.
 4. `TESTAR-WINDOWS.bat` executa os testes do cliente Lua; isso nao substitui teste de conexao e gameplay.
 5. O cliente mostra a etapa real da conexao e possiveis codigos de recusa (4001, 4002, 4003, 4004).
 
@@ -36,4 +36,4 @@ A referencia contem materiais da FRVR e do cliente oficial identificados como de
 
 ## Proxima implementacao
 
-Completar o ingresso por **ticket autentico da API existente** e integridade apropriada ao cliente nativo; verificar spawn real antes de renderizar mundo, depois portar menu, HUD, armas e demais interfaces do jogo. Continuar sem editar o servidor.
+Validar a inicializacao no Windows apos o reparo da configuracao, completar o ingresso por **ticket autentico da API existente** e integridade apropriada ao cliente nativo; verificar spawn real antes de renderizar mundo. Nenhuma simulacao Lua ou substituicao do servidor.
