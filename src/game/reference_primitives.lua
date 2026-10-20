@@ -43,9 +43,14 @@ function P.path(points,fillColor,strokeColor,width)
   end
   if strokeColor then
     P.color(strokeColor)
-    love.graphics.setLineWidth(width or P.width)
-    love.graphics.setLineJoin("miter")
+    local radius=(width or P.width)/2
+    love.graphics.setLineWidth(radius*2)
+    love.graphics.setLineJoin("bevel")
     love.graphics.polygon("line",points)
+    -- Canvas uses round joins for getResSprite()/getItemSprite().
+    for i=1,#points,2 do
+      love.graphics.circle("fill",points[i],points[i+1],radius)
+    end
   end
 end
 
