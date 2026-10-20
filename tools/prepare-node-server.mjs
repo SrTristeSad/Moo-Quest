@@ -69,7 +69,7 @@ async function restoreUnpublishedConfig(){
     // previous Moo-Quest template, identified byte-for-byte and with our
     // explicit local-compatibility installation notice.
     const old=current
-      .replace("// Native Lua cannot supply official browser bundle seals. Disable ONLY browser-specific\\n// gates in this local config; other auth, sequence, HMAC, rate limits remain active.\\n","")
+      .replace("// Native Lua cannot supply official browser bundle seals. Disable ONLY browser-specific\n// gates in this local config; other auth, sequence, HMAC, rate limits remain active.\n","")
       .replace("enforceBundle: false, // Native Lua has no browser JS bundle; LOCAL ONLY.","enforceBundle: true,")
       .replace("mode: 0, // No browser bundle to bind; keyed HMAC + ticket remain enabled.","mode: 2,");
     const existing=await fs.readFile(target,"utf8");
@@ -80,7 +80,7 @@ async function restoreUnpublishedConfig(){
       log("Ticket, origem, versao de build, HMAC e limites de pacotes continuam exigidos.");
     }else{
       log("anticheat/config.js existente/customizado: preservado sem substituicao.");
-      if(existing.includes("enforceBundle: true") || /mode:\\s*2[\\s,]/.test(existing)){
+      if(existing.includes("enforceBundle: true") || /mode:\s*2[\s,]/.test(existing)){
         log("[AVISO] A configuracao existente exige bundle/seal de navegador; Lua pode ser recusado.");
         log("[AVISO] Nao sobrescrevi configuracao desconhecida. Consulte docs/CONFIG-LOCAL.md.");
       }
