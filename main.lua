@@ -1,10 +1,12 @@
 local Camera=require("src.camera")
 local Input=require("src.input")
 local Client=require("src.net.local_client")
+local NodeProtocol=require("src.net.node_protocol")
+local Msgpack=require("src.protocol.msgpack")
 local AnimalTypes=require("src.game.animals")
-local camera,input,client,serverThread
+local camera,input,client
 local testResults=nil
-local serverStatus="Iniciando servidor Lua..."
+local serverStatus="Procurando servidor Node.js em 127.0.0.1:17017..."
 local world=nil
 local players={}
 local animals={}
@@ -16,6 +18,10 @@ local transmitClock=0
 local attackClock=0
 local notification=""
 local port=17017
+local protocol=NodeProtocol.new()
+local retryClock=0
+local wasOpen=false
+local clickHeld=false
 local G={}
 
 local function atan2(y,x)
@@ -186,10 +192,10 @@ local function onServerMessage(msg)
         sid=o[1],x=o[2],y=o[3],scale=o[4],kind=o[5],id=o[6]
       }
     end
-    serverStatus="Mundo recebido do servidor Lua"
+    serverStatus="Recebendo mundo original do Node.js"
   elseif kind=="welcome" then
     localSid=msg[2]
-    serverStatus="Conectado ao servidor Lua (ID "..tostring(localSid)..")"
+    serverStatus="Conectado ao servidor Node.js (ID "..tostring(localSid)..")"
   elseif kind=="players" then
     local nextPlayers={}
     for _,raw in ipairs(msg[2] or {}) do
@@ -220,6 +226,16 @@ local function onServerMessage(msg)
         sid=msg[2],x=msg[3],y=msg[4],scale=msg[5],kind=msg[6],id=msg[7]
       }
     end
+  elseif kind=="remove_object" then
+    if world then
+      for i=#world.objects,1,-1 do
+        if world.objects[i].sid==msg[2] then table.remove(world.objects,i) end
+      end
+    end
+  elseif kind=="dead" then
+    notification="Voce morreu. Aperte R para renascer."
+  elseif kind=="chat" then
+    notification="Chat: "..tostring(msg[3] or "")
   elseif kind=="gather" then
     notification=msg[2]>0 and ("Coleta confirmada: "..msg[2]) or "Nada ao alcance"
   elseif kind=="error" then notification="Servidor: "..tostring(msg[2])
@@ -235,12 +251,16 @@ function love.load()
   camera=Camera.new()
   camera.zoom=1
   input=Input.new()
-  -- Each game instance starts its own separate, authoritative Lua server thread.
-  -- No JS runtime, browser or externally hosted server is required.
-  love.thread.getChannel("moo_server_status"):clear()
-  love.thread.getChannel("moo_server_control"):clear()
-  serverThread=love.thread.newThread("src/server/worker.lua")
-  serverThread:start(port)
+  -- LÖVE is only the renderer/input client. The ORIGINAL game logic is Node.js.
+  -- See PREPARAR-SERVIDOR.bat and INICIAR-WINDOWS.bat for the pinned Node server.
+  local ok,result=pcall(Client.new,{})
+  if ok then
+    client=result
+    local connected,why=client:connect(port)
+    if not connected then serverStatus="Aguardando Node.js: "..tostring(why) end
+  else
+    serverStatus="LuaSocket indisponivel: "..tostring(result)
+  end
 end
 function love.resize(w,h)
   if camera then camera:resize(w,h) end
@@ -248,61 +268,71 @@ end
 function love.update(dt)
   if testResults then return end
   input:update(dt)
-  if serverThread then
-    local fatal=serverThread:getError()
-    if fatal then serverStatus="Erro no servidor Lua: "..tostring(fatal) end
-  end
-  local channel=love.thread.getChannel("moo_server_status")
-  while true do
-    local event=channel:pop()
-    if not event then break end
-    if event[1]=="ready" and not client then
-      local ok,res=pcall(Client.new,{})
-      if ok then
-        client=res
-        local connected,why=client:connect(event[2])
-        if not connected then serverStatus="Falha TCP: "..tostring(why) end
-      else
-        serverStatus="LuaSocket indisponivel: "..tostring(res)
-      end
-    elseif event[1]=="error" then
-      serverStatus="Servidor: "..tostring(event[2])
-    end
-  end
   if client then
-    client:update()
-    if client.state=="failed" then serverStatus="Falha de rede: "..tostring(client.error) end
-    if client.state=="closed" then serverStatus="Servidor desconectado" end
-    if client.state=="open" and not G.joinSent then
-      client:queue({"join","Jogador"})
-      G.joinSent=true
-      serverStatus="Aguardando spawn..."
+    if client.state=="failed" or client.state=="closed" then
+      retryClock=retryClock+dt
+      if retryClock>=1.5 then
+        retryClock=0
+        local connected,why=client:connect(port)
+        if not connected then serverStatus="Aguardando Node.js: "..tostring(why) end
+      end
     end
-    for _,msg in ipairs(client:drain()) do onServerMessage(msg) end
+    client:update()
+    if client.state=="failed" then
+      serverStatus="Aguardando servidor Node.js. Execute PREPARAR-SERVIDOR.bat."
+    end
+    if client.state=="open" then
+      if not wasOpen then
+        protocol=NodeProtocol.new()
+        players,animals,world={}, {}, nil
+        localSid=nil
+        lastMove,lastAim=nil,nil
+        clickHeld=false
+        G.spawnSent=false
+        wasOpen=true
+      end
+      if not G.spawnSent then
+        -- Spawn is validated by handlePacket('M') in the ORIGINAL Node game.
+        local ok=client:queue({"M",{Msgpack.map({
+          name="Jogador",moofoll=false,skin=0,anon=false
+        })}})
+        if ok then G.spawnSent=true;serverStatus="Aguardando o spawn do Node.js..." end
+      end
+    elseif wasOpen then
+      wasOpen=false
+      players,animals={},{}
+      localSid=nil
+      world=nil
+      G.spawnSent=false
+    end
+    for _,wire in ipairs(client:drain()) do
+      for _,event in ipairs(protocol:decode(wire)) do onServerMessage(event) end
+    end
   end
   local p=selfPlayer()
   if p then
     camera:follow(p.x,p.y)
     transmitClock=transmitClock+dt
-    attackClock=attackClock+dt
     if client and client.state=="open" and transmitClock>=0.05 then
       transmitClock=0
       local dx,dy=input.dx,input.dy
       local move=(dx~=0 or dy~=0) and atan2(dy,dx) or false
       local aim=aimAngle()
       if move~=lastMove then
-        client:queue({"move",move==false and require("src.protocol.msgpack").null or move})
+        client:queue({"9",{move==false and Msgpack.null or move}})
         lastMove=move
       end
       if not lastAim or math.abs(aim-lastAim)>0.01 then
-        client:queue({"aim",aim})
+        client:queue({"D",{aim}})
         lastAim=aim
       end
     end
-    if selected==0 and input.buttons[1] and attackClock>=0.31
-      and client and client.state=="open" then
-      client:queue({"attack"})
-      attackClock=0
+    if client and client.state=="open" and selected==0 then
+      local pressed=input.buttons[1] and true or false
+      if pressed~=clickHeld then
+        client:queue({"F",{pressed and 1 or 0,Msgpack.null}})
+        clickHeld=pressed
+      end
     end
   end
 end
@@ -334,7 +364,7 @@ function love.draw()
   love.graphics.setColor(0.10,0.15,0.12,0.87)
   love.graphics.rectangle("fill",12,12,470,71,8,8)
   love.graphics.setColor(1,1,1)
-  love.graphics.print("MOO-QUEST | Lua local (desenvolvimento)",24,20)
+  love.graphics.print("MOO-QUEST | Cliente Lua / Servidor Node.js",24,20)
   love.graphics.setColor(0.79,0.91,0.81)
   love.graphics.print(serverStatus,24,45)
   if localSid then
@@ -352,7 +382,7 @@ function love.draw()
   end
   if not world then
     love.graphics.setColor(1,1,1)
-    love.graphics.printf("Aguardando o mundo real do servidor Lua...",0,h/2,w,"center")
+    love.graphics.printf("Aguardando dados do servidor Node.js original...",0,h/2,w,"center")
   end
   love.graphics.setColor(0.91,0.94,0.90)
   love.graphics.print("Marco inicial, paridade incompleta. Artes vetoriais temporarias.",w-460,12)
@@ -363,11 +393,23 @@ function love.keypressed(key)
     return
   end
   if key=="escape" then love.event.quit()
-  elseif key=="1" then selected=3
-  elseif key=="2" then selected=0
+  elseif key=="1" then
+    if client and client.state=="open" and selected~=3 then
+      if clickHeld then client:queue({"F",{0,Msgpack.null}});clickHeld=false end
+      client:queue({"z",{3,false}})
+      selected=3
+    end
+  elseif key=="2" then
+    if client and client.state=="open" and selected~=0 then
+      client:queue({"z",{0,true}})
+      selected=0
+    end
   elseif key=="r" and client and client.state=="open" then
     local p=selfPlayer()
-    if p and not p.alive then client:queue({"respawn"}) end
+    if p and not p.alive then
+      client:queue({"M",{Msgpack.map({name="Jogador",moofoll=false,skin=0,anon=false})}})
+      notification="Aguardando renascimento autorizado pelo Node.js..."
+    end
   end
   input:keypressed(key)
 end
@@ -376,12 +418,13 @@ function love.mousepressed(x,y,button)
   if not input then return end
   input:mousepressed(x,y,button)
   if button==1 and selected==3 and client and client.state=="open" and selfPlayer() then
-    client:queue({"build",aimAngle()})
+    client:queue({"F",{1,aimAngle()}})
+    client:queue({"F",{0,Msgpack.null}})
   end
 end
 function love.mousereleased(x,y,button) if input then input:mousereleased(x,y,button) end end
 function love.quit()
   if testResults then return end
   if client then client:close() end
-  love.thread.getChannel("moo_server_control"):push("stop")
+  -- Do not shut down Node.js here; it may be hosting other online players.
 end
