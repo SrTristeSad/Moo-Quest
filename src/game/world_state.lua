@@ -1,6 +1,7 @@
 -- Protocol-driven game state. All entities originate in packets from the Node server.
 -- Packet layouts: al007ex/moomoo-clone/server/src/moomoo/server.js (pinned baseline).
 local Catalog=require("src.game.catalog")
+local Animation=require("src.game.reference_animation")
 local World={}
 World.__index=World
 local function number(v) return type(v)=="number" and v==v and v~=math.huge and v~=-math.huge end
@@ -106,6 +107,19 @@ function World:apply(name,args)
     end
     for _,sid in ipairs(hidden) do self.animals[sid]=nil end
     return true
+  elseif name=="J" then
+    -- The JavaScript client invokes findAIBySID(sid):startAnim().
+    local ai=self.animals[args[1]]
+    if ai then Animation.animal(ai) end
+    return true
+  elseif name=="K" then
+    -- sid, didHit, weaponIndex, optional skin attack-speed multiplier.
+    local p=self.players[args[1]]
+    if p then
+      local weapon=Catalog.weaponById(args[3])
+      Animation.player(p,args[2],weapon,args[4])
+    end
+    return true
   elseif name=="Q" then
     if validId(args[1]) then self.objects[args[1]]=nil end
     return true
@@ -191,6 +205,7 @@ function World:update(dt)
   if type(dt)~="number" or dt<=0 then return end
   for _,group in ipairs({self.players,self.animals}) do
     for _,entity in pairs(group) do
+      Animation.update(entity,dt)
       if entity.interp then
         entity.interp=math.min(1.7,entity.interp+dt*1000/170)
         entity.visualX=entity.fromX+(entity.toX-entity.fromX)*entity.interp
