@@ -135,6 +135,7 @@ while control:pop()~="stop" do
   while accumulator>=tickSeconds and steps<4 do
     local packet=game:tick(tickSeconds*1000)
     broadcast(packet)
+    broadcast(game:animalPacket())
     accumulator=accumulator-tickSeconds
     steps=steps+1
   end
