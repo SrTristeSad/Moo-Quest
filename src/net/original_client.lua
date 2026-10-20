@@ -5,6 +5,8 @@
 local SocketWS=require("src.net.websocket_client")
 local Bootstrap=require("src.protocol.bootstrap")
 local Random=require("src.net.secure_random")
+local Build=require("src.protocol.original_build")
+local OriginalSession=require("src.protocol.original_session")
 local Original={}
 Original.__index=Original
 
@@ -37,7 +39,7 @@ function Original.new(options)
     sha1=options.sha1 or function(data) return love.data.hash("sha1",data) end,
     socketLib=options.socket,
     state="idle",status="Servidor original ainda nao conectado.",
-    error=nil,build=nil,handshake=nil,websocket=nil,events={}
+    error=nil,build=nil,handshake=nil,session=nil,websocket=nil,events={}
   },Original)
 end
 function Original:connect()
@@ -94,8 +96,39 @@ function Original:update()
         else
           self.handshake=handshake
           self.state="handshake_received"
-          self.status="io-init original recebido. Protocolo autenticado ainda pendente."
           self.events[#self.events+1]={kind="io-init",data=handshake}
+          local params,buildError=Build.load()
+          if handshake.pinned and not params then
+            self.state="blocked"
+            self.status="Handshake recebido; falta build original para derivar as chaves: "..tostring(buildError)
+          elseif handshake.pinned and params.buildId~=self.build then
+            self.state="blocked"
+            self.status="Build local diferente do servidor remoto; parametros rejeitados."
+          else
+            local session,sessionError=OriginalSession.new(handshake,params,
+              function(data) return love.data.hash("sha256",data) end)
+            if not session then
+              self.state="blocked"
+              self.status="Sessao original indisponivel: "..tostring(sessionError)
+            else
+              self.session=session
+              self.state="keyed_transport"
+              self.status="io-init e protocolo autenticado preparados. Spawn ainda NAO confirmado."
+              if handshake.sealMode==1 then
+                self.status=self.status.." Servidor tambem exige integridade/telemetria."
+              end
+            end
+          end
+        end
+      elseif self.session then
+        local packet,err=self.session:decode(evt.value)
+        if not packet then
+          self.state="failed"
+          self.error=tostring(err)
+          self.status="Erro no pacote do servidor original: "..self.error
+          ws:close()
+        else
+          self.events[#self.events+1]={kind="game_packet",data=packet}
         end
       else
         self.events[#self.events+1]={kind="encrypted_frame",length=#evt.value}
@@ -124,6 +157,14 @@ function Original:update()
     self.status="Conexao original fechada antes de entrar no jogo."
   end
 end
+function Original:send(name,args)
+  if not self.session or not self.websocket or self.websocket.state~="open" then
+    return false,"original session not authenticated"
+  end
+  local frame,err=self.session:encode(name,args)
+  if not frame then return false,err end
+  return self.websocket:send(frame,2)
+end
 function Original:drain()
   local events=self.events
   self.events={}
@@ -133,6 +174,7 @@ function Original:close()
   if self.websocket then self.websocket:close() end
   self.websocket=nil
   self.handshake=nil
+  self.session=nil
   self.events={}
 end
 return Original
