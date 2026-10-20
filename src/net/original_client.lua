@@ -7,6 +7,8 @@ local Bootstrap=require("src.protocol.bootstrap")
 local Random=require("src.net.secure_random")
 local Build=require("src.protocol.original_build")
 local OriginalSession=require("src.protocol.original_session")
+local Join=require("src.net.original_join")
+local MessagePack=require("src.protocol.msgpack")
 local Original={}
 Original.__index=Original
 
@@ -35,6 +37,10 @@ function Original.new(options)
   return setmetatable({
     host=options.host or "127.0.0.1",port=options.port or 8080,
     server=options.server or "LC",
+    name=options.name or "Jogador",
+    join=options.join or Join,
+    ltn12=options.ltn12,
+    did=nil,ticket=nil,spawnSent=false,sid=nil,packetCount=0,
     http=socketHttp,random=options.random or Random.bytes,
     sha1=options.sha1 or function(data) return love.data.hash("sha1",data) end,
     socketLib=options.socket,
@@ -59,12 +65,31 @@ function Original:connect()
     return false,reason
   end
   self.build=build
+  -- /api/join is the exact API used by the author's local client. Its guest
+  -- CAPTCHA is an explicit local stand-in (boolean), not an internet service.
+  -- One fresh, single-use ticket is required for every WebSocket attempt.
+  local grant,joinError=self.join.guest({
+    host=self.host,port=self.port,server=self.server,did=self.did,
+    http=self.http,ltn12=self.ltn12
+  })
+  if not grant then
+    self.state="failed"
+    self.error=joinError
+    self.status="Servidor recusou ingresso guest: "..tostring(joinError)
+    return false,joinError
+  end
+  self.ticket=grant.ticket
+  self.did=grant.did
+  self.spawnSent=false
+  self.sid=nil
+  self.packetCount=0
   local options={secureRandom=self.random,sha1=self.sha1}
   if self.socketLib then options.socket=self.socketLib end
   local ws=SocketWS.new(options)
-  -- The original server validates ?b= and may require ?u= and join ticket.
-  -- We do not fabricate these, or claim that HTTP 101 means a game session.
-  local path="/s/"..self.server.."?b="..build
+  -- Keep ?b= bound to /ping and supply the authentic one-use join ticket.
+  -- ?u= is needed only when the optional official JS bundle exists; the
+  -- Lua client does not impersonate or copy the official browser bundle.
+  local path="/s/"..self.server.."?b="..build.."&token=tk:"..grant.ticket
   local ok,err=ws:connect(self.host,self.port,path)
   if not ok then
     self.state="failed";self.error=err
@@ -74,7 +99,8 @@ function Original:connect()
   self.websocket=ws
   self.state="connecting"
   self.error=nil
-  self.status="Conectando diretamente: ws://"..self.host..":"..self.port..path
+  self.status="Ticket guest original emitido; abrindo WebSocket em localhost..."
+  -- Do not print URLs containing the secret single-use ticket.
   return true
 end
 function Original:update()
@@ -113,9 +139,17 @@ function Original:update()
             else
               self.session=session
               self.state="keyed_transport"
-              self.status="io-init e protocolo autenticado preparados. Spawn ainda NAO confirmado."
-              if handshake.sealMode==1 then
-                self.status=self.status.." Servidor tambem exige integridade/telemetria."
+              self.status="Handshake original aceito; solicitando spawn ao Node.js..."
+              if not self.spawnSent then
+                self.spawnSent=true
+                local okSpawn,spawnErr=self:send("M",{
+                  MessagePack.map({name=self.name,moofoll=false,skin=0,anon=false})
+                })
+                if not okSpawn then
+                  self.state="failed"
+                  self.error="Spawn nao enviado: "..tostring(spawnErr)
+                  self.status=self.error
+                end
               end
             end
           end
@@ -128,7 +162,15 @@ function Original:update()
           self.status="Erro no pacote do servidor original: "..self.error
           ws:close()
         else
+          self.packetCount=self.packetCount+1
           self.events[#self.events+1]={kind="game_packet",data=packet}
+          if packet.name=="C" and type(packet.args[1])=="number" then
+            self.sid=packet.args[1]
+            self.state="spawn_confirmed"
+            self.status="Spawn confirmado pelo servidor Node original! ID "..tostring(self.sid)
+          elseif packet.name=="B" then
+            self.status="Servidor enviou desconexao: "..tostring(packet.args[1])
+          end
         end
       else
         self.events[#self.events+1]={kind="encrypted_frame",length=#evt.value}
@@ -175,6 +217,8 @@ function Original:close()
   self.websocket=nil
   self.handshake=nil
   self.session=nil
+  self.spawnSent=false
+  self.ticket=nil
   self.events={}
 end
 return Original
