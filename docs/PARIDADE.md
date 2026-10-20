@@ -7,14 +7,14 @@ Cada item abaixo representa **funcionalidade real presente na referência**, nã
 
 | ID | Sistema obrigatório | Referência primária | Estado no Moo-Quest | Critério de aceitação |
 | --- | --- | --- | --- | --- |
-| P01 | Inicialização Windows e servidor local Lua | `server/src/index.js`, `package.json` | não iniciado | Abrir ambos e jogar sem JavaScript/serviços externos |
-| P02 | Conexão, sessão e entrada guest/conta | `server/src/network/`, `server/src/api/` | em desenvolvimento | Handshake, login local, spawn, disconnect e reconexão reais |
-| P03 | Serialização, eventos e sincronização | `server/src/protocol/`, `server/src/network/packets.js` | em desenvolvimento | Todas as mensagens necessárias resultam nos mesmos estados |
+| P01 | Inicialização Windows e servidor local Lua | `server/src/index.js`, `package.json` | em desenvolvimento (thread Lua + launcher, sem execução Windows verificada) | Abrir ambos e jogar sem JavaScript/serviços externos |
+| P02 | Conexão, sessão e entrada guest/conta | `server/src/network/`, `server/src/api/` | em desenvolvimento (TCP local e guest básico, contas ausentes) | Handshake, login local, spawn, disconnect e reconexão reais |
+| P03 | Serialização, eventos e sincronização | `server/src/protocol/`, `server/src/network/packets.js` | em desenvolvimento (protocolo local próprio, subconjunto das mensagens) | Todas as mensagens necessárias resultam nos mesmos estados |
 | P04 | Mundo/terreno, zonas, câmera e biomas | `shared/config.js`, `server/src/moomoo/server.js` | em desenvolvimento (geração natural e geometria Lua, não integrada) | Geometria, rio, neve, deserto, câmera e limites conferidos |
 | P05 | Jogador, spawn, controle, morte/respawn | `server/src/moomoo/modules/player.js` | em desenvolvimento (spawn e movimento parciais, sem cliente integrado) | WASD, apontar, ataque, colisão, morte/retorno corretos |
-| P06 | Recursos, mineração e coleta | `shared/config.js`, `server/src/moomoo/modules/objectManager.js` | não iniciado | Árvores/arbustos/rochas/ouro, recursos reais e respawns equivalentes |
+| P06 | Recursos, mineração e coleta | `shared/config.js`, `server/src/moomoo/modules/objectManager.js` | em desenvolvimento (martelo básico, sem ciclo completo de recursos) | Árvores/arbustos/rochas/ouro, recursos reais e respawns equivalentes |
 | P07 | Armas e variantes, projéteis e dano | `shared/config/items.js`, `server/src/moomoo/modules/projectileManager.js` | não iniciado | Todas as armas, tiros, alcance, dano e XP equivalentes |
-| P08 | Itens, construções, torres e moinhos | `shared/config/items.js`, `server/src/moomoo/modules/objectManager.js` | não iniciado | Colocação, limites, custos, efeitos e destruição corretos |
+| P08 | Itens, construções, torres e moinhos | `shared/config/items.js`, `server/src/moomoo/modules/objectManager.js` | em desenvolvimento (parede de madeira apenas) | Colocação, limites, custos, efeitos e destruição corretos |
 | P09 | IA, animais e criaturas comuns | `server/src/moomoo/modules/ai*.js` | não iniciado | Movimentação, ataques, estados, dano e drops corretos |
 | P10 | Chefes, Crab King e eventos especiais | `server/src/moomoo/modules/ai.js`, README | não iniciado | Bosses, fases, telegraphs, mergulho e mecânicas reconstruídas |
 | P11 | Área secreta, piscina e cachoeira | `shared/config.js`, README | não iniciado | Geometria e física especial equivalente |
@@ -38,6 +38,16 @@ Cada item abaixo representa **funcionalidade real presente na referência**, nã
 - Testes escritos: `tests/world.lua`, `tests/geometry.lua`, `tests/player.lua` e `tests/msgpack_gameplay.lua`.
 - `.github/workflows/lua-tests.yml` foi criado. As primeiras execuções do GitHub Actions falharam antes de produzir passos/logs consultáveis; **não há aprovação de testes** nem teste local de partida.
 - Nenhum dos itens da matriz está `verificado localmente`.
+
+## Marco integrado: jogo local Lua (código criado; teste Windows pendente)
+
+- `src/server/game.lua` implementa início de sessão guest simples, dados do mundo, sincronização de jogadores, coleta inicial com martelo e construção da parede de madeira, preservando os parâmetros relevantes da referência. **Não substitui todos os sistemas originais**.
+- `src/net/local_frames.lua`, `src/net/local_client.lua` e `src/server/worker.lua` fornecem transporte MessagePack TCP entre cliente LÖVE e **servidor Lua executado em thread**. É um protocolo local próprio; não afirma compatibilidade binária com o protocolo WebSocket original.
+- `main.lua` agora inicia a thread, aguarda o estado real do servidor e desenha mundo e jogadores com **representações temporárias**, incluindo câmera centralizada, WASD, martelo e parede. Não redistribui arte da FRVR.
+- `INICIAR-WINDOWS.bat` localiza LÖVE 11.5 e preserva mensagens de erro no console. `docs/EXECUTAR-LOCAL.md` contém instruções e checklist.
+- `tests/local_frames.lua`, `tests/local_client.lua`, `tests/game.lua` verificam em código casos de frames, socket simulado e estado do jogo. **Ainda não executados com sucesso**.
+- O GitHub Actions registrou execuções com `failure` e sem passos/logs legíveis. Isso **não demonstra falha específica de um teste Lua**, nem permite considerá-los aprovados. É preciso diagnosticar o ambiente GitHub Actions e executar o jogo real no Windows.
+- **Nenhuma linha de paridade foi validada de ponta a ponta.** Este marco não cumpre a definição de 100% e tampouco comprova, ainda, uma partida local funcional.
 
 ## Procedimento
 
