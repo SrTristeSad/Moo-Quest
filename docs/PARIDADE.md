@@ -8,7 +8,7 @@ Estados: `pendente`, `em desenvolvimento`, `implementado sem teste de ponta a po
 
 | ID | Sistema de referência | Status da parte Lua | Critério para aprovar |
 | --- | --- | --- | --- |
-| P01 | Inicio Windows/servidor original intacto | bloqueado pelo upstream (config.js ausente) | Servidor original inicializa e responde /ping; cliente LÖVE abre sem erros |
+| P01 | Inicio Windows / motor Node original | correcao de instalacao criada, teste Windows pendente | Preparacao reutiliza download, adiciona config local ausente e confirma /ping do Node |
 | P02 | Sessao, ticket, spawn e retorno | nao integrado | /api/join, ingresso legitimo, spawn C/D, morte e respawn |
 | P03 | Transporte e eventos da partida | em desenvolvimento | WebSocket original, io-init, sessao assinada e pacotes decodificados |
 | P04 | Mapa completo e câmera | em desenvolvimento | biomas, área secreta, zoom, culling e mundo completo |
@@ -33,7 +33,7 @@ Estados: `pendente`, `em desenvolvimento`, `implementado sem teste de ponta a po
 
 ## Implementado no código atual
 
-- `PREPARAR-SERVIDOR.bat` baixa a versao original completa sem alterar os arquivos JavaScript; verifica a existencia dos arquivos do upstream.
+- `PREPARAR-SERVIDOR.bat` reutiliza o original baixado, supre somente `anticheat/config.js` quando ausente e executa o Node original num teste temporario em localhost. A politica de compatibilidade e documentada em `docs/CONFIG-LOCAL.md`, **nao representa os valores originais** e nao deve ser usada online.
 - Ponte TCP anterior removida. O cliente nao cria uma rota alternativa no Node original.
 - `src/net/original_client.lua`, `src/net/websocket_client.lua`, `src/net/secure_random.lua` implementam a sondagem HTTP e tentativa de conexao WebSocket diretamente ao servidor original em 8080.
 - `src/protocol/original_crypto.lua`, `src/protocol/original_build.lua`, `src/protocol/original_session.lua` implementam as tabelas, chave e frames binarios do protocolo original (integracao e testes reais pendentes).
@@ -50,7 +50,7 @@ Estados: `pendente`, `em desenvolvimento`, `implementado sem teste de ponta a po
 
 ## Próxima ordem de trabalho
 
-1. Obter uma copia original do servidor que realmente inicialize: o commit fixado nao possui `server/src/anticheat/config.js`, embora o importe. Nao alterar o servidor para mascarar o problema.
+1. Validar no Windows `PREPARAR-SERVIDOR.bat` depois do reparo local de `config.js`, com o servidor Node original passando `/ping`. Registrar logs se houver nova falha. Manter o uso estritamente localhost.
 2. Completar interpretação dos demais pacotes e paridade da interface e visualização.
 3. Equipamentos, loja, inventário, progressão, construções, combate e animais.
 4. Social, conta, clã, eventos, ajustes e ferramentas especiais.
