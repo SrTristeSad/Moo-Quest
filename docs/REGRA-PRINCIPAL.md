@@ -5,7 +5,7 @@
 ## Arquitetura
 
 1. Cliente grafico: Lua + LÖVE 2D, no Windows.
-2. Servidor: **codigo ORIGINAL de al007ex/moomoo-clone, em Node.js, intacto**. O servidor roda localmente por enquanto.
+2. Servidor: **codigo de jogo ORIGINAL de al007ex/moomoo-clone, em Node.js**. O servidor roda localmente por enquanto. **Excecao documentada:** o commit nao publica um arquivo de configuracao `server/src/anticheat/config.js` que ele proprio importa; o instalador pode acrescentar somente uma configuracao de compatibilidade local, sem sobrescrever arquivos existentes.
 3. Ligacao: **protocolo WebSocket ja fornecido pelo proprio servidor**, em `ws://127.0.0.1:8080/s/LC`, incluindo requisitos nativos de entrada, sessao e pacotes autenticados. Nao alterar o servidor para aceitar atalhos.
 4. Futuro: evoluir a infraestrutura de conexao do servidor Node.js para acesso online, numa etapa futura, com avaliacao separada de seguranca e hospedagem. Nao usar a ponte TCP anterior nem abri-la remotamente.
 5. Escopo: reproduzir tudo que o projeto de referencia oferece no cliente Lua antes de adicionar mecanicas proprias, respeitando direitos de terceiros sobre arte, assets, bundles e marcas.
@@ -17,7 +17,7 @@ Referencia imutavel durante auditoria:
 
 - **NAO** criar ou rodar simulacao do servidor em Lua.
 - **NAO** criar `nativeBridge.js`, um servidor proxy/adaptador proprio, protocolo TCP alternativo ou rota customizada.
-- **NAO** editar os arquivos JavaScript do servidor, retirar sua autenticacao, mudar anticheat, criar dados falsos no cliente ou simular sucesso sem resposta autenticada.
+- **NAO** reescrever arquivos existentes do motor Node.js, retirar autenticacao, criar dados falsos no cliente ou simular sucesso sem resposta autenticada. Unica excecao: **repor, em instalacao local e sem substituir arquivo algum, `anticheat/config.js` ausente**, com valores proprios claramente identificados e **nao adequados a producao**.
 - **NAO** classificar um WebSocket aberto, um `io-init` ou sprites renderizados como partida jogavel. Somente spawn real no servidor original prova isso.
 - **NAO** importar assets protegidos da FRVR/cliente oficial sem licenca apropriada.
 
@@ -27,4 +27,4 @@ Uma etapa parcial precisa ser descrita como parcial, com evidencias/testes regis
 
 ## Problema de origem
 
-O commit de referencia **importa** `server/src/anticheat/config.js` mas o arquivo nao foi localizado na arvore Git congelada. O Moo-Quest **nao vai inventar/configurar as regras de seguranca do servidor por conta propria**. Para seguir com o jogo, sera preciso uma copia original completa e funcional ou uma correcao publicada pelo autor. Enquanto isso e possivel desenvolver e testar os modulos do cliente Lua sem declarar jogabilidade concluida.
+O commit de referencia **importa** `server/src/anticheat/config.js`, ausente na arvore Git congelada. O Moo-Quest contem uma configuracao de compatibilidade **somente para testes locais**, em `support/local-anticheat-config.js`, instalada **apenas quando o arquivo nao existe**. Os valores nao correspondem necessariamente a politica privada do autor, e essa copia nao deve ser publicada na internet. Veja `docs/CONFIG-LOCAL.md`. O cliente ainda precisa concluir o protocolo original antes de entrar no jogo.
