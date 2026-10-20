@@ -25,6 +25,29 @@ local serverPackets=0
 local died=false
 local heartbeatClock=0
 local frameDelta=0
+local chatOpen=false
+local chatDraft=""
+local function shortenChat(text)
+  -- JavaScript chatBox.value.slice(0,30): keep up to 30 UTF-8 characters.
+  local count=0
+  for i=1,#text do
+    local b=text:byte(i)
+    if b<128 or b>=192 then
+      count=count+1
+      if count>30 then return text:sub(1,i-1) end
+    end
+  end
+  return text
+end
+local function backspaceUtf8(text)
+  local pos=#text
+  while pos>1 do
+    local b=text:byte(pos)
+    if b<128 or b>=192 then break end
+    pos=pos-1
+  end
+  return text:sub(1,pos-1)
+end
 
 function love.load()
   love.graphics.setDefaultFilter("linear","linear")
@@ -83,6 +106,7 @@ function love.update(dt)
           end
         end
       elseif packet.name=="P" then
+        chatOpen=false;chatDraft=""
         died=true
         latestEvent="Morte confirmada pelo Node. Pressione R para reaparecer."
       elseif packet.name=="B" then
@@ -155,7 +179,7 @@ function love.draw()
   if client and client.state=="spawn_confirmed" and not died
     and p and p.x and p.y then
     View.draw(world,camera,frameDelta)
-    Hud.draw(world)
+    Hud.draw(world,chatOpen,chatDraft)
     -- When a reference PNG is absent, report the missing local source.
     -- Never substitute a generated image or fabricated gameplay entity.
     if #Assets.missing()>0 then
@@ -206,8 +230,29 @@ function love.draw()
 end
 
 function love.keypressed(key)
-  if key=="escape" then love.event.quit();return end
+  if key=="escape" then
+    if chatOpen then chatOpen=false;chatDraft="";return end
+    love.event.quit();return
+  end
   if diagnostic then return end
+  if chatOpen then
+    if key=="return" or key=="kpenter" then
+      local value=shortenChat(chatDraft)
+      if #value>0 and client then client:send("6",{value}) end
+      chatDraft="";chatOpen=false
+    elseif key=="backspace" then
+      chatDraft=backspaceUtf8(chatDraft)
+    end
+    return
+  end
+  if (key=="return" or key=="kpenter") and client
+    and client.state=="spawn_confirmed" and not died then
+    chatOpen=true;chatDraft=""
+    input.keys={}
+    lastMove=false
+    client:send("e",{})
+    return
+  end
   input:keypressed(key)
   -- Mirror the reference client's default gameplay bindings.
   if client and client.state=="spawn_confirmed" and not died then
@@ -258,6 +303,11 @@ function love.keypressed(key)
     world=World.new()
     local ok,err=client:connect()
     if not ok then startupError=err end
+  end
+end
+function love.textinput(text)
+  if chatOpen and type(text)=="string" then
+    chatDraft=shortenChat(chatDraft..text)
   end
 end
 function love.keyreleased(key)
