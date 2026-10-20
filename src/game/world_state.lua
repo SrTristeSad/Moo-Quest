@@ -23,6 +23,7 @@ function World.new()
     sid=nil,spawned=false,dead=false,players={},objects={},animals={},projectiles={},
     resources={},inventory={weapons={},items={}},leaderboard={},
     xp=0,maxXP=0,age=1,upgradePoints=0,upgradeAge=0,
+    minimapData={},mapPings={},mapMarker=nil,lastDeath=nil,
     packets=0,lastPacket=nil
   },World)
 end
@@ -114,6 +115,16 @@ function World:apply(name,args)
     end
     for _,sid in ipairs(hidden) do self.animals[sid]=nil end
     return true
+  elseif name=="7" then
+    -- Reference updateMinimap() receives [x1,y1,x2,y2,...] for teammates.
+    self.minimapData=array(args[1])
+    return true
+  elseif name=="9" then
+    -- Reference pingMap(x,y), shrinking alpha with scale from 0 to 40.
+    if number(args[1]) and number(args[2]) then
+      self.mapPings[#self.mapPings+1]={x=args[1],y=args[2],scale=0}
+    end
+    return true
   elseif name=="6" then
     -- client/src/index.js receiveChat(sid,message): 3000ms speech bubble.
     local p=self.players[args[1]]
@@ -184,6 +195,10 @@ function World:apply(name,args)
     if p and number(args[2]) then p.range=args[2] end
     return true
   elseif name=="P" then
+    local player=self:localPlayer()
+    if player and number(player.x) and number(player.y) then
+      self.lastDeath={x=player.x,y=player.y}
+    end
     self.dead=true;self.spawned=false
     return true
   elseif name=="N" then
@@ -218,6 +233,11 @@ function World:apply(name,args)
 end
 function World:update(dt)
   if type(dt)~="number" or dt<=0 then return end
+  for i=#self.mapPings,1,-1 do
+    local ping=self.mapPings[i]
+    ping.scale=ping.scale+dt*1000*0.05
+    if ping.scale>=40 then table.remove(self.mapPings,i) end
+  end
   for _,group in ipairs({self.players,self.animals}) do
     for _,entity in pairs(group) do
       Animation.update(entity,dt)
