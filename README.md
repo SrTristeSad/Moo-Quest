@@ -8,8 +8,8 @@ Referencia congelada: [commit 06f7c1c](https://github.com/al007ex/moomoo-clone/t
 
 ## Status real
 
-- **Implementado em codigo:** cliente LÖVE, codec MessagePack basico/estendido, WebSocket TCP nao bloqueante com mascara RFC6455, consulta `GET /ping` para descobrir o build, tentativa de conexao em `ws://127.0.0.1:8080/s/LC?b=...`, decodificacao do handshake inicial `io-init`, diagnosticador na tela, testes unitarios.
-- **Nao implementado:** autenticacao completa do protocolo original (token de entrada/conta, chave por build, tabela de pacotes, mensagens autenticadas e verificacoes do cliente), renderizacao completa de gameplay, menus, artes licenciadas, inventario, armas, som e recursos visuais equivalentes.
+- **Implementado em codigo:** cliente LÖVE, MessagePack, WebSocket RFC6455, consulta `GET /ping`, tentativa de conexao direta ao servidor original, reconhecimento de `io-init`, leitura sem edicao de parametros de build, derivacao de chaves/tabelas e codecs de pacotes autenticados com HMAC. Testes de vetores do protocolo foram adicionados; integracao fim a fim nao validada.
+- **Nao implementado:** ingresso autenticado por `/api/join` (ticket/conta), verificacao de integridade da aplicacao web quando exigida (seal 2), resposta a sondagens de integridade, envio do spawn apos ingresso valido, renderizacao de gameplay, menus, artes licenciadas, inventario, armas, som e recursos visuais equivalentes.
 - **Nao jogavel ainda.** Abrir a janela LÖVE ou concluir o handshake WebSocket NAO significa que o jogador entrou no mundo. O cliente nao usa mais a antiga simulacao Lua nem a ponte `nativeBridge.js`.
 
 ### Bloqueio encontrado na propria referencia
@@ -36,4 +36,4 @@ A referencia contem materiais da FRVR e do cliente oficial identificados como de
 
 ## Proxima implementacao
 
-Completar o protocolo **existente** do servidor (obter ticket legito, carregar parametros dinamicos do build, autenticar e ler pacotes sem modificar o servidor), validar entrada real em um mundo, depois portar renderizador, menu, HUD, armas e demais interfaces ate atingir a paridade funcional.
+Completar o ingresso por **ticket autentico da API existente** e integridade apropriada ao cliente nativo; verificar spawn real antes de renderizar mundo, depois portar menu, HUD, armas e demais interfaces do jogo. Continuar sem editar o servidor.
