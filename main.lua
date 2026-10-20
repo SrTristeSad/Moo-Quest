@@ -93,7 +93,8 @@ function love.update(dt)
   world:update(dt)
   local localPlayer=world:localPlayer()
   if localPlayer and localPlayer.x and localPlayer.y and camera then
-    camera:followReference(localPlayer.x,localPlayer.y,dt)
+    camera:followReference(localPlayer.visualX or localPlayer.x,
+      localPlayer.visualY or localPlayer.y,dt)
   end
   if client.state=="spawn_confirmed" and not died then
     heartbeatClock=heartbeatClock+dt
