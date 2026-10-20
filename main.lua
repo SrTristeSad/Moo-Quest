@@ -5,6 +5,7 @@ local camera,input,client,serverThread
 local serverStatus="Iniciando servidor Lua..."
 local world=nil
 local players={}
+local animals={}
 local localSid=nil
 local resources={wood=0,food=0,stone=0,points=0,age=1,XP=0,health=100}
 local selected=0 -- 0 = hammer, 3 = reference wood wall (item index 3).
@@ -121,6 +122,37 @@ local function drawObjects(w,h)
     end
   end
 end
+local function drawAnimals(w,h)
+  for _,animal in pairs(animals) do
+    local x,y=camera:worldToScreen(animal.x,animal.y)
+    if x>-170 and x<w+170 and y>-170 and y<h+170 then
+      local r=(animal.index==11 and 90 or (animal.index==6 and 55 or 32))*camera.zoom
+      local hostile=(animal.index==2 or animal.index==3 or animal.index==4
+        or animal.index==6 or animal.index==8 or animal.index==9
+        or animal.index==10 or animal.index==11)
+      if animal.index==11 then love.graphics.setColor(0.40,0.28,0.57)
+      elseif hostile then love.graphics.setColor(0.56,0.28,0.23)
+      else love.graphics.setColor(0.68,0.52,0.37) end
+      love.graphics.circle("fill",x,y,r)
+      love.graphics.setColor(0.22,0.16,0.13)
+      love.graphics.circle("line",x,y,r)
+      local dx,dy=math.cos(animal.dir),math.sin(animal.dir)
+      love.graphics.setColor(0.91,0.83,0.68)
+      love.graphics.circle("fill",x+dx*r*0.55,y+dy*r*0.55,math.max(2,r*0.17))
+      love.graphics.setColor(1,1,1)
+      love.graphics.printf(animal.name,x-80,y-r-26,160,"center")
+      love.graphics.setColor(0.25,0.16,0.14)
+      love.graphics.rectangle("fill",x-r*0.7,y+r+6,r*1.4,5)
+      -- Full health values are sent by the authoritative Lua server.
+      local typeHealth={[0]=500,[1]=800,[2]=1800,[3]=2800,[4]=300,[5]=300,
+        [6]=18000,[7]=20000,[8]=7000,[9]=900,[10]=3200,[11]=480000,
+        [12]=650,[13]=500,[14]=250}
+      local max=typeHealth[animal.index] or 1
+      love.graphics.setColor(0.25,0.76,0.33)
+      love.graphics.rectangle("fill",x-r*0.7,y+r+6,r*1.4*math.max(0,math.min(1,animal.health/max)),5)
+    end
+  end
+end
 local function drawPlayers(w,h)
   for sid,p in pairs(players) do
     if p.alive then
@@ -167,6 +199,16 @@ local function onServerMessage(msg)
       }
     end
     players=nextPlayers
+    if localSid and players[localSid] then resources.health=players[localSid].health end
+  elseif kind=="animals" then
+    local nextAnimals={}
+    for _,raw in ipairs(msg[2] or {}) do
+      nextAnimals[raw[1]]={sid=raw[1],index=raw[2],x=raw[3],y=raw[4],
+        dir=raw[5],health=raw[6],name=raw[7],state=raw[8]}
+    end
+    animals=nextAnimals
+  elseif kind=="respawned" then
+    notification="Renascimento confirmado pelo servidor"
   elseif kind=="status" then
     if msg[2]==localSid then
       resources={wood=msg[3],food=msg[4],stone=msg[5],points=msg[6],
@@ -263,6 +305,7 @@ function love.draw()
   local w,h=love.graphics.getDimensions()
   drawGround(w,h)
   drawObjects(w,h)
+  drawAnimals(w,h)
   drawPlayers(w,h)
   love.graphics.setColor(0.10,0.15,0.12,0.87)
   love.graphics.rectangle("fill",12,12,470,71,8,8)
@@ -276,7 +319,7 @@ function love.draw()
     love.graphics.setColor(1,1,1)
     love.graphics.print(string.format("Madeira %d  Comida %d  Pedra %d  Ouro %d",
       resources.wood,resources.food,resources.stone,resources.points),24,h-70)
-    love.graphics.print("WASD mover | Mouse mirar/atacar | 1 parede | 2 martelo | ESC sair",24,h-47)
+    love.graphics.print("WASD mover | Mouse atacar | 1 parede | 2 martelo | R renascer | ESC sair",24,h-47)
     love.graphics.print("Equipado: "..(selected==3 and "Parede de madeira" or "Martelo"),24,h-28)
   end
   if notification~="" then
@@ -294,6 +337,9 @@ function love.keypressed(key)
   if key=="escape" then love.event.quit()
   elseif key=="1" then selected=3
   elseif key=="2" then selected=0
+  elseif key=="r" and client and client.state=="open" then
+    local p=selfPlayer()
+    if p and not p.alive then client:queue({"respawn"}) end
   end
   input:keypressed(key)
 end
