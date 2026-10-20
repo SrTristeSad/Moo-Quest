@@ -6,6 +6,16 @@ World.__index=World
 local function number(v) return type(v)=="number" and v==v and v~=math.huge and v~=-math.huge end
 local function validId(v) return number(v) and v%1==0 and v>=0 end
 local function array(v) return type(v)=="table" and v or {} end
+-- Snapshot smoothing follows the 170ms transition used in the JS updateGame().
+local function receivePosition(entity,x,y,dir)
+  entity.fromX=entity.visualX or entity.x or x
+  entity.fromY=entity.visualY or entity.y or y
+  entity.toX=x;entity.toY=y
+  entity.visualX=entity.fromX;entity.visualY=entity.fromY
+  entity.interp=0
+  entity.x=x;entity.y=y
+  if number(dir) then entity.dir=dir end
+end
 
 function World.new()
   return setmetatable({
@@ -32,7 +42,7 @@ function World:apply(name,args)
     if not validId(id) or not number(d[4]) or not number(d[5]) then return false end
     local p=self.players[id] or {sid=id}
     p.id=d[1];p.name=type(d[3])=="string" and d[3] or "unknown"
-    p.x=d[4];p.y=d[5];p.dir=number(d[6]) and d[6] or 0
+    receivePosition(p,d[4],d[5],number(d[6]) and d[6] or 0)
     p.health=number(d[7]) and d[7] or 100
     p.maxHealth=number(d[8]) and d[8] or 100
     p.scale=number(d[9]) and d[9] or 35
@@ -47,7 +57,7 @@ function World:apply(name,args)
       local sid,x,y,dir=positions[i],positions[i+1],positions[i+2],positions[i+3]
       if validId(sid) and number(x) and number(y) and number(dir) then
         local p=self.players[sid] or {sid=sid,scale=35,health=100,maxHealth=100}
-        p.x=x;p.y=y;p.dir=dir/100
+        receivePosition(p,x,y,dir/100)
         self.players[sid]=p
       end
     end
@@ -87,9 +97,11 @@ function World:apply(name,args)
     for i=1,#data-7,8 do
       local sid,x,y=data[i],data[i+2],data[i+3]
       if validId(sid) and number(x) and number(y) then
-        self.animals[sid]={sid=sid,index=data[i+1],x=x,y=y,
-          dir=number(data[i+4]) and data[i+4]/100 or 0,
-          health=data[i+5],nameIndex=data[i+6],state=data[i+7]}
+        local ai=self.animals[sid] or {sid=sid}
+        ai.index=data[i+1]
+        receivePosition(ai,x,y,number(data[i+4]) and data[i+4]/100 or 0)
+        ai.health=data[i+5];ai.nameIndex=data[i+6];ai.state=data[i+7]
+        self.animals[sid]=ai
       end
     end
     for _,sid in ipairs(hidden) do self.animals[sid]=nil end
@@ -172,6 +184,15 @@ function World:apply(name,args)
 end
 function World:update(dt)
   if type(dt)~="number" or dt<=0 then return end
+  for _,group in ipairs({self.players,self.animals}) do
+    for _,entity in pairs(group) do
+      if entity.interp then
+        entity.interp=math.min(1.7,entity.interp+dt*1000/170)
+        entity.visualX=entity.fromX+(entity.toX-entity.fromX)*entity.interp
+        entity.visualY=entity.fromY+(entity.toY-entity.fromY)*entity.interp
+      end
+    end
+  end
   for _,o in pairs(self.objects) do
     if type(o.id)=="number" then
       local item=Catalog.itemById(o.id)
