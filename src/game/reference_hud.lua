@@ -120,7 +120,17 @@ local function actionBar(world,w,h)
     end
   end
 end
-function H.draw(world)
+local function chatBox(active,text,w,h)
+  if not active then return end
+  local bw=math.min(440,w-40)
+  local bx=(w-bw)/2
+  local by=h-246 -- client CSS #chatHolder bottom:200px
+  box(bx,by,bw,46)
+  love.graphics.setFont(fontMedium)
+  color(1,1,1)
+  love.graphics.print((text or "").."|",bx+9,by+10)
+end
+function H.draw(world,chatActive,chatText)
   fonts()
   local w,h=love.graphics.getDimensions()
   leaderboard(world,w)
@@ -131,5 +141,6 @@ function H.draw(world)
   minimap(world,w,h)
   ageBar(world,w,h)
   actionBar(world,w,h)
+  chatBox(chatActive,chatText,w,h)
 end
 return H
