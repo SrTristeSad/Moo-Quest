@@ -2,9 +2,14 @@
 -- Current milestone is real server discovery + WebSocket + io-init diagnostics.
 -- We intentionally do NOT draw a fake world or claim an authenticated session.
 local Original=require("src.net.original_client")
+local World=require("src.game.world_state")
+local View=require("src.game.reference_view")
+local Camera=require("src.camera")
 local Input=require("src.input")
 local Pack=require("src.protocol.msgpack")
 local client=nil
+local world=World.new()
+local camera=nil
 local diagnostic=nil
 local reconnectSeconds=0
 local latestEvent="Nenhum io-init recebido."
@@ -20,6 +25,7 @@ local heartbeatClock=0
 
 function love.load()
   love.graphics.setDefaultFilter("nearest","nearest")
+  camera=Camera.new()
   if os.getenv("MOOQUEST_TESTS")=="1" then
     diagnostic=require("src.test_runner").run()
     return
@@ -53,6 +59,7 @@ function love.update(dt)
         h.mode,tostring(h.pinned),h.sealMode)
     elseif evt.kind=="game_packet" then
       local packet=evt.data
+      world:apply(packet.name,packet.args)
       serverPackets=serverPackets+1
       if packet.name=="C" then
         latestEvent="SPAWN CONFIRMADO pelo Node original. SID "..tostring(client.sid)
@@ -78,6 +85,10 @@ function love.update(dt)
         latestEvent="Servidor recusou partida: "..tostring(packet.args[1])
       end
     end
+  end
+  local localPlayer=world:localPlayer()
+  if localPlayer and localPlayer.x and localPlayer.y and camera then
+    camera:follow(localPlayer.x,localPlayer.y)
   end
   if client.state=="spawn_confirmed" and not died then
     heartbeatClock=heartbeatClock+dt
@@ -134,6 +145,21 @@ function love.draw()
     return
   end
   local w,h=love.graphics.getDimensions()
+  local p=world:localPlayer()
+  if client and client.state=="spawn_confirmed" and not died
+    and p and p.x and p.y then
+    View.draw(world,camera)
+    -- HUD values are supplied by server N/T/G packets, not fabricated locally.
+    love.graphics.setColor(0,0,0,0.35)
+    love.graphics.rectangle("fill",12,12,340,54,8,8)
+    love.graphics.setColor(1,1,1)
+    love.graphics.print(string.format("%s  |  HP %d/%d  |  Age %d",
+      tostring(p.name or "Jogador"),p.health or 0,p.maxHealth or 100,world.age),22,21)
+    love.graphics.print(string.format("Wood %d  Food %d  Stone %d  Gold %d",
+      world.resources.wood or 0,world.resources.food or 0,
+      world.resources.stone or 0,world.resources.points or 0),22,42)
+    return
+  end
   love.graphics.setColor(0.12,0.18,0.15)
   love.graphics.rectangle("fill",18,18,w-36,h-36,10,10)
   love.graphics.setColor(0.81,0.91,0.80)
@@ -196,6 +222,7 @@ function love.keypressed(key)
     lastAim=nil
     died=false
     heartbeatClock=0
+    world=World.new()
     local ok,err=client:connect()
     if not ok then startupError=err end
   end
@@ -217,4 +244,8 @@ function love.mousereleased(_,_,button)
 end
 function love.quit()
   if client then client:close() end
+end
+
+function love.resize(w,h)
+  if camera then camera:resize(w,h) end
 end
