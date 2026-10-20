@@ -5,6 +5,7 @@ local C=require("src.game.config")
 local Catalog=require("src.game.catalog")
 local Objects=require("src.game.reference_objects")
 local Assets=require("src.game.reference_assets")
+local Upgrades=require("src.game.reference_upgrades")
 local H={}
 local fontSmall,fontMedium,fontLarge
 local function fonts()
@@ -142,5 +143,6 @@ function H.draw(world,chatActive,chatText)
   ageBar(world,w,h)
   actionBar(world,w,h)
   chatBox(chatActive,chatText,w,h)
+  Upgrades.draw(world,w)
 end
 return H
