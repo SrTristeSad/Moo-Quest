@@ -95,7 +95,7 @@ local function drawProjectiles(world,camera,w,h,layer)
       if src then
         love.graphics.push()
         love.graphics.translate(x,y)
-        love.graphics.rotate(p.dir or 0)
+        love.graphics.rotate((p.dir or 0)+(p.dirPlus or 0))
         if src.src then
           Assets.draw("weapons",src.src..".png",0,0,
             (src.scale or 100)*camera.zoom,(src.scale or 100)*camera.zoom)
@@ -115,7 +115,7 @@ local function renderAnimal(a,camera)
   -- renderAI: tmpScale = scale * 1.2 * spriteMlt
   local radius=kind.scale*1.2*(kind.spriteMlt or 1)*camera.zoom
   Assets.draw("animals",kind.src..".png",x,y,radius*2,radius*2,
-    (a.dir or 0)-pi/2)
+    (a.dir or 0)+(a.dirPlus or 0)-pi/2)
 end
 local function drawWeapon(weapon,variant,scale)
   local src=weapon.src..(variants[variant or 0] or "")
@@ -183,7 +183,7 @@ local function playerBody(p,dt)
   drawHat(p)
 end
 local function drawPlayer(p,camera,dt)
-  local x,y=camera:worldToScreen(p.x,p.y)
+  local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
   p.skinRot=(p.skinRot or 0)+dt*1000*0.002
   love.graphics.push()
   love.graphics.translate(x,y)
