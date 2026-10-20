@@ -18,6 +18,9 @@ if love and love.graphics and love.graphics.newCanvas then
     local item=C.itemById(id)
     local spr=Objects.sprite({id=id,scale=item.scale})
     assert(spr and spr:typeOf("Canvas"),"missing Canvas item "..id)
+    local icon=Objects.sprite({id=id,scale=item.scale},true)
+    assert(icon and icon:typeOf("Canvas"),"missing original unrotated icon "..id)
+    assert(icon~=spr,"icon must not reuse world-oriented sprite")
   end
 end
 print("reference client Canvas mappings verified for available Lua runtime")
