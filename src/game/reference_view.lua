@@ -8,6 +8,21 @@ local Shapes=require("src.game.reference_primitives")
 local Objects=require("src.game.reference_objects")
 local Assets=require("src.game.reference_assets")
 local View={}
+-- client/src/index.js updateGame waterMult / waterPlus (Canvas only).
+local waterMult=1
+local waterPlus=1
+function View.advanceWater(dt)
+  if type(dt)~="number" or dt<=0 then return waterMult end
+  waterMult=waterMult+waterPlus*C.waveSpeed*dt*1000
+  if waterMult>=C.waveMax then
+    waterMult=C.waveMax
+    waterPlus=-1
+  elseif waterMult<=1 then
+    waterMult=1
+    waterPlus=1
+  end
+  return waterMult
+end
 local pi=math.pi
 local cos,sin=math.cos,math.sin
 
@@ -32,7 +47,7 @@ local function river(camera,w,delta)
   Shapes.color("#dbc666")
   love.graphics.rectangle("fill",0,y-bank/2,w,bank)
   Shapes.color("#91b2db")
-  local water=C.riverWidth*camera.zoom
+  local water=(C.riverWidth+(waterMult-1)*250)*camera.zoom
   love.graphics.rectangle("fill",0,y-water/2,w,water)
 end
 local function ground(camera,w,h)
@@ -242,6 +257,7 @@ local function labels(world,camera,w,h)
 end
 function View.draw(world,camera,dt)
   local w,h=love.graphics.getDimensions()
+  View.advanceWater(dt or 0)
   ground(camera,w,h)
   grid(camera,w,h)
   drawObjectLayer(world,camera,w,h,-1)
@@ -264,6 +280,11 @@ function View.draw(world,camera,dt)
   drawObjectLayer(world,camera,w,h,2)
   drawObjectLayer(world,camera,w,h,3)
   boundaries(camera,w,h)
+  -- The JS reference composites this violet-blue tint after game objects
+  -- and before world labels, not over the HTML/CSS HUD.
+  love.graphics.setColor(0,0,70/255,0.35)
+  love.graphics.rectangle("fill",0,0,w,h)
+  love.graphics.setColor(1,1,1,1)
   labels(world,camera,w,h)
 end
 return View
