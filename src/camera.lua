@@ -1,10 +1,23 @@
 local Camera={}
 Camera.__index=Camera
+-- JS resize(): scaleFillNative = max(screenWidth/1920,screenHeight/1080).
+-- The LÖVE gameplay canvas must use the same virtual 1920x1080 world view;
+-- the HTML-style HUD remains in physical window coordinates.
+local REFERENCE_WIDTH=1920
+local REFERENCE_HEIGHT=1080
+local function fillScale(w,h)
+  return math.max(w/REFERENCE_WIDTH,h/REFERENCE_HEIGHT)
+end
 function Camera.new()
   local w,h=love.graphics.getDimensions()
-  return setmetatable({x=0,y=0,width=w,height=h,zoom=1,hasTarget=false},Camera)
+  return setmetatable({
+    x=0,y=0,width=w,height=h,zoom=fillScale(w,h),hasTarget=false
+  },Camera)
 end
-function Camera:resize(w,h) self.width=w self.height=h end
+function Camera:resize(w,h)
+  self.width,self.height=w,h
+  self.zoom=fillScale(w,h)
+end
 function Camera:worldToScreen(x,y)
   return (x-self.x)*self.zoom+self.width/2,(y-self.y)*self.zoom+self.height/2
 end
