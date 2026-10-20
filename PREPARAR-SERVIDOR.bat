@@ -30,6 +30,15 @@ if not "%EXITCODE%"=="0" (
   exit /b %EXITCODE%
 )
 echo.
+echo Importando SOMENTE na instalacao local os sprites existentes do cliente de referencia...
+node "%~dp0tools\sync-reference-art.mjs"
+set "EXITCODE=%ERRORLEVEL%"
+if not "%EXITCODE%"=="0" (
+  echo [ERRO] Falha ao localizar as artes originais. Nenhum sprite sera inventado.
+  pause
+  exit /b %EXITCODE%
+)
+echo.
 echo [OK] Servidor Node original passou no teste de inicializacao e HTTP /ping.
 echo Observacao: o cliente Lua ainda esta em desenvolvimento.
 echo Agora execute INICIAR-WINDOWS.bat para testar a conexao.
