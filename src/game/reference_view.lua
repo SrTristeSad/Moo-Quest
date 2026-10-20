@@ -126,8 +126,8 @@ local function drawProjectiles(world,camera,w,h,layer)
     end
   end
 end
-local function renderAnimal(a,camera)
-  local kind=Animals.byId(a.index)
+local function renderAnimal(a,camera,world)
+  local kind=world and world:animalKind(a.index) or Animals.byId(a.index)
   if not kind or not kind.src then return end
   local x,y=camera:worldToScreen(a.visualX or a.x,a.visualY or a.y)
   -- renderAI: tmpScale = scale * 1.2 * spriteMlt
@@ -243,8 +243,8 @@ function View.playerNameVisible(world,p)
   -- JS hides the name and health bar of enemy skin 10 (Assassin).
   return p.skin~=10 or View.isTeammate(world,p)
 end
-function View.animalName(a)
-  local kind=Animals.byId(a.index)
+function View.animalName(a,world)
+  local kind=world and world:animalKind(a.index) or Animals.byId(a.index)
   if not kind then return nil end
   if type(kind.name)=="string" then return kind.name end
   if type(a.nameIndex)=="number" and a.nameIndex%1==0 then
@@ -322,13 +322,13 @@ local function labels(world,camera,w,h)
   end
   for _,a in pairs(world.animals) do
     if a.x and a.y and see(a,camera,w,h) then
-      local kind=Animals.byId(a.index)
+      local kind=world and world:animalKind(a.index) or Animals.byId(a.index)
       if kind then
         local x,y=camera:worldToScreen(a.visualX or a.x,a.visualY or a.y)
         love.graphics.push()
         love.graphics.translate(x,y-(kind.scale or 75)*camera.zoom)
         love.graphics.scale(camera.zoom)
-        labelText(View.animalName(a),kind.nameScale or 30)
+        labelText(View.animalName(a,world),kind.nameScale or 30)
         labelHealth(a.health,kind.health,false,kind.scale)
         love.graphics.pop()
       end
@@ -355,8 +355,8 @@ function View.draw(world,camera,dt)
       and see(p,camera,w,h) then drawPlayer(p,camera,dt or 0) end
   end
   for _,a in pairs(world.animals) do
-    local kind=Animals.byId(a.index)
-    if kind and see(a,camera,w,h,kind.scale*2.4) then renderAnimal(a,camera) end
+    local kind=world and world:animalKind(a.index) or Animals.byId(a.index)
+    if kind and see(a,camera,w,h,kind.scale*2.4) then renderAnimal(a,camera,world) end
   end
   drawObjectLayer(world,camera,w,h,0)
   drawProjectiles(world,camera,w,h,1)
