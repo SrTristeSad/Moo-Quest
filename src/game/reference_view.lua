@@ -221,7 +221,7 @@ local function labels(world,camera,w,h)
       love.graphics.printf(name,x-125,y-scale-39,250,"center")
       drawChatBubble(p,x,y,scale)
       if type(p.health)=="number" and type(p.maxHealth)=="number"
-        and p.maxHealth>0 and p.health<p.maxHealth then
+        and p.maxHealth>0 and p.health>0 then
         local bar=50*2*camera.zoom
         local ratio=math.max(0,math.min(1,p.health/p.maxHealth))
         Shapes.color(Shapes.darkOutline)
