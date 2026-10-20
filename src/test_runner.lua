@@ -12,7 +12,8 @@ M.paths={
   "tests/original_client.lua",
   "tests/original_join.lua",
   "tests/original_session.lua",
-  "tests/catalog.lua"
+  "tests/catalog.lua",
+  "tests/world_state.lua"
 }
 function M.run()
   local results={passed=0,failed=0,rows={}}
