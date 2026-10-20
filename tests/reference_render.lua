@@ -3,6 +3,10 @@ local C=require("src.game.catalog")
 local Objects=require("src.game.reference_objects")
 local View=require("src.game.reference_view")
 assert(View.playerDrawAngle({dir=1})==1)
+
+local wave=View.advanceWater(0.1)
+assert(wave>1 and wave<1.1,"water width must animate according to original waveSpeed")
+
 assert(math.abs(View.playerDrawAngle({dir=1,dirPlus=-0.25})-0.75)<0.0001)
 
 assert(Objects.layer({type=0})==3,"original trees should be upper layer")
