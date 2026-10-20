@@ -57,8 +57,8 @@ function Game:worldPacket()
 end
 function Game:playerPacket()
   local out={}
-  for sid,p in pairs(self.players) do
-    out[#out+1]={sid,p.name,p.x,p.y,p.dir,p.health,p.alive and 1 or 0}
+  for _,p in pairs(self.players) do
+    out[#out+1]={p.sid,p.name,p.x,p.y,p.dir,p.health,p.alive and 1 or 0}
   end
   return {"players",out}
 end
