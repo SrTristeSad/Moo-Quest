@@ -39,6 +39,7 @@ function Original.new(options)
     host=options.host or "127.0.0.1",port=options.port or 8080,
     server=options.server or "LC",
     name=options.name or "Jogador",
+    autoSpawn=options.autoSpawn~=false,
     join=options.join or Join,
     ltn12=options.ltn12,
     did=nil,ticket=nil,spawnSent=false,sid=nil,packetCount=0,
@@ -140,12 +141,9 @@ function Original:update()
             else
               self.session=session
               self.state="keyed_transport"
-              self.status="Handshake original aceito; solicitando spawn ao Node.js..."
-              if not self.spawnSent then
-                self.spawnSent=true
-                local okSpawn,spawnErr=self:send("M",{
-                  MessagePack.map({name=self.name,moofoll=false,skin=0,anon=false})
-                })
+              self.status="Handshake original aceito; aguardando Play no cliente Lua."
+              if self.autoSpawn then
+                local okSpawn,spawnErr=self:spawn()
                 if not okSpawn then
                   self.state="failed"
                   self.error="Spawn nao enviado: "..tostring(spawnErr)
@@ -220,6 +218,34 @@ function Original:update()
     self.state="closed"
     self.status="Conexao original fechada antes de entrar no jogo."
   end
+end
+-- The reference browser connects first and sends M only after Play.
+-- Existing old callers preserve autoSpawn=true by default.
+function Original:spawn(profile)
+  if self.spawnSent and self.state~="spawn_confirmed" then
+    return false,"spawn already requested"
+  end
+  if not self.session or not self.websocket or self.websocket.state~="open" then
+    return false,"servidor ainda nao concluiu o handshake autenticado"
+  end
+  profile=profile or {}
+  local name=type(profile.name)=="string" and profile.name or self.name
+  local skin=type(profile.skin)=="number" and math.floor(profile.skin) or 0
+  skin=math.max(0,math.min(9,skin))
+  local request=MessagePack.map({
+    name=name:sub(1,15),
+    moofoll=profile.moofoll==true,
+    skin=skin,
+    anon=profile.anon==true
+  })
+  local success,err=self:send("M",{request})
+  if success then
+    self.name=name
+    self.spawnSent=true
+    self.state="joining"
+    self.status="Entrada solicitada ao Node; aguardando confirmacao C..."
+  end
+  return success,err
 end
 function Original:send(name,args)
   if not self.session or not self.websocket or self.websocket.state~="open" then
