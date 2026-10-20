@@ -14,6 +14,7 @@ M.paths={
   "tests/player.lua",
   "tests/local_frames.lua",
   "tests/local_client.lua",
+  "tests/node_protocol.lua",
   "tests/catalog.lua",
   "tests/animals.lua",
   "tests/game.lua"
