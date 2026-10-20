@@ -112,9 +112,12 @@ function M.buildTables(seed,salt)
       s2c=shuffle(s2c,M.bxor(tableSeed,2246822507))}
   end
   local s2cSeed=M.bxor(tableSeed,2246822507)
+  local c2sBase,s2cBase={},{}
+  for i=1,22 do c2sBase[i]=Constants.c2sList[i] end
+  for i=1,39 do s2cBase[i]=Constants.s2cList[i] end
   return {
-    c2s=extend(shuffle(Constants.c2sList,tableSeed),Constants.c2sList,22,tableSeed),
-    s2c=extend(shuffle(Constants.s2cList,s2cSeed),Constants.s2cList,39,s2cSeed)
+    c2s=extend(shuffle(c2sBase,tableSeed),Constants.c2sList,22,tableSeed),
+    s2c=extend(shuffle(s2cBase,s2cSeed),Constants.s2cList,39,s2cSeed)
   }
 end
 local function little32(data,offset)
