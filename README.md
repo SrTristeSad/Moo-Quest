@@ -9,7 +9,7 @@ Referencia congelada: [commit 06f7c1c](https://github.com/al007ex/moomoo-clone/t
 ## Status real
 
 - **Implementado em codigo:** cliente LÖVE, MessagePack, WebSocket RFC6455, consulta `GET /ping`, **POST /api/join (ticket guest valido emitido pelo proprio Node local)**, conexao direta com `?b=<build>&token=tk:<ticket>`, leitura do `io-init`, chave/tabelas autenticadas e envio do pacote original `M` (spawn). Eventos `C` e `a` sao processados para exibir ID e coordenadas autoritativas; WASD, mira e clique enviam comandos reais. **Esta integracao ainda nao foi validada de ponta a ponta no Windows.**
-- **Nao implementado ou nao validado:** login de contas, selo do bundle oficial quando exigido (seal 2), probes/telemetria completos, menus sociais, chat, cenas especiais, desenho das animacoes e verificacao visual pixel a pixel. O HUD e as rotinas graficas principais ja foram portados do cliente JS de referencia, mas **ainda nao sao uma versao 1:1 comprovada**. A requisicao guest usa **o stand-in de captcha da propria API local**, apropriado somente para testes locais.
+- **Nao implementado ou nao validado:** login de contas, selo do bundle oficial quando exigido (seal 2), probes/telemetria completos, menus sociais, cenas especiais e verificacao visual pixel a pixel. **Ja existem** porte de swings/ataques de jogadores e animais (pacotes K/J), chat Enter/6, inventario inicial, opcoes de evolucao por idade e renderizacao basica da interface, mas **ainda nao sao uma versao 1:1 comprovada**. A requisicao guest usa **o stand-in de captcha da propria API local**, apropriado somente para testes locais.
 - **Porte grafico do codigo-fonte:** `reference_primitives.lua` e `reference_objects.lua` convertem as rotinas Canvas originais de arvores, arbustos, pedras e **23 itens**; `reference_assets.lua` carrega PNGs reais do cliente JS, copiados apenas na instalacao local; `reference_view.lua` segue camadas, personagem, equipamentos, animais e terrenos de referencia; `reference_hud.lua` segue as posicoes do CSS original. Os dados de entidades continuam vindo do Node por pacotes; a tela de mundo so aparece depois de `C` e posicao autentica. Ainda **sem prova de execucao completa no Windows**.
 
 ### Bloqueio encontrado na propria referencia
@@ -48,3 +48,16 @@ Validar no Windows `/api/join -> io-init -> M -> C` e recepcao dos objetos/anima
 - `tests/world_state.lua` verifica os formatos publicados dos snapshots e foi registrado nos testes Lua. Executar teste unitario nao equivale a validar uma partida real no Windows.
 
 **Status: cliente INCOMPLETO.** O porte das rotinas graficas e parcial e nao foi validado rodando no Windows. Faltam paridade de animacao, menus, configuracoes, social, fluxos de conta, detalhes do cliente oficial e comparacao visual pixel a pixel. Veja [docs/PORT-CLIENTE-ORIGINAL.md](docs/PORT-CLIENTE-ORIGINAL.md).
+
+## Atualizacao do porte — cliente nativo
+
+- O pacote local `support/local-anticheat-config.js` agora aceita cliente **Lua nativo em localhost** sem exigir o arquivo de bundle JavaScript ou o seu selo. A autenticacao WebSocket continua exigindo ticket verdadeiro, origem, build valido, sessao com chave HMAC e sequencia. A implementacao da logica de jogo do Node.js nao foi alterada. O preparador migra apenas a antiga configuracao do proprio Moo-Quest, se for uma correspondencia **exata**, e preserva configuracoes personalizadas. Leia [docs/CONFIG-LOCAL.md](docs/CONFIG-LOCAL.md).
+- Corrigido travamento de atualizacao de objetos causado por `math.pow` (funcao inexistente no Lua/LuaJIT).
+- `World:apply(C)` inicia os mesmos itens e armas que o `Player.spawn` original: martelo (ID 0) e itens 0, 3, 6, 10. Depois, pacotes `V` atualizam as escolhas, como no jogo JavaScript.
+- `reference_animation.lua` reproduz os tempos de animacao de ataques ao receber `K` e `J`. O dano e calculado exclusivamente no Node.
+- O chat recebe `6`, mostra baloes por tres segundos e envia mensagens de ate 30 caracteres via Enter.
+- `reference_upgrades.lua` mostra as opcoes elegiveis no nivel atual, com o indice do pacote `H` do servidor e selecao clicavel.
+- A verificacao de arte local agora exige **os 180 PNGs originais** previstos, distribuidos nas categorias ja publicadas. Se faltar algum, o instalador falha com uma mensagem especifica: nao existe substituicao improvisada.
+- Os novos testes `tests/reference_animation.lua`, `tests/reference_upgrades.lua` e `tests/world_state.lua` verificam protocolos e estado sem simular um jogo completo. O GitHub Actions pode falhar antes de executar os jobs na plataforma; uma falha sem etapas executadas nao comprova problema no Lua nem sucesso. O teste real deve ser feito no LÖVE 2D no Windows.
+
+**Meta continua a mesma:** cliente Lua reproduzindo o original, Node.js como servidor autoritativo e **nenhuma mudanca de design ou de jogabilidade sem pedido**.
