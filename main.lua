@@ -28,6 +28,15 @@ local heartbeatClock=0
 local frameDelta=0
 local chatOpen=false
 local chatDraft=""
+local mouseAttack=false
+local spaceAttack=false
+local lockDir=false
+local angle
+local function currentAttackDir()
+  local w,h=love.graphics.getDimensions()
+  local mx,my=love.mouse.getPosition()
+  return angle(my-h/2,mx-w/2)
+end
 local function shortenChat(text)
   -- JavaScript chatBox.value.slice(0,30): keep up to 30 UTF-8 characters.
   local count=0
@@ -67,7 +76,7 @@ function love.load()
   if not connected then startupError=err end
 end
 
-local function angle(y,x)
+angle=function(y,x)
   if math.atan2 then return math.atan2(y,x) end
   if x>0 then return math.atan(y/x) end
   if x<0 then return math.atan(y/x)+(y>=0 and math.pi or -math.pi) end
@@ -94,6 +103,9 @@ function love.update(dt)
         movementClock=0
         lastMove=false
         lastAim=nil
+        lockDir=false
+        mouseAttack=false
+        spaceAttack=false
         died=false
       elseif packet.name=="a" and client.sid then
         -- The original server transmits [sid,x,y,dir*100] per visible player.
@@ -137,9 +149,7 @@ function love.update(dt)
         client:send("9",{move==false and Pack.null or move})
         lastMove=move
       end
-      local w,h=love.graphics.getDimensions()
-      local mx,my=love.mouse.getPosition()
-      local aim=angle(my-h/2,mx-w/2)
+      local aim=lockDir and (lastAim or 0) or currentAttackDir()
       if not lastAim or math.abs(aim-lastAim)>0.02 then
         client:send("D",{aim})
         lastAim=aim
@@ -258,7 +268,11 @@ function love.keypressed(key)
   -- Mirror the reference client's default gameplay bindings.
   if client and client.state=="spawn_confirmed" and not died then
     if key=="e" then client:send("K",{1});return end
-    if key=="x" then client:send("K",{0});return end
+    if key=="x" then
+      local ok=client:send("K",{0})
+      if ok then lockDir=not lockDir end
+      return
+    end
     if key=="r" then client:send("S",{1});return end
     if key=="q" and world.inventory.items[1]~=nil then
       client:send("z",{world.inventory.items[1],false});return
@@ -275,10 +289,9 @@ function love.keypressed(key)
       end
       return
     end
-    if key=="space" then
-      local w,h=love.graphics.getDimensions()
-      local mx,my=love.mouse.getPosition()
-      client:send("F",{1,angle(my-h/2,mx-w/2)})
+    if key=="space" and not spaceAttack then
+      spaceAttack=true
+      if not mouseAttack then client:send("F",{1,currentAttackDir()}) end
       return
     end
   end
@@ -299,6 +312,9 @@ function love.keypressed(key)
     serverPackets=0
     lastMove=false
     lastAim=nil
+    lockDir=false
+    mouseAttack=false
+    spaceAttack=false
     died=false
     heartbeatClock=0
     world=World.new()
@@ -313,14 +329,18 @@ function love.textinput(text)
 end
 function love.keyreleased(key)
   if not diagnostic then input:keyreleased(key) end
-  if key=="space" and client and client.state=="spawn_confirmed" then
-    client:send("F",{0,Pack.null})
+  if key=="space" and spaceAttack then
+    spaceAttack=false
+    if not mouseAttack and client and client.state=="spawn_confirmed" then
+      client:send("F",{0,Pack.null})
+    end
   end
 end
 function love.focus(focused)
   if not focused and client and client.state=="spawn_confirmed" then
     client:send("e",{})
     client:send("F",{0,Pack.null})
+    mouseAttack=false;spaceAttack=false
     input.keys={}
     lastMove=false
   end
@@ -329,20 +349,29 @@ function love.mousepressed(x,y,button)
   if diagnostic or not client or client.state~="spawn_confirmed" or died then return end
   if chatOpen then return end
   if button==1 then
-    local w=love.graphics.getWidth()
+    local w,h=love.graphics.getDimensions()
     local upgradeIndex=Upgrades.hitTest(world,w,x,y)
     if upgradeIndex~=nil then
       client:send("H",{upgradeIndex})
       return
     end
-    local w,h=love.graphics.getDimensions()
-    local mx,my=love.mouse.getPosition()
-    client:send("F",{1,angle(my-h/2,mx-w/2)})
+    local itemIndex,isWeapon=Hud.hitTest(world,w,h,x,y)
+    if itemIndex~=nil then
+      client:send("z",{itemIndex,isWeapon})
+      return
+    end
+    if not mouseAttack then
+      mouseAttack=true
+      if not spaceAttack then client:send("F",{1,currentAttackDir()}) end
+    end
   end
 end
 function love.mousereleased(_,_,button)
   if diagnostic or not client or client.state~="spawn_confirmed" then return end
-  if button==1 then client:send("F",{0,Pack.null}) end
+  if button==1 and mouseAttack then
+    mouseAttack=false
+    if not spaceAttack then client:send("F",{0,Pack.null}) end
+  end
 end
 function love.quit()
   if client then client:close() end
