@@ -3,6 +3,7 @@
 local Catalog=require("src.game.catalog")
 local Assets=require("src.game.reference_assets")
 local Objects=require("src.game.reference_objects")
+local Icons=require("src.game.reference_icons")
 local U={}
 local SLOT=66
 local GAP=10
@@ -51,17 +52,7 @@ function U.draw(world,w)
     local x=left+(i-1)*(SLOT+GAP)
     love.graphics.setColor(0,0,0,0.25)
     love.graphics.rectangle("fill",x,TOP,SLOT,SLOT,4,4)
-    if entry.kind=="weapon" then
-      Assets.draw("weapons",entry.data.src..".png",x+SLOT/2,TOP+SLOT/2,62,62)
-    else
-      local image=Objects.sprite({id=entry.id})
-      if image then
-        love.graphics.setColor(1,1,1)
-        love.graphics.draw(image,x+SLOT/2,TOP+SLOT/2,0,
-          62/image:getWidth(),62/image:getHeight(),
-          image:getWidth()/2,image:getHeight()/2)
-      end
-    end
+    Icons.draw(entry.kind,entry.data,x+SLOT/2,TOP+SLOT/2,SLOT)
   end
   local font=love.graphics.getFont()
   love.graphics.setColor(1,1,1)
