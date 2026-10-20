@@ -13,13 +13,13 @@ Cada item abaixo representa **funcionalidade real presente na referência**, nã
 | P04 | Mundo/terreno, zonas, câmera e biomas | `shared/config.js`, `server/src/moomoo/server.js` | em desenvolvimento (geração natural e geometria Lua, não integrada) | Geometria, rio, neve, deserto, câmera e limites conferidos |
 | P05 | Jogador, spawn, controle, morte/respawn | `server/src/moomoo/modules/player.js` | em desenvolvimento (spawn e movimento parciais, sem cliente integrado) | WASD, apontar, ataque, colisão, morte/retorno corretos |
 | P06 | Recursos, mineração e coleta | `shared/config.js`, `server/src/moomoo/modules/objectManager.js` | em desenvolvimento (martelo básico, sem ciclo completo de recursos) | Árvores/arbustos/rochas/ouro, recursos reais e respawns equivalentes |
-| P07 | Armas e variantes, projéteis e dano | `shared/config/items.js`, `server/src/moomoo/modules/projectileManager.js` | não iniciado | Todas as armas, tiros, alcance, dano e XP equivalentes |
+| P07 | Armas e variantes, projéteis e dano | `shared/config/items.js`, `server/src/moomoo/modules/projectileManager.js` | em desenvolvimento (catálogo completo de dados e martelo básico; projéteis/variantes ainda não funcionais) | Todas as armas, tiros, alcance, dano e XP equivalentes |
 | P08 | Itens, construções, torres e moinhos | `shared/config/items.js`, `server/src/moomoo/modules/objectManager.js` | em desenvolvimento (parede de madeira apenas) | Colocação, limites, custos, efeitos e destruição corretos |
-| P09 | IA, animais e criaturas comuns | `server/src/moomoo/modules/ai*.js` | não iniciado | Movimentação, ataques, estados, dano e drops corretos |
+| P09 | IA, animais e criaturas comuns | `server/src/moomoo/modules/ai*.js` | em desenvolvimento (15 tipos, população e comportamento parcial; sem paridade de IA) | Movimentação, ataques, estados, dano e drops corretos |
 | P10 | Chefes, Crab King e eventos especiais | `server/src/moomoo/modules/ai.js`, README | não iniciado | Bosses, fases, telegraphs, mergulho e mecânicas reconstruídas |
 | P11 | Área secreta, piscina e cachoeira | `shared/config.js`, README | não iniciado | Geometria e física especial equivalente |
 | P12 | Progressão, upgrades, idades e economia | `server/src/moomoo/modules/player.js`, `shared/config/items.js` | não iniciado | Progressão, seleção, custos, efeitos e recompensas corretos |
-| P13 | Chapéus, acessórios, loja e edição | `shared/config/store.js`, README | não iniciado | Compra/equipamento, efeitos, variantes, aparência e preferências |
+| P13 | Chapéus, acessórios, loja e edição | `shared/config/store.js`, README | em desenvolvimento (dados importados; compra/equipamento/efeitos ainda não funcionais) | Compra/equipamento, efeitos, variantes, aparência e preferências |
 | P14 | HUD, menu, minimapa, placar, sons e ajustes | `client/src/`, README | não iniciado | Interações, informação e feedback comparáveis |
 | P15 | Tribos, clãs e chat | `server/src/moomoo/modules/clanManager.js`, `server/src/api/chat.js` | não iniciado | Criar/convidar/chat/expulsar/abandonar e mensagens |
 | P16 | Contas, perfis e rankings locais | `server/src/api/store.js`, `server/src/api/routes.js` | não iniciado | Identidade local, configuração, histórico e ranking |
@@ -47,6 +47,9 @@ Cada item abaixo representa **funcionalidade real presente na referência**, nã
 - `INICIAR-WINDOWS.bat` localiza LÖVE 11.5 e preserva mensagens de erro no console. `docs/EXECUTAR-LOCAL.md` contém instruções e checklist.
 - `tests/local_frames.lua`, `tests/local_client.lua`, `tests/game.lua` verificam em código casos de frames, socket simulado e estado do jogo. **Ainda não executados com sucesso**.
 - O GitHub Actions registrou execuções com `failure` e sem passos/logs legíveis. Isso **não demonstra falha específica de um teste Lua**, nem permite considerá-los aprovados. É preciso diagnosticar o ambiente GitHub Actions e executar o jogo real no Windows.
+- Catálogos portados em `src/game/catalog.lua`: 16 armas, 23 itens, 14 grupos, 6 projéteis, 49 chapéus e 21 acessórios. Campos que eram funções JavaScript são marcadores de presença, **não implementações Lua da função**.
+- `src/game/animals.lua` registra os 15 tipos; `src/server/animals.lua` cria a população da referência e implementa movimento, perseguição, acertos e recompensas básicos, sem o comportamento integral dos chefes, IA e efeitos.
+- `src/test_runner.lua` e `TESTAR-WINDOWS.bat` permitem executar testes unitários dentro do LÖVE 2D e obter `test-results.txt` sem instalar Lua separado. Não substituem teste real de partida.
 - **Nenhuma linha de paridade foi validada de ponta a ponta.** Este marco não cumpre a definição de 100% e tampouco comprova, ainda, uma partida local funcional.
 
 ## Procedimento
