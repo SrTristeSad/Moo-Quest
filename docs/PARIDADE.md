@@ -1,60 +1,57 @@
-# Matriz de paridade — Moo-Quest vs. moomoo-clone
+# Matriz de paridade — Cliente Lua / servidor Node reconstruído
 
-**Baseline congelada:** [al007ex/moomoo-clone@06f7c1ca965a7628671676c8d9a7efd3997bb5e7](https://github.com/al007ex/moomoo-clone/tree/06f7c1ca965a7628671676c8d9a7efd3997bb5e7)
-**Regra mandatória:** [REGRA-PRINCIPAL.md](REGRA-PRINCIPAL.md).
+**Baseline:** [al007ex/moomoo-clone@06f7c1ca965a7628671676c8d9a7efd3997bb5e7](https://github.com/al007ex/moomoo-clone/tree/06f7c1ca965a7628671676c8d9a7efd3997bb5e7).
 
-Cada item abaixo representa **funcionalidade real presente na referência**, não promessa de implementação. Estado inicial padrão: **não iniciado**. Os módulos existentes de estrutura/codec não significam jogabilidade aprovada. Não considerar completos módulos sem testes ponta a ponta.
+**Nova regra:** o servidor Node.js **já contém** a simulação das mecânicas da referência. O trabalho do Moo-Quest agora se concentra na **conexão, renderização e controles do cliente Lua**. Não é necessário portar o Game/Player/AI do servidor para Lua. A antiga documentação de módulos `src/server/` é histórica: esses módulos **não são executados pelo cliente atual**.
 
-| ID | Sistema obrigatório | Referência primária | Estado no Moo-Quest | Critério de aceitação |
-| --- | --- | --- | --- | --- |
-| P01 | Inicialização Windows e servidor local Lua | `server/src/index.js`, `package.json` | em desenvolvimento (thread Lua + launcher, sem execução Windows verificada) | Abrir ambos e jogar sem JavaScript/serviços externos |
-| P02 | Conexão, sessão e entrada guest/conta | `server/src/network/`, `server/src/api/` | em desenvolvimento (TCP local e guest básico, contas ausentes) | Handshake, login local, spawn, disconnect e reconexão reais |
-| P03 | Serialização, eventos e sincronização | `server/src/protocol/`, `server/src/network/packets.js` | em desenvolvimento (protocolo local próprio, subconjunto das mensagens) | Todas as mensagens necessárias resultam nos mesmos estados |
-| P04 | Mundo/terreno, zonas, câmera e biomas | `shared/config.js`, `server/src/moomoo/server.js` | em desenvolvimento (geração natural e geometria Lua, não integrada) | Geometria, rio, neve, deserto, câmera e limites conferidos |
-| P05 | Jogador, spawn, controle, morte/respawn | `server/src/moomoo/modules/player.js` | em desenvolvimento (spawn e movimento parciais, sem cliente integrado) | WASD, apontar, ataque, colisão, morte/retorno corretos |
-| P06 | Recursos, mineração e coleta | `shared/config.js`, `server/src/moomoo/modules/objectManager.js` | em desenvolvimento (martelo básico, sem ciclo completo de recursos) | Árvores/arbustos/rochas/ouro, recursos reais e respawns equivalentes |
-| P07 | Armas e variantes, projéteis e dano | `shared/config/items.js`, `server/src/moomoo/modules/projectileManager.js` | em desenvolvimento (catálogo completo de dados e martelo básico; projéteis/variantes ainda não funcionais) | Todas as armas, tiros, alcance, dano e XP equivalentes |
-| P08 | Itens, construções, torres e moinhos | `shared/config/items.js`, `server/src/moomoo/modules/objectManager.js` | em desenvolvimento (parede de madeira apenas) | Colocação, limites, custos, efeitos e destruição corretos |
-| P09 | IA, animais e criaturas comuns | `server/src/moomoo/modules/ai*.js` | em desenvolvimento (15 tipos, população e comportamento parcial; sem paridade de IA) | Movimentação, ataques, estados, dano e drops corretos |
-| P10 | Chefes, Crab King e eventos especiais | `server/src/moomoo/modules/ai.js`, README | não iniciado | Bosses, fases, telegraphs, mergulho e mecânicas reconstruídas |
-| P11 | Área secreta, piscina e cachoeira | `shared/config.js`, README | não iniciado | Geometria e física especial equivalente |
-| P12 | Progressão, upgrades, idades e economia | `server/src/moomoo/modules/player.js`, `shared/config/items.js` | não iniciado | Progressão, seleção, custos, efeitos e recompensas corretos |
-| P13 | Chapéus, acessórios, loja e edição | `shared/config/store.js`, README | em desenvolvimento (dados importados; compra/equipamento/efeitos ainda não funcionais) | Compra/equipamento, efeitos, variantes, aparência e preferências |
-| P14 | HUD, menu, minimapa, placar, sons e ajustes | `client/src/`, README | não iniciado | Interações, informação e feedback comparáveis |
-| P15 | Tribos, clãs e chat | `server/src/moomoo/modules/clanManager.js`, `server/src/api/chat.js` | não iniciado | Criar/convidar/chat/expulsar/abandonar e mensagens |
-| P16 | Contas, perfis e rankings locais | `server/src/api/store.js`, `server/src/api/routes.js` | não iniciado | Identidade local, configuração, histórico e ranking |
-| P17 | Amigos, convites, sussurros e notificações | `server/src/api/social.js`, `server/src/api/pageStream.js` | não iniciado | Fluxos sociais em rede local sem FRVR |
-| P18 | Servidores LC e MB/multijogador local | `server/src/index.js`, README | não iniciado | LC guest e MB membro, sessões simultâneas e permissão |
-| P19 | Segurança e moderação adequadas ao Lua | `server/src/anticheat/`, `server/src/network/` | não iniciado | Autoridade, entradas inválidas, rate limits, bans e reports |
-| P20 | Administração, comandos, poderes e avisos | `server/src/admin/console.js`, README | não iniciado | Comandos aplicam efeitos reais, inclusive eventos de reinício |
-| P21 | Recursos extras 1.9.1/1.9.4 | README seções 'New in' | não iniciado | Cada item anunciado nas duas versões possui caso de teste |
-| P22 | Distribuição e regressão Windows | regra do projeto | não iniciado | Instalador/pacote testado, teste de partida e regressão |
+Estados: `pendente`, `em desenvolvimento`, `implementado sem teste de ponta a ponta`, `verificado em Windows`. **Nenhum dos sistemas foi ainda verificado em Windows após esta mudança de arquitetura.**
 
-## Evidência de implementação parcial (2026-10-20)
+| ID | Sistema de referência | Status da parte Lua | Critério para aprovar |
+| --- | --- | --- | --- |
+| P01 | Início Windows/servidor local | implementado sem teste de ponta a ponta | PREPARAR-SERVIDOR, Node, LÖVE e desligamento sem falhas |
+| P02 | Sessão guest, entrada e retorno | em desenvolvimento | pacote original M, spawn C/D, morte e respawn |
+| P03 | Transporte e eventos da partida | em desenvolvimento | TCP local traduz pacote MessagePack, estado e desconexão |
+| P04 | Mapa completo e câmera | em desenvolvimento | biomas, área secreta, zoom, culling e mundo completo |
+| P05 | WASD, mira, seleção e ações | em desenvolvimento | comandos 9, D, F e z confirmados pelo servidor |
+| P06 | Recursos, coleta e dano em objetos | em desenvolvimento | coleta real atualiza recursos, XP e status |
+| P07 | 16 armas, variantes e projéteis | pendente | controles, desenho, ataques, recarga, efeitos e upgrades |
+| P08 | 23 itens, 14 grupos e construções | em desenvolvimento | seleções, custos, limite, reparos e objetos sincronizados |
+| P09 | 15 tipos de animais, IA e ataques | em desenvolvimento | todos aparecem e animam conforme pacotes I, J e outros |
+| P10 | Chefes, Crab King, fases e eventos | pendente | mergulho, avisos, golpes, efeitos e recompensas |
+| P11 | Neve, deserto, rio, piscinas secretas | em desenvolvimento | terreno/física são vistos corretamente sem inventar regras |
+| P12 | Idade, XP, atualizações e economia | em desenvolvimento | interface, seleção e upgrade H/T/U/V corretos |
+| P13 | 49 chapéus e 21 acessórios / loja | pendente | menus, compra, equipa, efeitos, identificação e sprites legais |
+| P14 | HUD completo e configurações | pendente | escala, posição, saúde, inventário, ajustes e controles |
+| P15 | Chat, tribos e clãs | pendente | enviar/receber pacotes, convites e moderadores |
+| P16 | Contas locais, perfis e rankings | pendente | menus e chamadas API ao Node original |
+| P17 | Amigos, convites, mensagens sociais | pendente | integração com APIs de contas e SSE ou equivalente nativo |
+| P18 | LC/MB e multijogador | pendente | jogadores simultâneos, espectro LC/MB, membros autenticados |
+| P19 | Segurança apropriada para nativo | em desenvolvimento | taxas, validação local; projeto de autenticação online separado |
+| P20 | Administração, comandos e moderação | pendente | UI/controles correspondentes à referência e API local |
+| P21 | Extras v1.9.1/v1.9.4 | pendente | cada elemento anunciado na referência validado |
+| P22 | Pacote final Windows / regressão | em desenvolvimento | build, instalador, testes e revisão de paridade visual |
 
-- Mundo/recursos: `src/game/config.lua`, `src/server/world.lua`, `src/game/geometry.lua` — traduções iniciais do algoritmo e geometrias da referência fixada.
-- Movimento do jogador: `src/server/player.lua` — regras base de spawn, deslocamento, correnteza, desaceleração, neve, limites e colisão geométrica com objetos naturais, sem integração à rede nem equivalência de gameplay completo.
-- Codificador de protocolo: `src/protocol/msgpack.lua` inclui mapas e números fracionários; ainda sem transporte de jogo integrado.
-- Testes escritos: `tests/world.lua`, `tests/geometry.lua`, `tests/player.lua` e `tests/msgpack_gameplay.lua`.
-- `.github/workflows/lua-tests.yml` foi criado. As primeiras execuções do GitHub Actions falharam antes de produzir passos/logs consultáveis; **não há aprovação de testes** nem teste local de partida.
-- Nenhum dos itens da matriz está `verificado localmente`.
+## Implementado no código atual
 
-## Marco integrado: jogo local Lua (código criado; teste Windows pendente)
+- `PREPARAR-SERVIDOR.bat` e `tools/prepare-node-server.mjs`: baixar o **servidor Node original**, congelado por commit, sem redistribuir o cliente oficial.
+- `node-bridge/nativeBridge.js`: ponte TCP **restrita ao loopback**, que encaminha pacotes para o `handlePacket` original e repassa eventos do servidor Node, preservando sua autoridade.
+- `src/net/local_client.lua`: conexão não bloqueante; `src/net/local_frames.lua`: MessagePack com comprimento explícito e limitação de tamanho.
+- `src/net/node_protocol.lua`: conversão parcial de eventos originais (`A`, `C`, `D`, `a`, `H`, `I`, `N`, `O`, `P`, `E`, `Q`, `T`, `B`, `6`) para estado do renderizador Lua.
+- `main.lua`: lógica apenas de cliente Lua, sem iniciar thread do servidor; conexão, spawn, movimento, mira, seleção de parede/martelo, ataque e heartbeat ocioso. Desenhos **temporários**.
+- `tests/node_protocol.lua`: testes de mensagens interpretadas. `TESTAR-NODE-WINDOWS.bat` testa a **conexão real** com o servidor Node por spawn e movimentação; `TESTAR-WINDOWS.bat` testa módulos Lua.
 
-- `src/server/game.lua` implementa início de sessão guest simples, dados do mundo, sincronização de jogadores, coleta inicial com martelo e construção da parede de madeira, preservando os parâmetros relevantes da referência. **Não substitui todos os sistemas originais**.
-- `src/net/local_frames.lua`, `src/net/local_client.lua` e `src/server/worker.lua` fornecem transporte MessagePack TCP entre cliente LÖVE e **servidor Lua executado em thread**. É um protocolo local próprio; não afirma compatibilidade binária com o protocolo WebSocket original.
-- `main.lua` agora inicia a thread, aguarda o estado real do servidor e desenha mundo e jogadores com **representações temporárias**, incluindo câmera centralizada, WASD, martelo e parede. Não redistribui arte da FRVR.
-- `INICIAR-WINDOWS.bat` localiza LÖVE 11.5 e preserva mensagens de erro no console. `docs/EXECUTAR-LOCAL.md` contém instruções e checklist.
-- `tests/local_frames.lua`, `tests/local_client.lua`, `tests/game.lua` verificam em código casos de frames, socket simulado e estado do jogo. **Ainda não executados com sucesso**.
-- O GitHub Actions registrou execuções com `failure` e sem passos/logs legíveis. Isso **não demonstra falha específica de um teste Lua**, nem permite considerá-los aprovados. É preciso diagnosticar o ambiente GitHub Actions e executar o jogo real no Windows.
-- Catálogos portados em `src/game/catalog.lua`: 16 armas, 23 itens, 14 grupos, 6 projéteis, 49 chapéus e 21 acessórios. Campos que eram funções JavaScript são marcadores de presença, **não implementações Lua da função**.
-- `src/game/animals.lua` registra os 15 tipos; `src/server/animals.lua` cria a população da referência e implementa movimento, perseguição, acertos e recompensas básicos, sem o comportamento integral dos chefes, IA e efeitos.
-- `src/test_runner.lua` e `TESTAR-WINDOWS.bat` permitem executar testes unitários dentro do LÖVE 2D e obter `test-results.txt` sem instalar Lua separado. Não substituem teste real de partida.
-- **Nenhuma linha de paridade foi validada de ponta a ponta.** Este marco não cumpre a definição de 100% e tampouco comprova, ainda, uma partida local funcional.
+## Não confundir os resultados
 
-## Procedimento
+- **Escrever um módulo ou teste não comprova sua execução.** Os testes no GitHub Actions continuam sem um resultado aprovado confiável no histórico consultado.
+- O jogo da imagem anterior foi feito com **servidor Lua** e não comprova o novo caminho Node. A nova configuração requer execução e evidência próprias.
+- Os catálogos completos de `src/game/catalog.lua` e `src/game/animals.lua` são **dados de referência**. Sua presença não prova funcionamento de cada item, sprite, animação, ataque, economia ou efeito.
+- O cliente ainda usa geometria provisória; a referência inclui visuais cujo uso está sujeito a direitos de terceiros.
+- **Não afirmar 100% antes que todos os itens P01-P22 estejam verificados em Windows.**
 
-- Expandir P01-P22 em subitens verificáveis antes de marcar `verificado localmente`; o README da referência e os dados `shared/` são base, não lista exaustiva.
-- Manter evidência: comando de teste, versão de referência, sistema operacional, resultado e log/imagem quando pertinente.
-- Para diferenças inevitáveis do navegador/FRVR, implementar a **mesma finalidade funcional** com substituição nativa local e registrar as limitações.
-- A matriz de paridade precisa ser revisada junto de cada entrega; não declarar 100% com qualquer linha pendente.
+## Próxima ordem de trabalho
+
+1. Executar `PREPARAR-SERVIDOR.bat`, `TESTAR-NODE-WINDOWS.bat` e `INICIAR-WINDOWS.bat`, corrigindo falhas com logs.
+2. Completar interpretação dos demais pacotes e paridade da interface e visualização.
+3. Equipamentos, loja, inventário, progressão, construções, combate e animais.
+4. Social, conta, clã, eventos, ajustes e ferramentas especiais.
+5. Regressão completa e, só numa fase posterior, transporte Node seguro para hospedagem online.
