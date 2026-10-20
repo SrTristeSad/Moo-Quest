@@ -9,7 +9,8 @@ const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const server=path.resolve(process.env.MOOQUEST_SERVER_DIR||path.join(project,"node-runtime"));
 const source=path.join(server,"client","public","img");
 const target=path.join(project,"assets","reference","img");
-const categories=["animals","weapons","hats","accessories","resources","icons"];
+const expected={animals:17,weapons:81,hats:55,accessories:21,resources:4,icons:2};
+const categories=Object.keys(expected);
 async function main(){
   const info=await fs.stat(source).catch(()=>null);
   if(!info||!info.isDirectory())
@@ -21,16 +22,20 @@ async function main(){
     const st=await fs.stat(input).catch(()=>null);
     if(!st||!st.isDirectory())
       throw Error("Falta a pasta original de sprites: "+category);
+    const sprites=(await fs.readdir(input,{withFileTypes:true}))
+      .filter(item=>item.isFile()&&item.name.toLowerCase().endsWith(".png"));
+    if(sprites.length!==expected[category])
+      throw Error("Pacote original incompleto em "+category+": "+sprites.length+
+        " PNGs encontrados; esperado "+expected[category]+". Nao criar substitutos.");
     await fs.mkdir(path.join(target,category),{recursive:true});
-    for(const item of await fs.readdir(input,{withFileTypes:true})){
-      if(!item.isFile()||!item.name.toLowerCase().endsWith(".png"))continue;
+    for(const item of sprites){
       const from=path.join(input,item.name);
       const to=path.join(target,category,item.name);
       await fs.copyFile(from,to);
       count++;
     }
   }
-  if(count<100)throw Error("Pacote local de arte incompleto: "+count+" PNGs");
+  if(count!==180)throw Error("Pacote local de arte incompleto: "+count+" de 180 PNGs");
   console.log("[ARTE] "+count+" imagens originais copiadas para assets/reference/img (uso local).");
   console.log("[ARTE] Pasta ignorada pelo Git. Nao publicar nem redistribuir sem licenca.");
 }
