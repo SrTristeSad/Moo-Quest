@@ -23,7 +23,15 @@ function P.path(points,fillColor,strokeColor,width)
   if #points<6 then return end
   if fillColor then
     P.color(fillColor)
-    love.graphics.polygon("fill",points)
+    -- LÖVE fill only supports convex polygons; Canvas stars and blobs are concave.
+    if love.math.isConvex(points) then
+      love.graphics.polygon("fill",points)
+    else
+      local triangles=love.math.triangulate(points)
+      for _,triangle in ipairs(triangles) do
+        love.graphics.polygon("fill",triangle)
+      end
+    end
   end
   if strokeColor then
     P.color(strokeColor)
@@ -79,6 +87,14 @@ function P.blob(spikes,outer,inner,fillColor,strokeColor,width)
     end
     x0,y0=x1,y1
     rot=rot+2*step
+  end
+  -- JS closes the path back to its first point; LÖVE triangulation needs
+  -- that duplicated final vertex removed from the submitted polygon list.
+  local dx=pts[#pts-1]-pts[1]
+  local dy=pts[#pts]-pts[2]
+  if dx*dx+dy*dy<0.000001 then
+    pts[#pts]=nil
+    pts[#pts]=nil
   end
   P.path(pts,fillColor,strokeColor,width)
 end
