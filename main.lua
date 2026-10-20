@@ -64,6 +64,11 @@ function love.load()
   camera=Camera.new()
   if os.getenv("MOOQUEST_TESTS")=="1" then
     diagnostic=require("src.test_runner").run()
+    -- Automated Windows batch tests must fail with an OS error code, not
+    -- only print failing assertions inside an otherwise successful LÖVE run.
+    if os.getenv("MOOQUEST_TESTS_EXIT")=="1" then
+      love.event.quit(diagnostic.failed>0 and 1 or 0)
+    end
     return
   end
   local ok,result=pcall(Original.new,{host="127.0.0.1",port=8080,server="LC"})
