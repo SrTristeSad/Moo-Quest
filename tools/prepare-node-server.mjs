@@ -33,7 +33,7 @@ async function downloadBaseline(){
     if(!response.ok||!response.body)fail("GitHub archive HTTP "+response.status);
     await pipeline(Readable.fromWeb(response.body),createWriteStream(archive));
     const folder=path.join(temporary,"expanded");
-    const psArg="`$ErrorActionPreference='Stop'; Expand-Archive -LiteralPath '"+archive.replaceAll("'","''")+"' -DestinationPath '"+folder.replaceAll("'","''")+"' -Force";
+    const psArg="$ErrorActionPreference='Stop'; Expand-Archive -LiteralPath '"+archive.replaceAll("'","''")+"' -DestinationPath '"+folder.replaceAll("'","''")+"' -Force";
     const unpack=spawnSync("powershell.exe",["-NoProfile","-ExecutionPolicy","Bypass","-Command",psArg],{stdio:"inherit",windowsHide:false});
     if(unpack.error||unpack.status!==0)fail("Cannot extract ZIP. Check PowerShell: "+String(unpack.error||unpack.status));
     const children=await fs.readdir(folder,{withFileTypes:true});
