@@ -25,6 +25,23 @@ local C = {
   rockScales = {80,85,90},
   snowBiomeTop = 2400,
   snowSpeed = 0.75,
+  -- Exact labels and HUD constants from shared/config.js.
+  nameY = 34,
+  healthBarWidth = 50,
+  healthBarPad = 4.5,
+  crownIconScale = 60,
+  crownPad = 35,
+  gatherWiggle = 10,
+  cowNames = {
+    "Sid", "Steph", "Bmoe", "Romn", "Jononthecool", "Fiona",
+    "Vince", "Nathan", "Nick", "Flappy", "Ronald", "Otis",
+    "Pepe", "Mc Donald", "Theo", "Fabz", "Oliver", "Jeff",
+    "Jimmy", "Helena", "Reaper", "Ben", "Alan", "Naomi",
+    "XYZ", "Clever", "Jeremy", "Mike", "Destined", "Stallion",
+    "Allison", "Meaty", "Sophia", "Vaja", "Joey", "Pendy",
+    "Murdoch", "Theo", "Jared", "July", "Sonia", "Mel",
+    "Dexter", "Quinn", "Milky"
+  },
   playerScale = 35,
   playerSpeed = 0.0016,
   playerDecel = 0.993,
