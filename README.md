@@ -69,3 +69,41 @@ Nesta etapa, o cliente Lua passou a oferecer **clique nos itens e nas armas da b
 Os pacotes autoritativos `7` e `9` agora atualizam posicoes da equipe e pings de mapa: o minimapa 130x130 mostra circulos brancos na escala da referencia, a posicao da morte, e o efeito expansivo conforme o cliente JS. Clique no minimapa e R enviam ping, enquanto C marca a posicao atual. Nao sao entidades inventadas pelo Lua.
 
 Teste local: `TESTAR-WINDOWS.bat` roda os testes do codigo Lua via LÖVE. O `INICIAR-WINDOWS.bat` abre a conexao real ao Node. **Nenhum sucesso de teste foi declarado sem execucao**. Menus completos e paridade grafica pixel a pixel continuam pendentes.
+
+## Verificacao nova: spawn REAL do Node original
+
+Com o Node **ja iniciado** em localhost, execute `VERIFICAR-PARTIDA-NODE.bat`.
+Ele solicita um ticket local autentico em `/api/join`, recebe `io-init`,
+carrega **o modulo de build gerado pelo proprio Node**, assina um pacote
+`M` com a chave HMAC da sessao, envia a mensagem via WebSocket, e exige
+um pacote autenticado `C` com o SID da partida. O jogador de teste sai
+imediatamente depois.
+
+Isso prova somente que o **servidor Node original aceitou uma entrada
+autenticada naquela maquina**. Nao comprova que Lua entrou no jogo.
+O `VERIFICAR-CONEXAO.bat` anterior so verifica `io-init`.
+A principal verificacao do cliente nativo ainda e
+`INICIAR-WINDOWS.bat` (confirma `C` e `D/a` do Lua) e
+`TESTAR-WINDOWS.bat` (testes unitarios).
+
+## Correcoes do porte de renderizacao desta etapa
+
+- HUD: valores de recursos e placar sao sempre strings, inclusive antes
+  de receber os pacotes `N` ou `G`. Corrige crash em `Font:getWidth(0)`
+  logo apos o spawn.
+- Ataque: o desenho do jogador usa `dir + dirPlus` gerado pelo pacote `K`
+  do Node; projeteis continuam usando somente sua direcao propria.
+- Camera: mesma escala da area Canvas virtual **1920x1080** do JavaScript,
+  com `max(largura/1920, altura/1080)`, e snap instantaneo no novo spawn.
+- Mundo: animacao de largura da agua pelo `waveSpeed` original; composicao
+  azul-translucida aplicada antes dos rotulos e depois das entidades, como
+  no renderizador JS. Grid alinhado a 60 unidades do mundo.
+- Arvores e arbustos: se a triangulacao de uma forma concava falhar no LÖVE,
+  o renderizador tenta preencher a mesma silhueta em triangulos para impedir
+  um travamento. Nao cria nenhuma nova arte.
+- Inventario: estado das quantidades pelo pacote `S` do Node.
+- Novos testes: `tests/reference_camera.lua`, assercoes de primeiro
+  spawn do HUD, da rotacao da arma, da agua e de quantidades de item.
+- O cliente **nao esta concluido**: faltam menus, animacoes/efeitos
+  completos, validacao do cliente Lua no Windows e comparacao visual fiel
+  com a referencia.
