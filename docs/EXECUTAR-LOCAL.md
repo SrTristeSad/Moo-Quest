@@ -1,60 +1,70 @@
-# Executar a primeira fatia local do Moo-Quest — Windows
+# Executar Moo-Quest local: cliente Lua + servidor original Node.js
 
-> **Status: protótipo funcional integrado em código, SEM teste de execução confirmado.** Não é um port de 100% da referência e não deve ser anunciado como jogo completo. A arte geométrica é temporária e não copia os recursos da FRVR.
+**Status:** caminho de cliente/servidor implementado em código, **ainda precisa de teste de ponta a ponta no Windows**. A interface gráfica do cliente continua provisória. Não é uma cópia visual completa.
 
-## Pré-requisitos
+## Requisitos
 
-- **LÖVE 2D 11.5 para Windows**, a partir de https://love2d.org/.
-- Uma cópia do repositório com `main.lua`, `src/`, `conf.lua` e `INICIAR-WINDOWS.bat` preservados na mesma estrutura.
-- Nenhum Node.js ou navegador é necessário para executar o novo **fluxo local Lua**.
-- A documentação oficial do LÖVE confirma que **LuaSocket já vem incluído com LÖVE**, sendo usado por `require("socket")`. Não precisa instalar separadamente no Windows quando usa o LÖVE oficial.
+- Windows 10 ou 11.
+- LÖVE 2D **11.5** instalado: https://love2d.org/
+- Node.js **20 ou mais recente**, com npm: https://nodejs.org/
+- PowerShell (incluso no Windows).
+- Internet **uma vez** para baixar a versão-base e instalar dependências. Depois o jogo roda localmente.
 
-## Testar o Lua antes de jogar
+## Preparação (uma vez)
 
-Execute **`TESTAR-WINDOWS.bat`** na pasta do projeto, com LÖVE 2D 11.5 instalado. Um painel apresentará os testes com sucesso/falha; o relatório completo será salvo em `test-results.txt` no diretório de dados do LÖVE, identidade `moo_quest` (o painel exibe o caminho absoluto). Esses testes rodam no LuaJIT do LÖVE, sem precisar instalar Lua separadamente.
+1. Baixe o ZIP do repositório https://github.com/SrTristeSad/Moo-Quest/archive/refs/heads/main.zip.
+2. Extraia o ZIP numa pasta comum, sem abrir os `.bat` dentro do próprio arquivo compactado.
+3. Abra `PREPARAR-SERVIDOR.bat` e aguarde. Ele baixa **o servidor reconstruído da referência** no commit congelado, copia apenas `server/`, `shared/` e licença, instala as dependências npm e aplica a ponte nativa em `node-runtime/server/src/network/nativeBridge.js`.
+4. Quando aparecer `[OK] Servidor pronto`, execute `TESTAR-WINDOWS.bat` para checar os módulos do cliente.
+5. Inicie a partida com **`INICIAR-WINDOWS.bat`**. Ele abre o Node.js numa janela separada e inicia o LÖVE. Não feche a janela Node.js durante a partida.
 
-**Esta ferramenta testa módulos em memória e sockets simulados, NÃO comprova por si só uma partida ponta a ponta.** Depois de corrigir eventuais falhas, execute o jogo normalmente em `INICIAR-WINDOWS.bat` e percorra o checklist de integração abaixo.
+**Importante:** `node-runtime/` é gerado localmente e ignorado pelo Git. O instalador **não** importa os bundles/recursos oficiais de terceiros; não redistribua `client-official/`.
 
-## Iniciar
+## Como a conexão funciona
 
-1. Extraia os arquivos do repositório e instale o LÖVE 2D 11.5.
-2. Dê dois cliques em `INICIAR-WINDOWS.bat`.
-3. O cliente deverá iniciar uma thread com servidor Lua no endereço `127.0.0.1:17017`, conectar-se e solicitar entrada automaticamente.
-4. **WASD/setas**: mover; **mouse**: mirar; **botão esquerdo**: coletar/atacar com martelo. **1**: selecionar parede de madeira; clicar para construir. **2**: voltar ao martelo. **R**: renascer depois de morrer; **ESC**: sair.
+- Servidor reconstruído Node.js: HTTP em `127.0.0.1:8080`.
+- Ponte do cliente Lua: **TCP binário local em `127.0.0.1:17017`**.
+- O cliente manda pacotes originais de jogabilidade (`M` spawn, `D` mira, `9` movimento, `F` ação, `z` seleção de item). A ponte entrega ao `handlePacket` do servidor original.
+- O servidor devolve pacotes de entidades, posição, vida, recursos e objetos; `src/net/node_protocol.lua` converte-os para o renderizador LÖVE.
+- O servidor **não é substituído por Lua**. Os antigos módulos `src/server/` permanecem só como código histórico e não rodam no jogo.
+- **A ponte TCP não pode ser aberta à internet**. A fase online precisará de TLS, autenticação, validação de sessão, políticas de proteção e um transporte público distinto.
 
-## Como diferenciar conexão real de simulação
+## Controles desta etapa
 
-A tela deve informar `Mundo recebido do servidor Lua` e `Conectado ao servidor Lua`. Sem essas mensagens, o cliente ainda não entrou numa sessão do servidor. O mundo visível deve ser recebido via TCP em pacotes MessagePack, não gerado no `main.lua`.
+- WASD/setas: movimentar.
+- Mouse: mirar; clique esquerdo mantido: martelo/ataque.
+- `1`: selecionar parede de madeira; clique esquerdo: posicionar (se o servidor permitir).
+- `2`: selecionar martelo.
+- `R`: solicitar renascimento após morrer.
+- `ESC`: fechar apenas o cliente Lua. Para parar o Node, feche também a janela do servidor.
 
-### Etapas que precisam ser testadas
+## Checklist de teste REAL (não concluído)
 
-- [ ] O LÖVE abre sem erros de sintaxe ou dependências.
-- [ ] A thread Lua escuta exclusivamente em `127.0.0.1:17017` e aceita a conexão.
-- [ ] O cliente recebe mundo, ID e posição do jogador.
-- [ ] WASD movimenta a posição do servidor; ao parar, o jogador desacelera.
-- [ ] Câmera acompanha a posição devolvida pelo servidor.
-- [ ] Coleta de rocha/árvore/arbusto altera recursos.
-- [ ] Parede de madeira aparece como novo objeto após o servidor confirmar sua criação.
-- [ ] Animais aparecem usando o estado enviado pelo servidor, se movem e recebem dano ao serem acertados.
-- [ ] Animais hostis são capazes de causar dano ao jogador; **R** confirma renascimento real após a morte.
-- [ ] Sair fecha a conexão e encerra a thread.
-- [ ] Verificar limite e controles em pelo menos duas resoluções Windows.
+- [ ] `PREPARAR-SERVIDOR.bat` baixa/extrai a base, instala dependências e informa pronto.
+- [ ] Node inicia sem erro e informa `Lua client connection ready on 127.0.0.1:17017`.
+- [ ] Cliente LÖVE estabelece conexão TCP e recebe `A`, `C`, `D` / `a`.
+- [ ] O mundo e as entidades vistos na tela realmente vieram do servidor Node.
+- [ ] WASD move o personagem, e a câmera segue a posição atualizada pelo servidor.
+- [ ] Coletar árvore/rocha altera recursos transmitidos.
+- [ ] Seleção e posicionamento de parede geram um objeto confirmado pelo servidor.
+- [ ] Animais recebem golpes e podem causar dano; morte e renascimento seguem as regras do Node.
+- [ ] Cliente fica ocioso por mais de 60s sem perder a sessão.
+- [ ] Fechar o cliente remove sua sessão do mundo Node.
+- [ ] Não há regressão em duas resoluções da janela.
 
-Se houver erro, copie **o texto completo da mensagem** ou faça uma captura da janela. Não marcar nenhum item como aprovado sem executá-lo de verdade.
+**Se falhar**, envie a mensagem do LÖVE, a saída da janela Node e/ou o `test-results.txt` gerado por `TESTAR-WINDOWS.bat`.
 
-## Escopo limitado do protótipo
+## Limitações que não devem ser ocultadas
 
-O servidor do fluxo local está numa thread do mesmo aplicativo LÖVE, mas usa **um socket TCP real** e mantém mundo e jogadores no lado do servidor. Já utiliza o gerador de recursos naturais, deslocamento base, coleta simples do martelo, a construção da primeira parede e uma implementação parcial de população/IA/combate contra animais. O protocolo de rede local foi definido especificamente para esse cliente e **não é compatível** com o WebSocket cifrado da referência.
+A apresentação visual Lua ainda é um protótipo; faltam sprites autorizados, HUD completo, efeitos, armas adicionais, painel de upgrades, chat/clãs, menus, contas, social e outros recursos. A simulação real desses sistemas **já existe no servidor Node de referência**, mas seu controle e sua visualização não foram todos implementados no cliente Lua.
 
-**Falta:** testar a execução, todas as demais armas/estruturas, sprites e sons definitivos, mecânicas completas de animais e chefes (a IA do Crab King ainda não foi portada), combate PvP, efeitos especiais, sistemas sociais, dois mundos LC/MB, segurança e paridade detalhada. Este marco inicial **não** equivale à versão final descrita em `docs/REGRA-PRINCIPAL.md`.
+Mesmo que Node e Lua se conectem, **não afirmar que a paridade visual/funcional está pronta** até testar cada item documentado.
 
-## Problemas possíveis
+## Problemas comuns
 
-- **`LOVE 2D nao encontrado`:** instale a versão 11.5, deixe `love.exe` no PATH ou coloque os binários oficiais do LÖVE na pasta.
-- **`Address already in use` / `endereco em uso`:** outra aplicação já ocupa a porta 17017. Feche-a antes de iniciar.
-- **`Falha TCP`:** verifique se o servidor aparece como `ready`; o executável pode ter bloqueado a conexão local.
-- **Tela presa aguardando mundo:** não trate como sucesso; copie a mensagem da interface e logs.
-
-## Licenças
-
-Não redistribua arquivos `client-official/` ou os assets oficiais de terceiros. Apenas comportamento e parâmetros verificáveis são portados para o Lua; elementos gráficos deste marco foram desenhados por formas primitivas para testar o fluxo sem importar recursos proprietários.
+- `'node' nao e reconhecido`: instale Node.js LTS e reinicie o prompt do Windows.
+- `LOVE 2D nao encontrado`: instale LÖVE 11.5 ou coloque seus binários oficiais no PATH.
+- `node-runtime ainda nao foi preparado`: rode `PREPARAR-SERVIDOR.bat` primeiro.
+- `Address already in use`: outro processo ocupa 8080 ou 17017; feche o servidor anterior.
+- `Aguardando servidor Node.js`: confira a janela Node e a mensagem de inicialização da ponte TCP.
+- Erro de caminho terminando em aspas: atualize os `.bat`. A versão atual usa `GAME_DIR=%~dp0.` para evitar a barra invertida final junto da aspas.
