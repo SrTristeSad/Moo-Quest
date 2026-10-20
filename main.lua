@@ -2,11 +2,19 @@
 -- Current milestone is real server discovery + WebSocket + io-init diagnostics.
 -- We intentionally do NOT draw a fake world or claim an authenticated session.
 local Original=require("src.net.original_client")
+local Input=require("src.input")
+local Pack=require("src.protocol.msgpack")
 local client=nil
 local diagnostic=nil
 local reconnectSeconds=0
 local latestEvent="Nenhum io-init recebido."
 local startupError=nil
+local input=Input.new()
+local movementClock=0
+local lastMove=false
+local lastAim=nil
+local playerX,playerY=nil,nil
+local serverPackets=0
 
 function love.load()
   love.graphics.setDefaultFilter("nearest","nearest")
@@ -24,20 +32,72 @@ function love.load()
   if not connected then startupError=err end
 end
 
+local function angle(y,x)
+  if math.atan2 then return math.atan2(y,x) end
+  if x>0 then return math.atan(y/x) end
+  if x<0 then return math.atan(y/x)+(y>=0 and math.pi or -math.pi) end
+  if y>0 then return math.pi/2 end
+  if y<0 then return -math.pi/2 end
+  return 0
+end
+
 function love.update(dt)
   if diagnostic or not client then return end
   client:update()
   for _,evt in ipairs(client:drain()) do
     if evt.kind=="io-init" then
       local h=evt.data
-      latestEvent=string.format("io-init: keyed=%d, pinned=%s, sealMode=%d",
+      latestEvent=string.format("io-init REAL: keyed=%d, pinned=%s, sealMode=%d",
         h.mode,tostring(h.pinned),h.sealMode)
+    elseif evt.kind=="game_packet" then
+      local packet=evt.data
+      serverPackets=serverPackets+1
+      if packet.name=="C" then
+        latestEvent="SPAWN CONFIRMADO pelo Node original. SID "..tostring(client.sid)
+        movementClock=0
+        lastMove=false
+        lastAim=nil
+      elseif packet.name=="a" and client.sid then
+        -- The original server transmits [sid,x,y,dir*100] per visible player.
+        local positions=packet.args[1]
+        if type(positions)=="table" then
+          for i=1,#positions-3,4 do
+            if positions[i]==client.sid then
+              playerX,playerY=positions[i+1],positions[i+2]
+              break
+            end
+          end
+        end
+      elseif packet.name=="P" then
+        latestEvent="Morte confirmada pelo Node. Pressione R para reaparecer."
+      elseif packet.name=="B" then
+        latestEvent="Servidor recusou partida: "..tostring(packet.args[1])
+      end
+    end
+  end
+  if client.state=="spawn_confirmed" then
+    input:update(dt)
+    movementClock=movementClock+dt
+    if movementClock>=0.07 then
+      movementClock=0
+      local dx,dy=input.dx,input.dy
+      local move=(dx~=0 or dy~=0) and angle(dy,dx) or false
+      if move~=lastMove then
+        client:send("9",{move==false and Pack.null or move})
+        lastMove=move
+      end
+      local w,h=love.graphics.getDimensions()
+      local mx,my=love.mouse.getPosition()
+      local aim=angle(my-h/2,mx-w/2)
+      if not lastAim or math.abs(aim-lastAim)>0.02 then
+        client:send("D",{aim})
+        lastAim=aim
+      end
     end
   end
   if client.state=="failed" or client.state=="closed" then
     reconnectSeconds=reconnectSeconds+dt
-    -- Do not hammer the original server's connection limit or ban policy.
-    -- Retry only when explicitly requested by pressing R.
+    -- Retry only on explicit R to avoid connection-throttling.
   end
 end
 
@@ -82,14 +142,24 @@ function love.draw()
     if client.build then line(257,"Build do servidor: "..tostring(client.build)) end
   end
   line(310,latestEvent)
+  line(341,"Pacotes autenticados recebidos do Node: "..tostring(serverPackets))
+  if playerX and playerY then
+    line(372,("Posicao AUTORITATIVA no servidor: X %d   Y %d"):format(playerX,playerY))
+  end
   love.graphics.setColor(1,0.78,0.54)
-  love.graphics.printf("A partida ainda NAO esta autenticada. O servidor exige "..
-    "identificacao do build, ticket de entrada, protocolo binario com chave e "..
-    "verificacoes de integridade. Esses requisitos ainda precisam de suporte "..
-    "legitimo no cliente Lua. A janela aberta NAO significa jogo funcionando.",
-    36,368,w-72)
+  if client and client.sid then
+    love.graphics.printf("Conexao, ticket e spawn confirmados. WASD envia direcao ao Node "..
+      "e a posicao acima e devolvida pelo servidor. "..
+      "Ainda FALTA o renderizador grafico fiel do jogo, o inventario e a interface.",
+      36,410,w-72)
+  else
+    love.graphics.printf("O cliente solicita um ticket guest na API ORIGINAL "..
+      "(/api/join), abre o WebSocket e tenta um spawn autenticado. "..
+      "A partida ainda NAO foi confirmada: a janela aberta nao prova jogabilidade.",
+      36,410,w-72)
+  end
   love.graphics.setColor(0.67,0.77,0.71)
-  love.graphics.printf("R: tentar novamente   |   ESC: sair\n"..
+  love.graphics.printf("R: tentar novamente/renascer   |   WASD: movimento apos spawn   |   ESC: sair\n"..
     "Servidor original em Node.js; nenhuma simulacao Lua, ponte TCP ou alteracao do servidor.",
     36,h-115,w-72)
 end
@@ -97,12 +167,34 @@ end
 function love.keypressed(key)
   if key=="escape" then love.event.quit();return end
   if diagnostic then return end
+  input:keypressed(key)
   if key=="r" and client then
+    if client.state=="spawn_confirmed" then return end
+    if client.state~="closed" and client.state~="failed" then return end
     reconnectSeconds=0
     startupError=nil
+    playerX,playerY=nil,nil
+    serverPackets=0
+    lastMove=false
+    lastAim=nil
     local ok,err=client:connect()
     if not ok then startupError=err end
   end
+end
+function love.keyreleased(key)
+  if not diagnostic then input:keyreleased(key) end
+end
+function love.mousepressed(_,_,button)
+  if diagnostic or not client or client.state~="spawn_confirmed" then return end
+  if button==1 then
+    local w,h=love.graphics.getDimensions()
+    local mx,my=love.mouse.getPosition()
+    client:send("F",{1,angle(my-h/2,mx-w/2)})
+  end
+end
+function love.mousereleased(_,_,button)
+  if diagnostic or not client or client.state~="spawn_confirmed" then return end
+  if button==1 then client:send("F",{0,Pack.null}) end
 end
 function love.quit()
   if client then client:close() end
