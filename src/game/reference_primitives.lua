@@ -32,12 +32,24 @@ function P.path(points,fillColor,strokeColor,width)
   if fillColor then
     P.color(fillColor)
     -- LÖVE fill only supports convex polygons; Canvas stars and blobs are concave.
-    if love.math.isConvex(points) then
+    local convex=love.math.isConvex(points)
+    if convex then
       love.graphics.polygon("fill",points)
     else
-      local triangles=love.math.triangulate(points)
-      for _,triangle in ipairs(triangles) do
-        love.graphics.polygon("fill",triangle)
+      -- Some concave Bezier outlines make LÖVE's ear clipping reject the
+      -- outline. The original Canvas still fills them. Try triangulation,
+      -- then render the same radial outline as a triangle fan if necessary.
+      local ok,triangles=pcall(love.math.triangulate,points)
+      if ok and triangles and #triangles>0 then
+        for _,triangle in ipairs(triangles) do
+          love.graphics.polygon("fill",triangle)
+        end
+      else
+        for i=3,#points-2,2 do
+          love.graphics.polygon("fill",
+            points[1],points[2],points[i],points[i+1],
+            points[i+2],points[i+3])
+        end
       end
     end
   end
