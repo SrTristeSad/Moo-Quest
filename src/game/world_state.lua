@@ -36,6 +36,9 @@ function World:apply(name,args)
   if name=="C" then
     if not validId(args[1]) then return false end
     self.sid=args[1];self.spawned=true;self.dead=false
+    -- The Node sends a fresh D after every C. Do not render the previous
+    -- life's position while waiting for its new authoritative D snapshot.
+    self.players[self.sid]=nil
     -- server/src/moomoo/modules/player.js::spawn initializes this in Node;
     -- the JavaScript client's Player.spawn() mirrors it locally.
     -- The server does not send V on each new spawn, only when inventory changes.
