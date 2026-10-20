@@ -33,20 +33,28 @@ function M.parse(json)
   return values
 end
 function M.load()
-  local root="node-runtime/server/data/protocol-build.json"
-  local content
-  if love and love.filesystem and love.filesystem.getInfo(root) then
-    content=love.filesystem.read(root)
-  end
-  if not content then
-    -- Optional read-only path to a different, already running original checkout.
-    local absolute=os.getenv("MOOQUEST_BUILD_FILE")
-    if absolute and #absolute>0 then
-      local file=io.open(absolute,"rb")
-      if file then content=file:read(32769);file:close() end
+  -- The .bat supplies an absolute read-only path for the actual running Node
+  -- server. Prefer it over any stale source-directory copy.
+  local content=nil
+  local absolute=os.getenv("MOOQUEST_BUILD_FILE")
+  if absolute and #absolute>0 then
+    local file=io.open(absolute,"rb")
+    if file then
+      content=file:read(32769)
+      file:close()
+    else
+      return nil,"MOOQUEST_BUILD_FILE nao encontrado: "..absolute
     end
   end
-  if not content then return nil,"arquivo de build original nao encontrado (configuracao do cliente pendente)" end
+  if not content and love and love.filesystem then
+    local root="node-runtime/server/data/protocol-build.json"
+    if love.filesystem.getInfo(root) then
+      content=love.filesystem.read(root)
+    end
+  end
+  if not content then
+    return nil,"protocol-build.json do servidor Node nao encontrado; execute INICIAR-WINDOWS.bat"
+  end
   return M.parse(content)
 end
 return M
