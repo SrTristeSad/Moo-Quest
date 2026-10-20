@@ -9,7 +9,8 @@ function H.parse(frame)
   if type(args)~="table" or #args~=6 then
     return nil,"invalid io-init arguments"
   end
-  local socketId,seed,keyHex,mode,pinned,sealMode=unpack(args)
+  local unpackArgs = table.unpack or unpack
+  local socketId,seed,keyHex,mode,pinned,sealMode=unpackArgs(args)
   if type(socketId)~="string" or #socketId~=16 or not socketId:match("^[0-9a-fA-F]+$") then
     return nil,"invalid socket id"
   end
