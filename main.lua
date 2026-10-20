@@ -21,6 +21,7 @@ local port=17017
 local protocol=NodeProtocol.new()
 local retryClock=0
 local wasOpen=false
+local heartbeatClock=0
 local clickHeld=false
 local G={}
 
@@ -151,7 +152,7 @@ local function drawAnimals(w,h)
       love.graphics.printf(animal.name,x-80,y-r-26,160,"center")
       love.graphics.setColor(0.25,0.16,0.14)
       love.graphics.rectangle("fill",x-r*0.7,y+r+6,r*1.4,5)
-      -- Full health values are sent by the authoritative Lua server.
+      -- Health values come from the original authoritative Node.js server.
       local def=AnimalTypes.byId(animal.index)
       local max=def and def.health or 1
       love.graphics.setColor(0.25,0.76,0.33)
@@ -282,12 +283,18 @@ function love.update(dt)
       serverStatus="Aguardando servidor Node.js. Execute PREPARAR-SERVIDOR.bat."
     end
     if client.state=="open" then
+      heartbeatClock=heartbeatClock+dt
+      if heartbeatClock>=10 then
+        heartbeatClock=0
+        client:queue({"0",{}}) -- original server heartbeat prevents idle socket timeout
+      end
       if not wasOpen then
         protocol=NodeProtocol.new()
         players,animals,world={}, {}, nil
         localSid=nil
         lastMove,lastAim=nil,nil
         clickHeld=false
+        heartbeatClock=0
         G.spawnSent=false
         wasOpen=true
       end
