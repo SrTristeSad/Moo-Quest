@@ -5,6 +5,7 @@
 local World=require("src.server.world")
 local Player=require("src.server.player")
 local Config=require("src.game.config")
+local Catalog=require("src.game.catalog")
 local Game={}
 Game.__index=Game
 local pi=math.pi
@@ -82,18 +83,19 @@ function Game:leave(id)
   self.players[id]=nil
 end
 function Game:attack(p)
-  if not p.alive or self.elapsed-p.lastAttack<300 then return nil end
+  local weapon=Catalog.weaponById(p.weaponIndex)
+  if not weapon or not p.alive or self.elapsed-p.lastAttack<(weapon.speed or 300) then return nil end
   p.lastAttack=self.elapsed
   local changed=false
   local hits=0
   for _,o in ipairs(self.world.objects) do
     if o.active and not o.isItem and o.type>=0 and o.type<=3 then
       local dist=distance(p.x,p.y,o.x,o.y)-o.scale
-      if dist<=65 and angleDiff(atan2(o.y-p.y,o.x-p.x),p.dir)<=pi/2.6 then
+      if dist<=weapon.range and angleDiff(atan2(o.y-p.y,o.x-p.x),p.dir)<=self.config.gatherAngle then
         local resource=({"wood","food","stone","points"})[o.type+1]
-        local count=(o.type==3 and 5 or 1)
+        local count=(weapon.gather or 0)+(o.type==3 and 4 or 0)
         p[resource]=p[resource]+count
-        p.XP=p.XP+4
+        p.XP=p.XP+4*(weapon.gather or 0)
         if p.XP>=p.maxXP then
           p.age=p.age+1
           p.XP=0
@@ -111,31 +113,44 @@ function Game:buildWall(p,angle)
   -- 'wood wall' is item index 3 of shared/config/items.js.
   if not p.alive or not finite(angle) then return false,"invalid build command" end
   local c=self.config
-  local wallScale=50
-  local offset=p.scale+wallScale-5
+  local item=Catalog.itemById(3)
+  local group=Catalog.groupById(item.groupId)
+  local wallScale=item.scale
+  local offset=p.scale+wallScale+(item.placeOffset or 0)
   local x=p.x+offset*math.cos(angle)
   local y=p.y+offset*math.sin(angle)
   if x-wallScale<0 or x+wallScale>c.mapScale
     or y-wallScale<0 or y+wallScale>c.mapScale then
     return false,"outside world"
   end
-  local groupId=1
+  local groupId=item.groupId
   local count=p.itemCounts[groupId] or 0
-  local limit=c.inSandbox and 99 or 30
+  local limit=c.inSandbox and (group.sandboxLimit or math.max(group.limit*3,99)) or group.limit
   if count>=limit then return false,"structure limit" end
-  if not c.inSandbox and p.wood<10 then return false,"insufficient wood" end
+  if not c.inSandbox then
+    for i=1,#item.req,2 do
+      if (p[item.req[i]] or 0)<item.req[i+1] then
+        return false,"insufficient "..item.req[i]
+      end
+    end
+  end
   if not self.world:canPlace(x,y,wallScale,0.6,false) then
     return false,"blocked placement"
   end
   local o={
     sid=self.world.nextSid,x=x,y=y,scale=wallScale,dir=angle,
-    active=true,type=0,id=3,isItem=true,colDiv=1,
-    health=380,layer=0,owner=p.sid
+    active=true,type=item.type or 0,id=item.id,isItem=true,colDiv=item.colDiv or 1,
+    health=item.health,layer=group.layer,owner=p.sid
   }
   self.world.nextSid=self.world.nextSid+1
   self.world.objects[#self.world.objects+1]=o
   p.itemCounts[groupId]=count+1
-  if not c.inSandbox then p.wood=p.wood-10 end
+  if not c.inSandbox then
+    for i=1,#item.req,2 do
+      local resource=item.req[i]
+      p[resource]=p[resource]-item.req[i+1]
+    end
+  end
   return true,o
 end
 function Game:command(id,packet)
