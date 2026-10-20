@@ -4,6 +4,8 @@
 // imports server/src/anticheat/config.js, but that file is not published in Git.
 // This replacement contains only configuration, NEVER the gameplay/AI/server logic.
 // Its values are NOT the author's unpublished values. Run LOCALHOST ONLY.
+// Native Lua cannot supply official browser bundle seals. Disable ONLY browser-specific
+// gates in this local config; other auth, sequence, HMAC, rate limits remain active.
 // Do not use this local compatibility policy for an internet-facing server.
 export const ANTICHEAT_CONFIG = {
     storage: {
@@ -14,12 +16,12 @@ export const ANTICHEAT_CONFIG = {
         maxConnectionsPerIp: 5,
         enforceOrigin: true,
         enforceBuild: true,
-        enforceBundle: true,
+        enforceBundle: false, // Native Lua has no browser JS bundle; LOCAL ONLY.
         requireTicket: true,
         ticketMaxAgeMs: 45000
     },
     seal: {
-        mode: 2,
+        mode: 0, // No browser bundle to bind; keyed HMAC + ticket remain enabled.
         mismatchAction: "flag"
     },
     rateLimits: {
