@@ -164,6 +164,27 @@ function Original:update()
         else
           self.packetCount=self.packetCount+1
           self.events[#self.events+1]={kind="game_packet",data=packet}
+          if packet.name=="q" and self.session then
+            local salt=packet.args[1]
+            local probes=packet.args[2]
+            -- The local original-server compatibility config sends zero
+            -- browser-specific probes. Answer an EMPTY round accurately;
+            -- do not pretend a Lua client passed browser integrity probes.
+            if type(salt)=="number" and type(probes)=="table"
+              and #probes==0 and self.session.sealMode==0 then
+              local seq=self.session.sent
+              local ledger=self.session.ledger
+              local valid,why=self:send("T",{
+                0,0,0,MessagePack.null,salt,seq,ledger
+              })
+              if not valid then
+                self.status="Falha ao responder telemetria original: "..tostring(why)
+              end
+            else
+              self.status="Servidor exige probes/selagem do navegador ainda nao implementados em Lua."
+              self.state="blocked"
+            end
+          end
           if packet.name=="C" and type(packet.args[1])=="number" then
             self.sid=packet.args[1]
             self.state="spawn_confirmed"
