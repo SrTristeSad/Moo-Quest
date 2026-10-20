@@ -15,6 +15,8 @@ local lastMove=false
 local lastAim=nil
 local playerX,playerY=nil,nil
 local serverPackets=0
+local died=false
+local heartbeatClock=0
 
 function love.load()
   love.graphics.setDefaultFilter("nearest","nearest")
@@ -57,6 +59,7 @@ function love.update(dt)
         movementClock=0
         lastMove=false
         lastAim=nil
+        died=false
       elseif packet.name=="a" and client.sid then
         -- The original server transmits [sid,x,y,dir*100] per visible player.
         local positions=packet.args[1]
@@ -69,13 +72,19 @@ function love.update(dt)
           end
         end
       elseif packet.name=="P" then
+        died=true
         latestEvent="Morte confirmada pelo Node. Pressione R para reaparecer."
       elseif packet.name=="B" then
         latestEvent="Servidor recusou partida: "..tostring(packet.args[1])
       end
     end
   end
-  if client.state=="spawn_confirmed" then
+  if client.state=="spawn_confirmed" and not died then
+    heartbeatClock=heartbeatClock+dt
+    if heartbeatClock>=15 then
+      heartbeatClock=0
+      client:send("0",{})
+    end
     input:update(dt)
     movementClock=movementClock+dt
     if movementClock>=0.07 then
@@ -169,6 +178,14 @@ function love.keypressed(key)
   if diagnostic then return end
   input:keypressed(key)
   if key=="r" and client then
+    if died and client.state=="spawn_confirmed" then
+      local ok,reason=client:send("M",{
+        Pack.map({name=client.name,moofoll=false,skin=0,anon=false})
+      })
+      if ok then latestEvent="Renascimento solicitado ao servidor Node original..."
+      else latestEvent="Falha no renascimento: "..tostring(reason) end
+      return
+    end
     if client.state=="spawn_confirmed" then return end
     if client.state~="closed" and client.state~="failed" then return end
     reconnectSeconds=0
@@ -177,6 +194,8 @@ function love.keypressed(key)
     serverPackets=0
     lastMove=false
     lastAim=nil
+    died=false
+    heartbeatClock=0
     local ok,err=client:connect()
     if not ok then startupError=err end
   end
@@ -185,7 +204,7 @@ function love.keyreleased(key)
   if not diagnostic then input:keyreleased(key) end
 end
 function love.mousepressed(_,_,button)
-  if diagnostic or not client or client.state~="spawn_confirmed" then return end
+  if diagnostic or not client or client.state~="spawn_confirmed" or died then return end
   if button==1 then
     local w,h=love.graphics.getDimensions()
     local mx,my=love.mouse.getPosition()
