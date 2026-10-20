@@ -69,6 +69,27 @@ com uma figura improvisada.
 - Criar testes de regressao visual; screenshots com mesmos estados reais,
   nao mundos aleatorios para demonstracao.
 
+## Etapa atual: controles e minimapa originais (sem trocar design)
+
+- `src/game/reference_icons.lua`: miniaturas da barra e de upgrades agora seguem
+  a orientacao e as proporcoes de `client/src/index.js`: ferramentas rotacionam
+  225 graus com `iconPad` / `iPad`; itens usam `getItemSprite(asIcon=true)`
+  com rotacao 0 graus. Sprites de mundo continuam usando 90 graus.
+- `src/game/reference_hud.lua::hitTest`: clique em arma ou construcao envia o
+  mesmo `z(index,isWeapon)` da referencia. As dimensoes de 66px, margens
+  de 5px e margem inferior de 17px sao as do CSS original.
+- Mouse e Espaco nao anulam o ataque um do outro quando um permanece
+  pressionado. Tecla X mantem a orientacao atual, como `getAttackDir()`.
+- `src/game/world_state.lua`: os pacotes `7` (coordenadas da equipe) e `9`
+  (ping do mapa) agora alimentam o minimapa. O efeito de ping cresce com
+  `0.05 * deltaMs` e desaparece na escala 40, conforme `MapPing` da referencia.
+  O cliente guarda a posicao da ultima morte; tecla C define o marcador
+  pessoal e clique no mapa envia ping ao Node, tal como o JS original.
+- Testes adicionais: `tests/reference_hud.lua`, `tests/reference_render.lua`
+  e `tests/world_state.lua`. Estes cobrem formatos de pacote, localizacao
+  dos alvos clicaveis e geracao de sprites, **nao** demonstram uma partida
+  completa nem garantem fidelidade grafica.
+
 **NAO CONCLUIDO: nao afirmar paridade 1:1 ate que a lista inteira seja
 testada de ponta a ponta.**
 
