@@ -33,6 +33,17 @@ local incoming=MP.encode({id,{{name="test"}}})
 local r=assert(session:decode(C.mask(incoming,C.serverMaskSeed(session.masks.s2c,1))))
 assert(r.name=="A" and r.args[1].name=="test")
 assert(session.received==1)
+-- Authentic original T reply reports pre-telemetry send sequence + ledger,
+-- with nil seal represented as MessagePack null in sealMode 0.
+local beforeSeq,beforeLedger=session.sent,session.ledger
+local saltProbe=3901234567
+local telemetry=assert(session:encode("T",{0,0,0,MP.null,saltProbe,beforeSeq,beforeLedger}))
+local teleBody=C.mask(telemetry:sub(7),C.clientMaskSeed(session.masks.c2s,telemetry:sub(1,6)))
+local teleDecoded=MP.decode(teleBody)
+assert(teleDecoded[1]==tables.c2s.enc.T)
+assert(teleDecoded[2][4]==MP.null)
+assert(teleDecoded[2][5]==saltProbe)
+assert(teleDecoded[2][6]==beforeSeq and teleDecoded[2][7]==beforeLedger)
 h.sealMode=2
 local blocked,reason=Session.new(h,params,dummySha)
 assert(blocked==nil and reason:find("seal"))
