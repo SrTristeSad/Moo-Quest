@@ -17,7 +17,9 @@
 
 ## Situação verdadeira
 
-**Não jogável.** Atualmente há estrutura do cliente LÖVE, captura de entrada, funções de câmera e partes experimentais de MessagePack/WebSocket, mas sem conexão real validada, sem servidor Lua e sem renderização de um jogo funcional. Testes presentes ainda não comprovam partida local.
+**Primeira integração local escrita, ainda NÃO validada por execução em Windows.** A versão atual inclui um servidor Lua em thread LÖVE na porta TCP local `127.0.0.1:17017`, geração e transmissão do mundo, spawn real no servidor, movimentação autoritativa básica, coleta com o martelo padrão e construção de parede de madeira. O cliente recebe o estado do servidor e renderiza representações geométricas temporárias. **Isso não é um port completo nem prova que a execução está funcionando.** Ainda faltam teste de partida, combate, animais, restante dos itens e da interface, serviços sociais e muitas outras funções da referência.
+
+**Executar no Windows:** veja [docs/EXECUTAR-LOCAL.md](docs/EXECUTAR-LOCAL.md) e execute `INICIAR-WINDOWS.bat` com LÖVE 11.5 instalado. O fluxo local Lua não precisa de Node.js. O antigo adaptador experimental WebSocket continua no repositório para auditoria e não é usado nessa execução.
 
 ## Licenciamento
 
