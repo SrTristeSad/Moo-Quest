@@ -317,7 +317,7 @@ function love.draw()
       love.graphics.print((row.pass and "OK   " or "FALHA ")..row.path,28,98+(i-1)*27)
       if not row.pass then
         love.graphics.setColor(0.96,0.78,0.63)
-        local short=row.error:gsub("[\\r\\n]+"," "):sub(1,110)
+        local short=row.error:gsub("%s+"," "):sub(1,110)
         love.graphics.print(short,405,98+(i-1)*27)
       end
     end
