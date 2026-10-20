@@ -22,11 +22,14 @@ local function box(x,y,w,h,a)
   love.graphics.rectangle("fill",x,y,w,h,4,4)
 end
 local function number(n)
-  if type(n)~="number" then return 0 end
+  -- Font:getWidth / graphics.print expect a string, including before N/G
+  -- packets have arrived. A numeric 0 crashed the first playable HUD frame.
+  if type(n)~="number" or n~=n then return "0" end
   if n>=1000000 then return string.format("%.1fm",n/1000000) end
   if n>=10000 then return string.format("%.1fk",n/1000) end
   return tostring(math.floor(n))
 end
+H.formatResource=number
 local function resource(name,icon,value,x,y,left)
   local content=number(value)
   local width=math.max(75,fontLarge:getWidth(content)+56)
