@@ -3,6 +3,22 @@ local C=require("src.game.catalog")
 local Objects=require("src.game.reference_objects")
 local View=require("src.game.reference_view")
 assert(View.playerDrawAngle({dir=1})==1)
+local World=require("src.game.world_state")
+local worldLabels=World.new()
+worldLabels.sid=5
+worldLabels.players[5]={sid=5,team="Team"}
+worldLabels.players[6]={sid=6,team="Team",skin=10}
+worldLabels.players[7]={sid=7,team="Enemy",skin=10}
+worldLabels.players[8]={sid=8,skin=0}
+assert(View.isTeammate(worldLabels,worldLabels.players[5]))
+assert(View.isTeammate(worldLabels,worldLabels.players[6]))
+assert(not View.isTeammate(worldLabels,worldLabels.players[7]))
+assert(View.playerNameVisible(worldLabels,worldLabels.players[6]))
+assert(not View.playerNameVisible(worldLabels,worldLabels.players[7]))
+assert(View.playerNameVisible(worldLabels,worldLabels.players[8]))
+assert(View.animalName({index=0,nameIndex=0})=="Sid")
+assert(View.animalName({index=4,nameIndex=0})=="Wolf")
+assert(View.animalName({index=100})==nil)
 
 local wave=View.advanceWater(0.1)
 assert(wave>1 and wave<1.1,"water width must animate according to original waveSpeed")
