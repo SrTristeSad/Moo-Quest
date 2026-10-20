@@ -4,3 +4,8 @@
 build/
 dist/
 logs/
+
+# Downloaded upstream runtime, third-party files and local state
+node-runtime/
+*.log
+*.love
