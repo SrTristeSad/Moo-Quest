@@ -17,6 +17,7 @@
 3. Abra `PREPARAR-SERVIDOR.bat` e aguarde. Ele baixa **o servidor reconstruído da referência** no commit congelado, copia apenas `server/`, `shared/` e licença, instala as dependências npm e aplica a ponte nativa em `node-runtime/server/src/network/nativeBridge.js`.
 4. Quando aparecer `[OK] Servidor pronto`, execute `TESTAR-WINDOWS.bat` para checar os módulos do cliente.
 5. Inicie a partida com **`INICIAR-WINDOWS.bat`**. Ele abre o Node.js numa janela separada e inicia o LÖVE. Não feche a janela Node.js durante a partida.
+6. Com o Node em execução, rode **`TESTAR-NODE-WINDOWS.bat`** para fazer uma conexão independente que envia o spawn original e confirma, pelos pacotes devolvidos, que o servidor Node processa movimento. Isso testa a ponte e o Game original, além dos testes Lua.
 
 **Importante:** `node-runtime/` é gerado localmente e ignorado pelo Git. O instalador **não** importa os bundles/recursos oficiais de terceiros; não redistribua `client-official/`.
 
@@ -42,6 +43,7 @@
 
 - [ ] `PREPARAR-SERVIDOR.bat` baixa/extrai a base, instala dependências e informa pronto.
 - [ ] Node inicia sem erro e informa `Lua client connection ready on 127.0.0.1:17017`.
+- [ ] `TESTAR-NODE-WINDOWS.bat` informa `[OK]` após confirmar spawn e movimento pelo servidor real.
 - [ ] Cliente LÖVE estabelece conexão TCP e recebe `A`, `C`, `D` / `a`.
 - [ ] O mundo e as entidades vistos na tela realmente vieram do servidor Node.
 - [ ] WASD move o personagem, e a câmera segue a posição atualizada pelo servidor.
