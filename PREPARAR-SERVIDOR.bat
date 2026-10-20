@@ -16,7 +16,9 @@ if errorlevel 1 (
   exit /b 1
 )
 echo Preparando o servidor Node.js reconstruido da referencia.
-echo A internet e necessaria apenas nesta instalacao inicial.
+echo Se o servidor ja foi baixado, a pasta node-runtime sera reutilizada.
+echo Corrigindo automaticamente o arquivo de configuracao ausente.
+echo Internet sera necessaria para dependencias npm se nao instaladas.
 echo.
 node "%~dp0tools\prepare-node-server.mjs"
 set "EXITCODE=%ERRORLEVEL%"
@@ -28,6 +30,8 @@ if not "%EXITCODE%"=="0" (
   exit /b %EXITCODE%
 )
 echo.
-echo [OK] Servidor pronto. Agora execute INICIAR-WINDOWS.bat
+echo [OK] Servidor Node original passou no teste de inicializacao e HTTP /ping.
+echo Observacao: o cliente Lua ainda esta em desenvolvimento.
+echo Agora execute INICIAR-WINDOWS.bat para testar a conexao.
 pause
 exit /b 0
