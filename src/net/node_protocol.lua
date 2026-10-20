@@ -119,13 +119,16 @@ function P:decode(wire)
       if p.id==id then self.players[sid]=nil end
     end
     out[1]=eventPlayers(self)
-  elseif name=="J" then
-    -- Object removal; some H removal events use different packet names.
+  elseif name=="Q" then
+    -- The original ObjectManager sends Q when an object is disabled.
     local sid=args[1]
     if type(sid)=="number" then
       self.objects[sid]=nil
       out[1]={"remove_object",sid}
     end
+  elseif name=="R" then
+    -- All owned structures of a leaving player are removed by the game server.
+    -- Their full object list must be tracked separately when owner metadata is included.
   elseif name=="T" then
     if type(args[1])=="number" then self.XP=args[1] end
     if type(args[3])=="number" then self.age=args[3] end
