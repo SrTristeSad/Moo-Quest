@@ -27,7 +27,7 @@
 - Ponte do cliente Lua: **TCP binário local em `127.0.0.1:17017`**.
 - O cliente manda pacotes originais de jogabilidade (`M` spawn, `D` mira, `9` movimento, `F` ação, `z` seleção de item). A ponte entrega ao `handlePacket` do servidor original.
 - O servidor devolve pacotes de entidades, posição, vida, recursos e objetos; `src/net/node_protocol.lua` converte-os para o renderizador LÖVE.
-- O servidor **não é substituído por Lua**. Os antigos módulos `src/server/` permanecem só como código histórico e não rodam no jogo.
+- O servidor **não é substituído por Lua**. Os antigos módulos de servidor Lua foram retirados da árvore atual e permanecem recuperáveis apenas no histórico do GitHub.
 - **A ponte TCP não pode ser aberta à internet**. A fase online precisará de TLS, autenticação, validação de sessão, políticas de proteção e um transporte público distinto.
 
 ## Controles desta etapa
