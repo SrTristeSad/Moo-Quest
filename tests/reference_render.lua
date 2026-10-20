@@ -1,6 +1,10 @@
 package.path="./?.lua;./?/init.lua;"..package.path
 local C=require("src.game.catalog")
 local Objects=require("src.game.reference_objects")
+local View=require("src.game.reference_view")
+assert(View.playerDrawAngle({dir=1})==1)
+assert(math.abs(View.playerDrawAngle({dir=1,dirPlus=-0.25})-0.75)<0.0001)
+
 assert(Objects.layer({type=0})==3,"original trees should be upper layer")
 assert(Objects.layer({type=2})==0,"original rocks should be lower layer")
 assert(Objects.layer({type=4})==-1,"original hidden objects should be lower layer")
