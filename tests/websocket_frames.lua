@@ -1,0 +1,18 @@
+package.path="./?.lua;./?/init.lua;"..package.path
+local F=require("src.net.websocket_frames")
+local key=string.char(1,2,3,4)
+local packet=F.clientFrame("Hi",2,key)
+assert(packet:byte(1)==130 and packet:byte(2)==130)
+assert(packet:sub(3,6)==key)
+assert(packet:byte(7)==73 and packet:byte(8)==107)
+local frames,rest=F.decodeServer(string.char(130,2).."Hi")
+assert(frames and #frames==1 and frames[1].payload=="Hi" and rest=="")
+local incomplete,tail=F.decodeServer(string.char(130,2).."H")
+assert(incomplete and #incomplete==0 and #tail==3)
+local big=string.rep("a",130)
+local f=string.char(130,126,0,130)..big
+local decoded=assert(F.decodeServer(f))
+assert(#decoded==1 and decoded[1].payload==big)
+assert(F.decodeServer(string.char(130,130,1,2,3,4))==nil)
+assert(F.decodeServer(string.char(1,0))==nil)
+print("websocket framing tests passed")
