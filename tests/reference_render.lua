@@ -19,6 +19,8 @@ assert(View.playerNameVisible(worldLabels,worldLabels.players[8]))
 assert(View.animalName({index=0,nameIndex=0})=="Sid")
 assert(View.animalName({index=4,nameIndex=0})=="Wolf")
 assert(View.animalName({index=100})==nil)
+assert(View.healthBarOffset(35)==104, "player health bar offset must be scale + nameY below player")
+assert(View.healthBarOffset(78)==190, "animal health bar world-coordinate offset must match reference")
 
 local wave=View.advanceWater(0.1)
 assert(wave>1 and wave<1.1,"water width must animate according to original waveSpeed")
