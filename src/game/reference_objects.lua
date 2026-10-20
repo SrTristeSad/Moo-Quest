@@ -44,7 +44,7 @@ local function drawResource(typ,s,biome)
   elseif typ==1 then
     if biome==2 then
       P.star(6,s*0.3,s*0.71,"#606060",P.outline)
-      P.circle(0,0,s*0.55,"#89a54c")
+      P.circle(0,0,s*0.55,"#89a54c",P.outline)
       P.circle(0,0,s*0.3,"#a5c65b")
     else
       P.blob(6,s,s*0.7,biome==1 and "#e3f1f4" or "#89a54c",P.outline)
@@ -52,7 +52,7 @@ local function drawResource(typ,s,biome)
       for i=0,3 do
         local range=randomInt(s/3.5,s/2.3)
         P.circle(range*cos(pi*i/2),range*sin(pi*i/2),
-          randomInt(10,12),berryColor)
+          randomInt(10,12),berryColor,P.outline)
       end
     end
   elseif typ==2 or typ==3 then
@@ -69,10 +69,10 @@ local function drawItem(item)
   local name=item.name
   local s=item.scale
   if name=="apple" then
-    P.circle(0,0,s,"#c15555")
+    P.circle(0,0,s,"#c15555",P.outline)
     P.leaf(0,-s,25,0,"#89a54c",P.outline)
   elseif name=="cookie" or name=="cheese" then
-    P.circle(0,0,s,name=="cookie" and "#cca861" or "#f4f3ac")
+    P.circle(0,0,s,name=="cookie" and "#cca861" or "#f4f3ac",P.outline)
     for i=0,3 do
       local dist=randomInt(s/2.5,s/1.7)
       P.circle(dist*cos(pi*i/2),dist*sin(pi*i/2),
@@ -91,12 +91,12 @@ local function drawItem(item)
     local center=s*0.6
     P.star(name=="spikes" and 5 or 6,s,center,
       name=="poison spikes" and "#7b935d" or "#939393",P.outline)
-    P.circle(0,0,center,"#a5974c")
+    P.circle(0,0,center,"#a5974c",P.outline)
     P.circle(0,0,center/2,"#c9b758")
   elseif name=="windmill" or name=="faster windmill" or name=="power mill" then
     P.circle(0,0,s,"#a5974c",P.outline)
     P.rectCircle(0,0,s*1.5,29,4,"#c9b758",P.outline)
-    P.circle(0,0,s*0.5,"#a5974c")
+    P.circle(0,0,s*0.5,"#a5974c",P.outline)
   elseif name=="mine" then
     P.star(3,s,s,"#939393",P.outline)
     P.star(3,s*0.55,s*0.65,"#bcbcbc")
@@ -129,7 +129,7 @@ local function drawItem(item)
     P.rectCircle(0,0,s*0.65,20,4,"#db6e6e",nil)
   elseif name=="spawn pad" then
     P.rect(0,0,s*2,s*2,"#7e7f82",P.outline)
-    P.circle(0,0,s*0.6,"#71aad6")
+    P.circle(0,0,s*0.6,"#71aad6",P.outline)
   elseif name=="blocker" then
     P.circle(0,0,s,"#7e7f82",P.outline)
     love.graphics.push();love.graphics.rotate(pi/4)
