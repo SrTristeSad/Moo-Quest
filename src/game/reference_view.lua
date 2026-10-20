@@ -187,7 +187,9 @@ local function drawPlayer(p,camera,dt)
   p.skinRot=(p.skinRot or 0)+dt*1000*0.002
   love.graphics.push()
   love.graphics.translate(x,y)
-  love.graphics.rotate(p.dir or 0)
+  -- client/src/index.js renderPlayers: player.dir + player.dirPlus.
+  -- The previous port updated K attack animation but never drew its swing.
+  love.graphics.rotate((p.dir or 0)+(p.dirPlus or 0))
   love.graphics.scale(camera.zoom)
   playerBody(p,dt)
   love.graphics.pop()
