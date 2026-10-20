@@ -192,6 +192,24 @@ local function drawPlayer(p,camera,dt)
   playerBody(p,dt)
   love.graphics.pop()
 end
+local chatFont=nil
+local function drawChatBubble(p,x,y,scale)
+  if not p.chatMessage or (p.chatCountdown or 0)<=0 then return end
+  if not chatFont then chatFont=love.graphics.newFont(32) end
+  local previous=love.graphics.getFont()
+  love.graphics.setFont(chatFont)
+  local content=p.chatMessage
+  local tw=chatFont:getWidth(content)
+  local bubbleW=tw+17
+  local bubbleH=47
+  local cx=x
+  local cy=y-scale-90
+  love.graphics.setColor(0,0,0,0.2)
+  love.graphics.rectangle("fill",cx-bubbleW/2,cy-bubbleH/2,bubbleW,bubbleH,6,6)
+  love.graphics.setColor(1,1,1)
+  love.graphics.print(content,cx-tw/2,cy-chatFont:getHeight()/2)
+  love.graphics.setFont(previous)
+end
 local function labels(world,camera,w,h)
   for _,p in pairs(world.players) do
     if p.x and p.y and p.invisible~=1 and see(p,camera,w,h) then
@@ -201,6 +219,7 @@ local function labels(world,camera,w,h)
         tostring(p.name or "")
       love.graphics.setColor(1,1,1,1)
       love.graphics.printf(name,x-125,y-scale-39,250,"center")
+      drawChatBubble(p,x,y,scale)
       if type(p.health)=="number" and type(p.maxHealth)=="number"
         and p.maxHealth>0 and p.health<p.maxHealth then
         local bar=50*2*camera.zoom
