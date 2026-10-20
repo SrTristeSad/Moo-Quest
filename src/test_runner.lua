@@ -16,7 +16,8 @@ M.paths={
   "tests/world_state.lua",
   "tests/reference_render.lua",
   "tests/reference_animation.lua",
-  "tests/reference_upgrades.lua"
+  "tests/reference_upgrades.lua",
+  "tests/reference_hud.lua"
 }
 function M.run()
   local results={passed=0,failed=0,rows={}}
