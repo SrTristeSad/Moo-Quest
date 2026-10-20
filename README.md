@@ -12,7 +12,7 @@ A documentação [docs/REGRA-PRINCIPAL.md](docs/REGRA-PRINCIPAL.md) contém os r
 - **Servidor:** Node.js original da referência, preservando as regras de física, spawn, recursos, combate, construções, progresso e animais. Não há mais duplicação da lógica do servidor em Lua no fluxo de jogo.
 - **Ligação nativa local:** adaptador `node-bridge/nativeBridge.js`, instalado no servidor baixado, escutando **somente 127.0.0.1:17017**. Recebe comandos idênticos aos pacotes de jogo (`M`, `9`, `D`, `F`, `z`, etc.) e os passa ao **handlePacket original**. O servidor responde com eventos originais, interpretados em `src/net/node_protocol.lua`.
 - **Futuro online:** manter o servidor Node.js, mas construir uma conexão remota autenticada, criptografada e com segurança apropriada. A ponte TCP atual é estritamente local: **não expor a porta 17017 à internet**.
-- **Legado:** `src/server/` mantém estudos antigos em Lua para comparação, mas **não é iniciado pelo cliente** e não é a fonte da lógica do jogo.
+- **Servidor Lua anterior:** retirado da árvore atual; permanece somente no histórico do GitHub. A simulação usada no jogo é exclusivamente a do Node.js.
 
 ## Iniciar no Windows
 
