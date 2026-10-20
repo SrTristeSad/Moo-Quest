@@ -1,6 +1,6 @@
 -- Moo-Quest is a Lua client for the UNMODIFIED al007ex/moomoo-clone server.
--- Current milestone is real server discovery + WebSocket + io-init diagnostics.
--- We intentionally do NOT draw a fake world or claim an authenticated session.
+-- Real native gameplay rendering is gated by actual server C/D/a/H/I packets.
+-- Never generate local entities or claim spawn before the Node server confirms it.
 local Original=require("src.net.original_client")
 local World=require("src.game.world_state")
 local View=require("src.game.reference_view")
@@ -227,9 +227,9 @@ function love.draw()
   end
   love.graphics.setColor(1,0.78,0.54)
   if client and client.sid then
-    love.graphics.printf("Conexao, ticket e spawn confirmados. WASD envia direcao ao Node "..
-      "e a posicao acima e devolvida pelo servidor. "..
-      "Ainda FALTA o renderizador grafico fiel do jogo, o inventario e a interface.",
+    love.graphics.printf("Conexao e spawn confirmados pelo Node. "..
+      "Aguardando os primeiros pacotes de posicao e entidades para desenhar a partida. "..
+      "O porte visual continua em validacao com o cliente original.",
       36,410,w-72)
   else
     love.graphics.printf("O cliente solicita um ticket guest na API ORIGINAL "..
