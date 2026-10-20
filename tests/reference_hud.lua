@@ -20,4 +20,8 @@ assert(id3==3 and isWeapon3==false,"third actionbar slot must select wooden wall
 assert(Hud.hitTest(w,width,height,start+33,height-90)==nil)
 assert(Hud.hitTest(w,width,height,start+33,height-12)==nil)
 assert(Hud.hitTest(w,width,height,start+70,y)==nil)
+assert(Hud.mapHitTest(width,height,20,height-150))
+assert(Hud.mapHitTest(width,height,149,height-21))
+assert(not Hud.mapHitTest(width,height,150,height-21))
+assert(not Hud.mapHitTest(width,height,21,height-151))
 print("reference clickable action bar mappings passed")
