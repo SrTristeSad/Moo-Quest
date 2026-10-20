@@ -55,13 +55,16 @@ local function grid(camera,w,h)
   -- Same transparent grid and spacing used by the reference Canvas client.
   love.graphics.setColor(0,0,0,0.06)
   love.graphics.setLineWidth(4)
-  local step=h/18
-  local x=(-camera.x)%step
+  -- JS grid is maxScreenHeight/18 (60 world units), then transformed by
+  -- resize()'s cover scale. Keep it aligned to the same camera world origin.
+  local step=60*camera.zoom
+  local originX,originY=camera:worldToScreen(0,0)
+  local x=originX%step
   while x<w do
     love.graphics.line(x,0,x,h)
     x=x+step
   end
-  local y=(-camera.y)%step
+  local y=originY%step
   while y<h do
     love.graphics.line(0,y,w,y)
     y=y+step
