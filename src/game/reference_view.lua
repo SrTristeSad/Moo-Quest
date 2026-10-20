@@ -276,16 +276,20 @@ local function labelText(content,sz)
   love.graphics.print(content,-w/2,top-f:getHeight()/2)
   return w
 end
-local function labelHealth(health,maxHealth,friendly)
+function View.healthBarOffset(entityScale)
+  return 2*(entityScale or C.playerScale)+C.nameY
+end
+local function labelHealth(health,maxHealth,friendly,entityScale)
   if type(health)~="number" or health<=0
     or type(maxHealth)~="number" or maxHealth<=0 then return end
   local bar=C.healthBarWidth
   local pad=C.healthBarPad
   local ratio=math.max(0,math.min(1,health/maxHealth))
+  local offset=View.healthBarOffset(entityScale)
   Shapes.color(Shapes.darkOutline)
-  love.graphics.rectangle("fill",-bar-pad,C.nameY,bar*2+pad*2,17,8,8)
+  love.graphics.rectangle("fill",-bar-pad,offset,bar*2+pad*2,17,8,8)
   Shapes.color(friendly and "#8ecc51" or "#cc5151")
-  love.graphics.rectangle("fill",-bar,C.nameY+pad,bar*2*ratio,
+  love.graphics.rectangle("fill",-bar,offset+pad,bar*2*ratio,
     17-pad*2,7,7)
 end
 local function labels(world,camera,w,h)
@@ -303,15 +307,15 @@ local function labels(world,camera,w,h)
         local textWidth=labelText(name,30)
         if p.isLeader==1 or p.isLeader==true then
           Assets.draw("icons","crown.png",
-            -textWidth/2-C.crownPad-C.crownIconScale/2,-C.nameY-5,
+            -textWidth/2-C.crownPad,-C.nameY-5,
             C.crownIconScale,C.crownIconScale)
         end
         if p.icon==1 then
           Assets.draw("icons","skull.png",
-            textWidth/2+C.crownPad+C.crownIconScale/2,-C.nameY-5,
+            textWidth/2+C.crownPad,-C.nameY-5,
             C.crownIconScale,C.crownIconScale)
         end
-        labelHealth(p.health,p.maxHealth,View.isTeammate(world,p))
+        labelHealth(p.health,p.maxHealth,View.isTeammate(world,p),s)
         love.graphics.pop()
       end
     end
@@ -325,7 +329,7 @@ local function labels(world,camera,w,h)
         love.graphics.translate(x,y-(kind.scale or 75)*camera.zoom)
         love.graphics.scale(camera.zoom)
         labelText(View.animalName(a),kind.nameScale or 30)
-        labelHealth(a.health,kind.health,false)
+        labelHealth(a.health,kind.health,false,kind.scale)
         love.graphics.pop()
       end
     end
