@@ -49,6 +49,7 @@ jobs:
           done
           test "$ready" -eq 1
           node tools/check-node-spawn.mjs
+          node tools/check-clan-api.mjs
           # Native client joins the SAME server with the SAME generated build.
           SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
             MOOQUEST_INTEGRATION=guest \
