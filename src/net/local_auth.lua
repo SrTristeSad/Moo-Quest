@@ -3,6 +3,7 @@
 -- This is NOT password authentication, email delivery or secure registration.
 -- Keep it on localhost, never advertise these accounts as production security.
 local Auth={}
+local Json=require("src.net.json")
 local function isLocal(host)
   return host=="127.0.0.1" or host=="localhost"
 end
@@ -22,10 +23,8 @@ local function request(route,payload,options)
   end
   local http=options.http or require("socket.http")
   local ltn12=options.ltn12 or require("ltn12")
-  local parts={}
-  for k,v in pairs(payload) do parts[#parts+1]=escapeJSON(k)..":"..escapeJSON(v) end
-  table.sort(parts)
-  local body="{"..table.concat(parts,",").."}"
+  local body,encodingError=Json.encode(payload)
+  if not body then return nil,"JSON invalido: "..tostring(encodingError) end
   local chunks={}
   local oldTimeout=http.TIMEOUT
   http.TIMEOUT=4
@@ -81,9 +80,57 @@ function Auth.verifyCode(flow,code,options)
   end
   return {token=token,id=id}
 end
+local function tokenValid(token)
+  return type(token)=="string" and #token>=12 and #token<=4096
+    and token:match("^[%w%._%-]+$")~=nil
+end
+local allowedClanActions={
+  mine=true,create=true,request=true,answer=true,invite=true,
+  decide=true,kick=true,role=true,requests=true,uninvite=true,
+  leave=true,disband=true
+}
+local function apiJSON(route,payload,options)
+  local response,err=request(route,payload,options)
+  if not response then return nil,err end
+  local data,jsonError=Json.decode(response)
+  if not data or type(data)~="table" then
+    return nil,"API retornou JSON incorreto: "..tostring(jsonError)
+  end
+  return data
+end
+function Auth.claimName(token,name,options)
+  if not tokenValid(token) then return nil,"Token de conta invalido" end
+  if type(name)~="string" or #name<3 or #name>15 then
+    return nil,"Nome permanente deve ter 3 a 15 caracteres"
+  end
+  local data,err=apiJSON("name",{auth=token,name=name},options)
+  if not data then return nil,err end
+  if type(data.name)~="string" then return nil,"Nome nao confirmado pelo Node" end
+  return data.name
+end
+function Auth.clanAction(token,action,body,options)
+  if not tokenValid(token) then return nil,"Entre com uma conta local" end
+  if type(action)~="string" or not allowedClanActions[action] then
+    return nil,"Acao de cla nao permitida"
+  end
+  if type(body)~="table" and body~=nil then return nil,"Dados invalidos" end
+  local payload={auth=token}
+  for key,value in pairs(body or {}) do
+    if key~="auth" and type(key)=="string" then payload[key]=value end
+  end
+  return apiJSON("clan/"..action,payload,options)
+end
+function Auth.clanMine(token,options)
+  local data,err=Auth.clanAction(token,"mine",{},options)
+  if not data then return nil,err end
+  if data.clan~=Json.null and data.clan~=nil and
+    (type(data.clan)~="table" or type(data.clan.name)~="string") then
+    return nil,"Node retornou dados de cla invalidos"
+  end
+  return data
+end
 function Auth.getAccount(token,options)
-  if type(token)~="string" or #token<12 or #token>4096
-    or not token:match("^[%w%._%-]+$") then
+  if not tokenValid(token) then
     return nil,"Token de conta invalido"
   end
   local response,err=request("account",{auth=token},options)
