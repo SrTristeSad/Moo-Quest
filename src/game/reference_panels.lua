@@ -55,7 +55,8 @@ end
 function P:toggle(panel)
   if self.opened==panel then self:close()
   else
-    self.opened=panel;self.scroll=0;self.editing=false;self.message=""
+    self.opened=panel;self.scroll=0;self.editing=false
+    self.message="";self.hoverItem=nil
   end
 end
 function P:isOpen()
@@ -93,11 +94,44 @@ function P:scrollBy(amount,world,h)
     local _,height=love.graphics.getDimensions()
     h=height
   end
-  self.scroll=math.max(0,math.min(self:scrollLimit(world,h),self.scroll+amount))
+  local nextScroll=math.max(0,math.min(self:scrollLimit(world,h),
+    self.scroll+amount))
+  if nextScroll~=self.scroll then self.hoverItem=nil end
+  self.scroll=nextScroll
   return true
 end
 function P:storeEntries()
   return Store.list(self.tab==1)
+end
+-- The browser's storeDisplay rows call showItemInfo() on mouseover
+-- and hide it on mouseout. Hover only targets ACTUALLY VISIBLE rows;
+-- inactive or clipped entries must not display a stale tooltip.
+-- This is visual-only: no Node packet, item ownership or points change.
+function P:hover(x,y,w,h)
+  if self.opened~="store" then
+    self.hoverItem=nil
+    return nil
+  end
+  if type(x)~="number" or type(y)~="number" or
+     type(w)~="number" or type(h)~="number" then
+    self.hoverItem=nil
+    return nil
+  end
+  local px,py,pw=self:position(w,h)
+  local list=self:storeEntries()
+  local limit=math.max(0,#list-self:visibleRows(h))
+  local first=math.max(0,math.min(self.scroll,limit))
+  local top=py+107
+  local index=nil
+  if x>=px+17 and x<px+pw-17 and y>=top then
+    local row=math.floor((y-top)/52)
+    if row>=0 and row<math.min(self:visibleRows(h),#list-first) and
+      y<top+row*52+50 then
+      index=first+row+1
+    end
+  end
+  self.hoverItem=index and list[index] or nil
+  return self.hoverItem
 end
 function P:storeAction(world,entry)
   if not entry then return nil end
@@ -161,10 +195,12 @@ function P:click(world,x,y,w,h)
   end
   if self.opened=="store" then
     if inside(x,y,px+20,py+55,201,41) then
-      self.tab=0;self.scroll=0;return {consumed=true}
+      self.tab=0;self.scroll=0;self.hoverItem=nil
+      return {consumed=true}
     end
     if inside(x,y,px+239,py+55,201,41) then
-      self.tab=1;self.scroll=0;return {consumed=true}
+      self.tab=1;self.scroll=0;self.hoverItem=nil
+      return {consumed=true}
     end
     local list=self:storeEntries()
     local rows=self:visibleRows(h)
