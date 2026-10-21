@@ -53,3 +53,7 @@ jobs:
           SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
             MOOQUEST_INTEGRATION=guest \
             xvfb-run -a -s "-screen 0 1280x720x24" love .
+          # Equip a real free hat and create / leave a real tribe via UI.
+          SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
+            MOOQUEST_INTEGRATION=store_tribe \
+            timeout 35s xvfb-run -a -s "-screen 0 1280x720x24" love .
