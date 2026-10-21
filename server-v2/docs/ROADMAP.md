@@ -93,6 +93,10 @@ Implementado na fundação experimental:
   defesa, custo e alcance de projéteis, bônus de coleta, imunidade ao veneno,
   proteção contra projéteis, autorregeneração, ouro passivo e evasão de torres;
   demais efeitos especiais ainda precisam de implementação e testes;
+- Contas de jogadores com credenciais scrypt, sessão Redis e armazenamento
+  PostgreSQL de inventário, recursos, XP, progressão, equipamentos e cosméticos;
+  recuperação apenas com token autenticado e ticket vinculado, nunca por did;
+  integração de login na UI LÖVE e estruturas/clãs persistentes ainda pendentes;
 - PostgreSQL obrigatório para o estado administrativo durável; Redis obrigatório\n  para sessões, limitação de login e tickets de entrada de uso único. O estado\n  em tempo real da partida permanece em RAM; não há ainda persistência de contas\n  de jogadores, inventários ou construções entre reinicializações;\n- testes unitários de codecs, entrada, inventário, compras, construção,
   recursos, retorno após coleta, cura, XP e escolhas de equipamentos. O teste
   WebSocket de ponta a ponta inclui loja, cura e upgrades, além da entrada.
