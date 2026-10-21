@@ -121,8 +121,8 @@ local px,py,pw,ph=p:position(1280,720)
 assert(p:hover(px+48,py+117,1280,720)==firstHat)
 assert(p.hoverItem==firstHat)
 assert(p:storeButtonLabel(w,firstHat)~=nil)
-assert(p:hover(px+48,py+157,1280,720)==firstHat)
-assert(p:hover(px+48,py+157+1,1280,720)==nil,
+assert(p:hover(px+48,py+156,1280,720)==firstHat)
+assert(p:hover(px+48,py+157,1280,720)==nil,
   "the 2px gap between rows is NOT a hover target")
 local secondHat=Store.list(false)[2]
 assert(p:hover(px+48,py+107+52+7,1280,720)==secondHat)
