@@ -65,9 +65,10 @@ de transporte ou inicialização futura **sem redesenhar o cliente**.
   direitos persistentes. Clãs de convidados continuam limitados à sessão.
   O banco mantém a associação de membros; o mundo mantém online somente
   os participantes conectados.
-- A entrada no modo autenticado pelo cliente LÖVE requer futuramente
-  interface de login e envio do Bearer; o **cliente Lua permanece inalterado**
-  nesta etapa. Os testes binários simulam o protocolo existente.
+- O cliente LÖVE iniciado com `INICIAR-V2-WINDOWS.bat` agora pode
+  cadastrar e autenticar usuário/senha no PostgreSQL, usar ticket Bearer
+  para o personagem persistente e revogar a sessão. A validação visual
+  Windows e o transporte HTTPS/WSS remoto ainda estão pendentes.
 
 ## Protocolo do cliente Lua
 
