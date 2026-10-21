@@ -71,7 +71,7 @@ export class GameServer {
   async issueTicket(req, body, accountId=null) {
     if (this.storage.data.settings.maintenance || this.room.players.size >= this.room.maxPlayers)
       return null;
-    if (!body || body.captcha !== true || typeof body.host !== 'string' ||
+    if (!body || (!accountId && body.captcha !== true) || typeof body.host !== 'string' ||
         !/\/s\/LC\/?$/.test(body.host)) return null;
     // Browser auto-verification is not claimed here: this is an explicit
     // development guest ingress with independent IP rate limiting.
