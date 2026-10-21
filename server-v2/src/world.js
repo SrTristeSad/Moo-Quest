@@ -36,15 +36,20 @@ const RECIPES={
 const FOOD={0:{cost:10,heal:20},1:{cost:15,heal:40},
   2:{cost:25,heal:30,regen:10,seconds:5}};
 const WEAPONS={0:{damage:15,reach:85,cooldown:500},
-  1:{damage:23,reach:95,cooldown:550},3:{damage:30,reach:115,cooldown:650},
+  1:{damage:23,reach:95,cooldown:550,gather:2},
+  2:{damage:35,reach:100,cooldown:550,gather:4},
+  3:{damage:30,reach:115,cooldown:650},
+  4:{damage:40,reach:125,cooldown:650},
   5:{damage:37,reach:150,cooldown:750},6:{damage:16,reach:120,cooldown:450},
   7:{damage:12,reach:75,cooldown:250},8:{damage:8,reach:85,cooldown:500},
   // Ranged weapons use independently designed Node mechanics. Projectile
   // indices 0/2/3/5 are the LÖVE renderer's existing visual contract.
   // Speed is world units per millisecond, matching Lua's X packet display.
   9:{damage:25,cooldown:600,projectile:0,speed:1.6,range:1000,ammo:{wood:4}},
+  10:{damage:10,reach:85,cooldown:650,structureDamage:7.5},
   // Selecting this defensive item never falls back to an offensive hammer.
   11:{damage:0,reach:0,cooldown:300,shield:0.35},
+  14:{damage:0,reach:125,cooldown:750,steal:250},
   12:{damage:35,cooldown:700,projectile:2,speed:2.5,range:1200,ammo:{wood:5}},
   13:{damage:30,cooldown:300,projectile:3,speed:2.0,range:1200,ammo:{wood:10}},
   15:{damage:50,cooldown:1500,projectile:5,speed:3.6,range:1400,ammo:{stone:10}}
@@ -270,7 +275,7 @@ export class World {
   aim(id,angle){const p=this.players.get(id);if(!p||!finite(angle)||Math.abs(angle)>1000)return false;p.angle=angle;return true;}
   select(id,index,weapon){
     const p=this.players.get(id);if(!p||p.hp<=0||!Number.isSafeInteger(index))return false;
-    if(weapon===true){if(!p.inventory.weapons.includes(index))return false;p.weaponIndex=index;p.buildIndex=-1;}
+    if(weapon===true){if(!p.inventory.weapons.includes(index)||!Object.hasOwn(WEAPONS,index))return false;p.weaponIndex=index;p.buildIndex=-1;}
     else {if(!p.inventory.items.includes(index))return false;
       // Clicking the selected construction/food slot again returns to weapon.
       p.buildIndex=p.buildIndex===index?-1:index;
@@ -418,6 +423,8 @@ export class World {
     if(!p||p.hp<=0||!rule||p.upgradePoints<1||p.age<rule.age||p.upgradeAge!==rule.age)return false;
     const group=rule.kind==='weapon'?p.inventory.weapons:p.inventory.items;
     if(group.includes(rule.id)||rule.pre!==undefined&&!group.includes(rule.pre))return false;
+    if(rule.kind==='weapon'&&!Object.hasOwn(WEAPONS,rule.id))return false;
+    if(rule.kind==='item'&&!Object.hasOwn(RECIPES,rule.id)&&!Object.hasOwn(FOOD,rule.id))return false;
     // One selection per stage. Older paths remain available to players who
     // choose melee rather than ranged at age six.
     group.push(rule.id);p.upgradePoints--;
@@ -451,7 +458,9 @@ export class World {
   attack(id){
     const p=this.players.get(id),time=this.now();
     if(!p||p.hp<=0)return false;
-    const weapon=WEAPONS[p.weaponIndex]||WEAPONS[0];
+    // Never let an unsupported client-side weapon silently behave as a hammer.
+    const weapon=WEAPONS[p.weaponIndex];
+    if(!weapon)return false;
     const {hat,tail}=gearEffects(p);
     if(time-p.lastAttack<weapon.cooldown*(hat.attackSpeed??1))return false;
     if(p.buildIndex>=3){p.lastAttack=time;return this.place(id,p.buildIndex);}
@@ -483,6 +492,20 @@ export class World {
         (tail.damageDone??1)));
       const damage=this.protectedDamage(victim,attackDamage,p.x,p.y);
       victim.hp=Math.max(0,victim.hp-damage);
+      if(weapon.steal){
+        // A contact-only non-damaging tool: transfer existing resources rather
+        // than minting any. No other player-selected resource count is trusted.
+        let remaining=weapon.steal;
+        for(const key of ['wood','stone','food','points']){
+          const taken=Math.min(remaining,victim.resources[key]);
+          if(taken>0){
+            victim.resources[key]-=taken;p.resources[key]+=taken;
+            this.events.push({kind:'steal',from:p.id,to:victim.id,key,amount:taken});
+            remaining-=taken;
+          }
+          if(!remaining)break;
+        }
+      }
       this.events.push({kind:'hit',from:p.id,to:victim.id,damage,hp:victim.hp,x:victim.x,y:victim.y});
       if(victim.hp===0){victim.deadUntil=time+3000;victim.vx=0;victim.vy=0;p.resources.kills++;p.score+=100;this.events.push({kind:'death',id:victim.id,killer:p.id});this.awardXp(p.id,40);}
       return true;
@@ -525,7 +548,7 @@ export class World {
     }
     if(farm){
       const key=RECIPES[farm.id].harvest;
-      const amount=2+(key==='wood'?(tail.extraWood??0):(tail.extraStone??0));
+      const amount=2*(weapon.gather??1)+(key==='wood'?(tail.extraWood??0):(tail.extraStone??0));
       const points=1+(hat.extraGold??0);
       p.resources[key]+=amount;p.resources.points+=points;p.score+=points;
       this.events.push({kind:'gather',sid:farm.sid,player:p.id,key,amount,points});
@@ -547,7 +570,7 @@ export class World {
     }
     if(targetStructure){
       const damage=Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
-        (tail.damageDone??1)*(hat.structureDamage??1)));
+        (tail.damageDone??1)*(hat.structureDamage??1)*(weapon.structureDamage??1)));
       targetStructure.hp=Math.max(0,targetStructure.hp-damage);
       this.events.push({kind:'structure_hit',sid:targetStructure.sid,dir:p.angle,
         x:targetStructure.x,y:targetStructure.y,damage});
@@ -572,7 +595,7 @@ export class World {
       const key=resource.kind==='tree'?'wood':resource.kind==='bush'?'food':'stone';
       const bonus=key==='wood'?(tail.extraWood??0):
         key==='stone'?(tail.extraStone??0):(tail.extraFood??0);
-      const amount=(resource.kind==='ore'?4:2)+bonus;
+      const amount=(resource.kind==='ore'?4:2)*(weapon.gather??1)+bonus;
       const points=1+(hat.extraGold??0);
       p.resources[key]+=amount;p.resources.points+=points;p.score+=points;
       resource.hp-=RESOURCE_DAMAGE;
