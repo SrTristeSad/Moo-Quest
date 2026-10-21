@@ -12,6 +12,7 @@ M.paths={
   "tests/original_client.lua",
   "tests/original_join.lua",
   "tests/original_session.lua",
+  "tests/build_lookup.lua",
   "tests/catalog.lua",
   "tests/world_state.lua",
   "tests/reference_render.lua",
