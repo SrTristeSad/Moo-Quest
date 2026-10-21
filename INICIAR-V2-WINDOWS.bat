@@ -14,6 +14,12 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+node -e "if (Number(process.versions.node.split('.')[0]) < 22) process.exit(1)"
+if errorlevel 1 (
+  echo [ERRO] Esta API exige Node.js 22 ou superior.
+  pause
+  exit /b 1
+)
 set "LOVEEXE="
 if exist "%~dp0love.exe" set "LOVEEXE=%~dp0love.exe"
 if not defined LOVEEXE if exist "%ProgramFiles%\LOVE\love.exe" set "LOVEEXE=%ProgramFiles%\LOVE\love.exe"

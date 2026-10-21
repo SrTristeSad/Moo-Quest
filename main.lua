@@ -100,7 +100,8 @@ function love.load()
     end
     return
   end
-  local ok,result=pcall(Original.new,{host="127.0.0.1",port=8080,server="LC",autoSpawn=false})
+  local ok,result=pcall(Original.new,{host="127.0.0.1",port=8080,server="LC",autoSpawn=false,
+    expectedBuild=os.getenv("MOOQUEST_REQUIRE_V2")=="1" and "mqv2native" or nil})
   if not ok then
     startupError="Falha ao inicializar cliente de rede: "..tostring(result)
     return
