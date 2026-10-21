@@ -1,0 +1,38 @@
+# Optional local services for the aaPanel-managed Node.js process.
+# Copy server-v2/.env.example to server-v2/.env, set strong passwords,
+# and start services from server-v2/ with docker compose up -d.
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mooquest
+      POSTGRES_USER: mooquest
+      POSTGRES_PASSWORD: ${MOO_PG_PASSWORD:?Set MOO_PG_PASSWORD in .env}
+    volumes:
+      - mq_postgres:/var/lib/postgresql/data
+    ports:
+      - '127.0.0.1:5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mooquest -d mooquest']
+      interval: 10s
+      timeout: 5s
+      retries: 8
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${MOO_REDIS_PASSWORD:?Set MOO_REDIS_PASSWORD in .env}
+    command: ['sh','-c','exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+    volumes:
+      - mq_redis:/data
+    ports:
+      - '127.0.0.1:6379:6379'
+    healthcheck:
+      test: ['CMD-SHELL','redis-cli -a "$$REDIS_PASSWORD" ping 2>/dev/null | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 8
+volumes:
+  mq_postgres:
+  mq_redis:

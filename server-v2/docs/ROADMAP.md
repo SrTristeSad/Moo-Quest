@@ -93,7 +93,7 @@ Implementado na fundação experimental:
   defesa, custo e alcance de projéteis, bônus de coleta, imunidade ao veneno,
   proteção contra projéteis, autorregeneração, ouro passivo e evasão de torres;
   demais efeitos especiais ainda precisam de implementação e testes;
-- testes unitários de codecs, entrada, inventário, compras, construção,
+- PostgreSQL obrigatório para o estado administrativo durável; Redis obrigatório\n  para sessões, limitação de login e tickets de entrada de uso único. O estado\n  em tempo real da partida permanece em RAM; não há ainda persistência de contas\n  de jogadores, inventários ou construções entre reinicializações;\n- testes unitários de codecs, entrada, inventário, compras, construção,
   recursos, retorno após coleta, cura, XP e escolhas de equipamentos. O teste
   WebSocket de ponta a ponta inclui loja, cura e upgrades, além da entrada.
   A confirmação visual na versão Windows ainda está pendente.

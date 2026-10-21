@@ -15,7 +15,7 @@ ainda não foram implementados integralmente. NÃO usar em produção pública.
 
 ## aaPanel (somente ambiente de testes)
 
-1. Use **Node.js 22 ou superior**.
+1. Use **Node.js 22 ou superior** e prepare PostgreSQL e Redis acessíveis somente na VPS.\n   Há um `compose.yaml` opcional para iniciar ambos em endereços `127.0.0.1`.\n   Copie `.env.example` para `.env`, substitua **as duas senhas** e execute\n   `docker compose up -d` em `server-v2`. Isso inicia somente os bancos;\n   o processo Node.js continua no aaPanel.\n   Configure no ambiente do projeto `MOO_DATABASE_URL` e `MOO_REDIS_URL` com\n   as mesmas credenciais. Nenhuma credencial real deve ir para o GitHub.
 2. No diretório `server-v2`, execute `npm install --omit=dev`.
 3. No aaPanel → Node.js Project, configure a raiz `server-v2`, entrada
    `node bootstrap.js`, porta `8100`, host `127.0.0.1`. Configure HTTPS
@@ -105,3 +105,33 @@ os direitos necessários. Uma revisão especializada deve preceder a publicaçã
 sem prova de conexão com o executável LÖVE em Windows e faltam partes do
 catálogo de armas, projéteis, animais, biomecânica, administração e verificações
 jurídicas do cliente e de seus recursos visuais.
+
+## PostgreSQL e Redis (obrigatórios no servidor V2)
+
+- **PostgreSQL:** armazena conta administrativa, hash scrypt, configurações,
+  banimentos, anúncios e trilha de auditoria. Estrutura `mq_admin_state`,
+  criada automaticamente na primeira inicialização. Gravação parametrizada
+  e sequenciada; PostgreSQL é a origem autoritativa desses dados.
+- **Redis:** armazena sessões administrativas com TTL de oito horas,
+  proteção de login contra tentativas repetidas e tickets de conexão
+  com TTL de 30 segundos. A leitura e o consumo de tickets são atômicos;
+  não ficam salvos no banco relacional. Nenhuma senha em texto puro é
+  gravada no Redis.
+- **RAM do Node:** simulação do mundo, jogadores conectados, fauna e
+  construções da partida. O progresso dos convidados **ainda não é
+  persistido**; contas/personagens persistentes são trabalho futuro.
+- **Disco privado `var/`:** chave local de banimento, versões do
+  atualizador e backups externos. `config.json` não recebe novas gravações
+  pelo servidor PostgreSQL.
+
+**Migração sem perda:** se já existe `var/config.json`, faça backup do
+arquivo e dos serviços; numa base PostgreSQL **vazia**, inicie uma única vez
+com `MOO_IMPORT_JSON=1` para importar os dados existentes. Desative
+essa variável após conferir a instalação. Se a tabela já contém dados,
+a importação não os substitui. Nunca apague `config.json` antes de
+validar o backup e a leitura do PostgreSQL.
+
+O servidor falha na inicialização se PostgreSQL ou Redis estiverem
+inacessíveis; não muda silenciosamente para JSON. Faça backup consistente
+do volume PostgreSQL e proteja as credenciais por permissões do aaPanel.
+Os dois bancos não devem ficar abertos à internet.

@@ -21,7 +21,8 @@ function requestIdentity(req){
 }
 
 export class GameServer {
-  constructor(httpServer, storage) {
+  constructor(httpServer, storage, ticketStore=null) {
+    this.ticketStore=ticketStore;
     this.storage = storage;
     const keyFile = path.join(storage.dir, 'mod-secret.key');
     if (!fs.existsSync(keyFile)) fs.writeFileSync(keyFile, randomBytes(32), { mode: 0o600, flag: 'wx' });
@@ -35,7 +36,8 @@ export class GameServer {
     this.online = new Map();
     this.loop = null;
     this.counter = 0;
-    httpServer.on('upgrade', (req, socket, head) => {
+    httpServer.on('upgrade', async (req, socket, head) => {
+      try {
       let location;
       try { location = new URL(req.url, 'http://localhost'); }
       catch { socket.destroy(); return; }
@@ -53,16 +55,21 @@ export class GameServer {
       if (location.pathname === '/s/LC') {
         if (location.searchParams.get('b') !== 'mqv2native') { socket.destroy(); return; }
         const ticket=location.searchParams.get('token');
-        if (!ticket || !ticket.startsWith('tk:') || !this.consumeTicket(ticket.slice(3), ipHash)) {
+        if (!ticket || !ticket.startsWith('tk:') ||
+            !(await this.consumeTicket(ticket.slice(3), ipHash))) {
           socket.destroy(); return;
         }
         this.nativeWss.handleUpgrade(req,socket,head,ws=>this.connectNative(ws,ipHash,trustedOrigin));
         return;
       }
       this.wss.handleUpgrade(req, socket, head, ws => this.connect(ws, ipHash, trustedOrigin));
+      } catch(error) {
+        console.error('[MooQuest] WebSocket ingress unavailable:',error.message);
+        socket.destroy();
+      }
     });
   }
-  issueTicket(req, body) {
+  async issueTicket(req, body) {
     if (this.storage.data.settings.maintenance || this.room.players.size >= this.room.maxPlayers)
       return null;
     if (!body || body.captcha !== true || typeof body.host !== 'string' ||
@@ -70,6 +77,13 @@ export class GameServer {
     // Browser auto-verification is not claimed here: this is an explicit
     // development guest ingress with independent IP rate limiting.
     const ipHash=createHmac('sha256',this.banKey).update(requestIdentity(req).address).digest('hex');
+    if(this.ticketStore){
+      const ticket=await this.ticketStore.issue(ipHash);
+      if(!ticket)return null;
+      const did=(typeof body.did==='string'&&/^[a-f0-9]{16,64}$/.test(body.did))?
+        body.did:randomBytes(16).toString('hex');
+      return {ticket,did};
+    }
     const now=Date.now(), previous=this.ticketRate.get(ipHash)||[];
     const recent=previous.filter(ts=>now-ts<10000);
     if(recent.length>=8) {this.ticketRate.set(ipHash,recent);return null;}
@@ -80,7 +94,8 @@ export class GameServer {
     if(this.tickets.size>1024){for(const [t,x] of this.tickets)if(now-x.at>30000)this.tickets.delete(t);}
     return {ticket,did};
   }
-  consumeTicket(token,ipHash){
+  async consumeTicket(token,ipHash){
+    if(this.ticketStore)return this.ticketStore.consume(token,ipHash);
     const grant=this.tickets.get(token);this.tickets.delete(token);
     return !!grant && Date.now()-grant.at<30000 && grant.ipHash===ipHash;
   }
