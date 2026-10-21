@@ -54,7 +54,9 @@ if love and love.graphics and love.graphics.newCanvas then
   local dr,dg,db,da=pixel(-1000,9000)
   assert(da>0.95 and dr<0.25 and dg<0.30 and db<0.25,
     "invalid western coordinates must remain shaded outside the world")
-  local gr,gg,gb,ga=pixel(-1000,7720)
+  -- Sample ten world units inside the gorge: the exact 7720 border
+  -- is a fractional raster edge (Canvas pixels have 0.5px centres).
+  local gr,gg,gb,ga=pixel(-1000,7710)
   assert(ga>0.95 and gr>0.35 and gg>0.45,
     "gorge walkway cannot be blank or painted as forbidden void")
   local wr,wg,wb,wa=pixel(-4300,7250)
