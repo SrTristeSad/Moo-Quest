@@ -69,7 +69,7 @@ end
 function P:buttons(w)
   -- Positioned near the original #storeButton right:330,
   -- #allianceButton right:270 (CSS gameButton top 20).
-  return w-375,w-310,22,58
+  return w-395,w-328,22,58
 end
 function P:storeEntries()
   return Store.list(self.tab==1)
@@ -114,7 +114,7 @@ function P:click(world,x,y,w,h)
   -- Join request notifications are independent of the open window.
   if world.tribeOwner and #world.joinRequests>0 then
     local request=world.joinRequests[1]
-    local acceptX,denyX=w-310,w-368
+    local acceptX,denyX=w-330,w-388
     if inside(x,y,acceptX,94,52,37) then
       return {packet="P",args={request.sid,true},consumed=true,
         consumeRequest=true}
@@ -258,8 +258,8 @@ function P:draw(world)
     local first=world.joinRequests[1]
     rect(w-440,88,190,49,0,0,0,0.64)
     text(first.name:sub(1,16).." wants to join",w-433,96,12)
-    button("No",w-368,95,52,36,false,true)
-    button("Yes",w-310,95,52,36,true,true)
+    button("No",w-388,95,52,36,false,true)
+    button("Yes",w-330,95,52,36,true,true)
   end
   if not self.opened then return end
   local px,py,pw,ph=self:position(w,h)
