@@ -21,6 +21,7 @@ M.paths={
   "tests/reference_hud.lua",
   "tests/reference_camera.lua",
   "tests/reference_menu.lua",
+  "tests/reference_panels.lua",
   "tests/local_auth.lua"
 }
 function M.run()
