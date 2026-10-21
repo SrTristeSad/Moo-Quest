@@ -37,7 +37,19 @@ function Join.guest(options)
   local hostUrl="http://"..host..":"..port.."/s/"..server
   -- The original local API deliberately uses a boolean stand-in for CAPTCHA.
   -- Do not send this to an internet-facing server.
-  local body='{"host":"'..hostUrl..'","captcha":true'..encodeId(options.did)..'}'
+  local auth=""
+  if options.authToken~=nil then
+    if type(options.authToken)~="string" or
+      #options.authToken<12 or #options.authToken>4096 or
+      not options.authToken:match("^[%w%._%-]+$") then
+      return nil,"token de autenticacao invalido"
+    end
+    auth=',"auth":"'..options.authToken..'"'
+  end
+  -- Guest uses the local CAPTCHA stand-in. Authenticated join passes
+  -- the same server-issued JWT to Node and does not pretend to be a guest.
+  local body='{"host":"'..hostUrl..'","captcha":true'
+    ..auth..encodeId(options.did)..'}'
   local chunks={}
   local oldTimeout=http.TIMEOUT
   http.TIMEOUT=4
