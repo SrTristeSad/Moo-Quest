@@ -113,6 +113,20 @@ local function leaderboard(world,w)
       y+7+(i-1)*line)
   end
 end
+-- Same boxes and ten-row limit as leaderboard() above: open a
+-- real Node player profile on the exact visible leaderboard row.
+function H.leaderboardHitTest(world,w,x,y)
+  if type(x)~="number" or type(y)~="number" then return nil end
+  local count=math.min(10,#world.leaderboard)
+  if count==0 or x<w-260 or x>=w-20 or y<27 or y>=27+count*25 then
+    return nil
+  end
+  local index=math.floor((y-27)/25)+1
+  local entry=world.leaderboard[index]
+  if entry and type(entry.sid)=="number" and entry.sid>=0 and
+    entry.sid%1==0 then return entry.sid end
+  return nil
+end
 local function kills(world,w)
   local count=math.max(0,math.floor(world.resources.kills or 0))
   local x=w-260
