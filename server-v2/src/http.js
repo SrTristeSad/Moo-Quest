@@ -152,6 +152,7 @@ export function createHTTP({ root, storage, auth, updates, game = null,
         }
         if(req.method==='POST'&&pathname==='/api/account/logout'){
           await playerTokens.revoke(token);
+          gameRef?.disconnectAccount?.(accountId);
           return respond(res,200,{ok:true});
         }
         return respond(res,404,{error:'not_found'});

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { createClient } from 'redis';
 import { PostgresStorage } from '../src/database.js';
-import { RedisAuth, RedisTickets } from '../src/redis-services.js';
+import { RedisAuth, RedisTickets, RedisPlayerTokens } from '../src/redis-services.js';
 import { atomicJSON } from '../src/storage.js';
 import { Updates } from '../src/updates.js';
 import { createHTTP } from '../src/http.js';
@@ -89,6 +89,20 @@ test('actual Redis persists sessions across Auth instances, throttles logins and
   assert.deepEqual(results.sort(),[false,true],'GETDEL enforces single use across calls');
   for(let i=2;i<8;i++)assert.ok(await tickets.issue(ipHash));
   assert.equal(await tickets.issue(ipHash),null,'ninth ticket within ten seconds blocked');
+  const accountId=randomUUID();
+  const playerTokens=new RedisPlayerTokens(client,{prefix});
+  const token=await playerTokens.issue(accountId);
+  const accountTicket=await tickets.issue('d'.repeat(64),accountId);
+  assert.ok(accountTicket,'account ticket issued under original session revision');
+  await playerTokens.revoke(token.token);
+  assert.equal(await playerTokens.get(token.token),null);
+  assert.equal(await tickets.consumeDetails(accountTicket,'d'.repeat(64)),null,
+    'logout invalidates pending account entry tickets');
+  const nextToken=await playerTokens.issue(accountId);
+  const renewed=await tickets.issue('d'.repeat(64),accountId);
+  assert.deepEqual(await tickets.consumeDetails(renewed,'d'.repeat(64)),
+    {accountId},'a freshly authenticated ticket uses the new revision');
+  await playerTokens.revoke(nextToken.token);
   const rkey=prefix+'ticket-rate:'+(await import('node:crypto')).createHash('sha256').update(ipHash).digest('hex');
   assert.ok((await client.ttl(rkey))>0);
   // Delete only namespaced integration keys; never flush a shared Redis DB.
