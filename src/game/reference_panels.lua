@@ -71,6 +71,31 @@ function P:buttons(w)
   -- #allianceButton right:270 (CSS gameButton top 20).
   return w-395,w-328,22,58
 end
+-- Rows must fit fully inside the scissor region; a fifth store row used to be half hidden.
+function P:visibleRows(h)
+  local ph=math.min((h or 720)-104,420)
+  if self.opened=="tribe" then return math.max(1,math.floor((ph-171)/48)) end
+  return math.max(1,math.floor((ph-178)/52))
+end
+function P:listCount(world)
+  if self.opened=="store" then return #self:storeEntries() end
+  if self.opened=="tribe" then
+    return #(world.tribe and world.tribeMembers or world.teams)
+  end
+  return 0
+end
+function P:scrollLimit(world,h)
+  return math.max(0,self:listCount(world)-self:visibleRows(h))
+end
+function P:scrollBy(amount,world,h)
+  if not self.opened or type(amount)~="number" then return false end
+  if not h and love and love.graphics then
+    local _,height=love.graphics.getDimensions()
+    h=height
+  end
+  self.scroll=math.max(0,math.min(self:scrollLimit(world,h),self.scroll+amount))
+  return true
+end
 function P:storeEntries()
   return Store.list(self.tab==1)
 end
@@ -126,6 +151,7 @@ function P:click(world,x,y,w,h)
   end
   if not self.opened then return nil end
   local px,py,pw,ph=self:position(w,h)
+  self.scroll=math.min(self.scroll,self:scrollLimit(world,h))
   if not inside(x,y,px,py,pw,ph) then
     self:close()
     return {consumed=true}
@@ -141,8 +167,17 @@ function P:click(world,x,y,w,h)
       self.tab=1;self.scroll=0;return {consumed=true}
     end
     local list=self:storeEntries()
+    local rows=self:visibleRows(h)
+    if inside(x,y,px+310,py+ph-72,55,29) then
+      self:scrollBy(-rows,world,h)
+      return {consumed=true}
+    end
+    if inside(x,y,px+374,py+ph-72,62,29) then
+      self:scrollBy(rows,world,h)
+      return {consumed=true}
+    end
     local topY=py+107
-    for i=1,math.min(5,#list-self.scroll) do
+    for i=1,math.min(rows,#list-self.scroll) do
       local row=topY+(i-1)*52
       if inside(x,y,px+17,row,pw-34,50) then
         local entry=list[self.scroll+i]
@@ -162,7 +197,7 @@ function P:click(world,x,y,w,h)
         return {packet="N",args={},consumed=true}
       end
       if world.tribeOwner then
-        for i=1,math.min(5,#world.tribeMembers-self.scroll) do
+        for i=1,math.min(self:visibleRows(h),#world.tribeMembers-self.scroll) do
           local member=world.tribeMembers[self.scroll+i]
           local row=py+99+(i-1)*48
           if member and member.sid~=world.sid and
@@ -185,7 +220,7 @@ function P:click(world,x,y,w,h)
         self.message="Tribe name: 1-7 ASCII characters."
         return {consumed=true}
       end
-      for i=1,math.min(5,#world.teams-self.scroll) do
+      for i=1,math.min(self:visibleRows(h),#world.teams-self.scroll) do
         local team=world.teams[self.scroll+i]
         if team and self:clanJoinAvailable(world,team) and
           inside(x,y,px+345,py+99+(i-1)*48,78,35) then
@@ -197,15 +232,9 @@ function P:click(world,x,y,w,h)
   end
   return {consumed=true}
 end
-function P:wheelmoved(_,dy,world)
-  if not self.opened or type(dy)~="number" then return false end
-  local total=0
-  if self.opened=="store" then total=#self:storeEntries()
-  elseif world.tribe then total=#world.tribeMembers
-  else total=#world.teams end
-  local maxScroll=math.max(0,total-5)
-  self.scroll=math.max(0,math.min(maxScroll,self.scroll-math.floor(dy)))
-  return true
+function P:wheelmoved(_,dy,world,h)
+  if type(dy)~="number" then return false end
+  return self:scrollBy(-math.floor(dy),world,h)
 end
 function P:textinput(s)
   if self.opened~="tribe" or not self.editing or type(s)~="string" then return false end
@@ -217,23 +246,16 @@ function P:textinput(s)
   end
   return true
 end
-function P:keypressed(key,world)
+function P:keypressed(key,world,h)
   if not self:isOpen() then return false end
   if key=="escape" then self:close();return true end
   if self.opened=="tribe" and self.editing and key=="backspace" then
     self.tribeName=self.tribeName:sub(1,-2);return true
   end
-  if key=="up" then self.scroll=math.max(0,self.scroll-1);return true end
-  if key=="down" then
-    local rows=0
-    if self.opened=="store" then rows=#self:storeEntries()
-    elseif world then
-      rows=self.opened=="tribe" and
-        #(world.tribe and world.tribeMembers or world.teams) or 0
-    end
-    self.scroll=math.min(math.max(0,rows-5),self.scroll+1)
-    return true
-  end
+  if key=="up" then return self:scrollBy(-1,world,h) end
+  if key=="down" then return self:scrollBy(1,world,h) end
+  if key=="pageup" then return self:scrollBy(-self:visibleRows(h),world,h) end
+  if key=="pagedown" then return self:scrollBy(self:visibleRows(h),world,h) end
   return true
 end
 local function button(label,x,y,w,h,active,enabled)
@@ -263,11 +285,12 @@ function P:draw(world)
   end
   if not self.opened then return end
   local px,py,pw,ph=self:position(w,h)
+  self.scroll=math.min(self.scroll,self:scrollLimit(world,h))
   rect(0,0,w,h,0,0,0,0.28)
   rect(px,py,pw,ph,0.10,0.12,0.12,0.90)
   center(self.opened=="store" and "STORE" or "TRIBES",px+20,py+17,pw-40,24)
   button("X",px+pw-43,py+11,32,32,false,true)
-  love.graphics.setScissor(px+15,py+102,pw-30,math.max(1,ph-178))
+  love.graphics.setScissor(px+15,py+98,pw-30,math.max(1,ph-174))
   if self.opened=="store" then
     -- Shop from exact server-side shared/config/store.js order and prices.
     love.graphics.setScissor()
@@ -276,7 +299,7 @@ function P:draw(world)
     love.graphics.setScissor(px+15,py+102,pw-30,math.max(1,ph-175))
     local items=self:storeEntries()
     local y=py+107
-    for i=1,math.min(5,#items-self.scroll) do
+    for i=1,math.min(self:visibleRows(h),#items-self.scroll) do
       local entry=items[i+self.scroll]
       local ry=y+(i-1)*52
       rect(px+17,ry,pw-34,50,0,0,0,0.19)
@@ -301,7 +324,7 @@ function P:draw(world)
       center(world.tribe and "No members yet" or "No Tribes Yet",
         px+20,y+28,pw-40,18,0.8,0.8,0.8)
     end
-    for i=1,math.min(5,#members-self.scroll) do
+    for i=1,math.min(self:visibleRows(h),#members-self.scroll) do
       local entry=members[i+self.scroll]
       local yy=y+(i-1)*48
       rect(px+19,yy,pw-38,44,0,0,0,0.20)
@@ -328,8 +351,14 @@ function P:draw(world)
       button("Create",px+284,py+ph-68,145,44,true,true)
     end
   else
-    text("Scroll to see all "..tostring(#self:storeEntries()).." items",
-      px+24,py+ph-59,14,0.75,0.77,0.75)
+    local total=#self:storeEntries()
+    local first=total>0 and self.scroll+1 or 0
+    local last=math.min(total,self.scroll+self:visibleRows(h))
+    text("Items "..first.."-"..last.." / "..total,
+      px+24,py+ph-62,14,0.75,0.77,0.75)
+    button("Prev",px+310,py+ph-72,55,29,false,self.scroll>0)
+    button("Next",px+374,py+ph-72,62,29,false,
+      self.scroll<self:scrollLimit(world,h))
     if self.hoverItem and self.hoverItem.desc then
       font(12);love.graphics.setColor(0.81,0.86,0.80)
       love.graphics.printf(self.hoverItem.desc,px+24,py+ph-39,pw-42)

@@ -37,7 +37,42 @@ assert(p:storeAction(w,Store.byId(9,true)).args[3]==1)
 assert(w:apply("5",{0,9,1}) and w.store.accessories[9])
 assert(w:apply("5",{1,9,1}) and w.store.accessoryIndex==9)
 assert(p:storeButtonLabel(w,Store.byId(9,true))=="Unequip")
+-- All 47 sale hats and 21 accessories must be reachable, with no
+-- hidden-but-clickable fifth store row at the default 1280x720 viewport.
+p.tab=0
+p.scroll=0
+assert(p:visibleRows(720)==4, "420px panel fits only FOUR full store rows")
+assert(p:visibleRows(420)==2, "smaller windows must shorten the list")
+assert(p:scrollLimit(w,720)==#Store.list(false)-4)
+local px,py,pw,ph=p:position(1280,720)
+local invisible=p:click(w,px+350,py+107+4*52+20,1280,720)
+assert(invisible and invisible.consumed and not invisible.packet,
+  "a clipped fifth row must never buy an invisible item")
+local nextPage=p:click(w,px+402,py+ph-58,1280,720)
+assert(nextPage.consumed and p.scroll==4, "Next shows four new complete rows")
+local previousPage=p:click(w,px+330,py+ph-58,1280,720)
+assert(previousPage.consumed and p.scroll==0, "Prev returns to first page")
+assert(p:keypressed("pagedown",w,720) and p.scroll==4)
+assert(p:keypressed("pageup",w,720) and p.scroll==0)
+assert(p:scrollBy(10000,w,720) and p.scroll==43)
+w.resources.points=10000000
+local lastHat=Store.list(false)[#Store.list(false)]
+local lastAction=p:click(w,px+350,py+107+3*52+20,1280,720)
+assert(lastAction and lastAction.packet=="c" and lastAction.args[2]==lastHat.id,
+  "last hat must have a visible and clickable purchase/equip button")
+assert(p:storeButtonLabel(w,lastHat)~="No gold")
+assert(p:scrollBy(1,w,720) and p.scroll==43,"cannot scroll beyond last hat")
+p.tab=1
+p.scroll=0
+assert(p:scrollBy(10000,w,720) and p.scroll==#Store.list(true)-4)
+local lastAccessory=Store.list(true)[#Store.list(true)]
+local lastAccAction=p:click(w,px+350,py+107+3*52+20,1280,720)
+assert(lastAccAction and lastAccAction.packet=="c" and
+  lastAccAction.args[2]==lastAccessory.id and lastAccAction.args[3]==1,
+  "last accessory must be reachable with the correct Node packet")
+assert(p:visibleRows(720)==4)
 p:toggle("tribe")
+assert(p:visibleRows(720)==5,"Tribe has its own tighter row spacing")
 assert(p.opened=="tribe")
 assert(w:apply("A",{{animals={},teams={{sid="ABC",owner=12},{sid="CLAN",owner=7,clan=true}}}}))
 assert(#w.teams==2 and w.teams[1].sid=="ABC")
