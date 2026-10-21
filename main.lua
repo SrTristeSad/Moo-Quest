@@ -490,7 +490,8 @@ function love.keypressed(key)
   end
   if diagnostic then return end
   if phase=="menu" then
-    if key=="r" and died and client and client.state=="spawn_confirmed" then
+    if key=="r" and died and not menu.authMode and client
+      and client.state=="spawn_confirmed" then
       requestPlay()
       return
     end
