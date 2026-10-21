@@ -4,6 +4,16 @@ import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { createClient } from 'redis';
 import { Auth } from './auth.js';
 const hash=v=>createHash('sha256').update(String(v)).digest('hex');
+// Increment and install the TTL in one Redis operation: a connection loss
+// cannot leave a permanent registration/login/ticket throttle key behind.
+const INCREMENT_TTL=`
+local n=redis.call('INCR',KEYS[1])
+if n==1 then redis.call('EXPIRE',KEYS[1],tonumber(ARGV[1])) end
+return n
+`;
+async function incrementWithTTL(client,key,seconds){
+  return Number(await client.eval(INCREMENT_TTL,{keys:[key],arguments:[String(seconds)]}));
+}
 export async function connectRedis(url=process.env.MOO_REDIS_URL){
   if(!url)throw new Error('Set MOO_REDIS_URL to enable Redis');
   const client=createClient({url,socket:{connectTimeout:5000,
@@ -33,14 +43,17 @@ export class RedisAuth extends Auth {
   async revoke(token){
     if(/^[0-9a-f]{64}$/.test(token||''))await this.client.del(this.key('session',token));
   }
+  async allowRegistration(key){
+    const count=await incrementWithTTL(this.client,this.key('registration',key),60);
+    return count<=3;
+  }
   async loginBlocked(key){
     const count=Number(await this.client.get(this.key('failed-login',key)))||0;
     return count>=5;
   }
   async recordFailure(key){
     const k=this.key('failed-login',key);
-    const count=await this.client.incr(k);
-    if(count===1)await this.client.expire(k,600);
+    await incrementWithTTL(this.client,k,600);
   }
   async clearFailure(key){await this.client.del(this.key('failed-login',key));}
 }
@@ -50,8 +63,7 @@ export class RedisTickets{
   }
   async issue(ipHash,accountId=null){
     const key=this.prefix+'ticket-rate:'+hash(ipHash);
-    const count=await this.client.incr(key);
-    if(count===1)await this.client.expire(key,10);
+    const count=await incrementWithTTL(this.client,key,10);
     if(count>8)return null;
     const token=randomBytes(18).toString('hex');
     await this.client.set(this.prefix+'ticket:'+token,
