@@ -20,6 +20,7 @@ M.paths={
   "tests/reference_upgrades.lua",
   "tests/reference_hud.lua",
   "tests/reference_item_info.lua",
+  "tests/reference_weapon_assets.lua",
   "tests/reference_death.lua",
   "tests/reference_camera.lua",
   "tests/reference_menu.lua",
