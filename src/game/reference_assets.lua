@@ -13,13 +13,13 @@ function A.get(category,filename)
   local path="assets/reference/img/"..category.."/"..filename
   if cache[path]~=nil then return cache[path] or nil end
   if not love.filesystem.getInfo(path,"file") then
-    missing[path]=true
+    missing[path]="arquivo nao encontrado"
     cache[path]=false
     return nil
   end
   local ok,result=pcall(love.graphics.newImage,path)
   if not ok then
-    missing[path]=true
+    missing[path]="PNG invalido: "..tostring(result)
     cache[path]=false
     return nil
   end
@@ -37,9 +37,20 @@ function A.draw(category,filename,x,y,w,h,angle)
 end
 function A.missing()
   local paths={}
-  for p in pairs(missing) do paths[#paths+1]=p end
-  table.sort(paths)
+  for p,why in pairs(missing) do
+    paths[#paths+1]={path=p,reason=why}
+  end
+  table.sort(paths,function(a,b) return a.path<b.path end)
   return paths
+end
+function A.missingSummary(limit)
+  local list=A.missing()
+  local lines={}
+  for i=1,math.min(limit or 3,#list) do
+    local file=list[i].path:gsub("^assets/reference/img/","")
+    lines[#lines+1]=file.." ("..list[i].reason..")"
+  end
+  return lines,#list
 end
 function A.reset()
   cache={}
