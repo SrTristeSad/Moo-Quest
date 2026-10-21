@@ -56,6 +56,7 @@ local function testStoreTribe(self)
     local ok,err=self.client:send(cmd.packet,cmd.args)
     if not ok then return self:stop(false,tostring(err)) end
     self.stage="hat"
+    print("E2E STORE: sent c equip Moo Cap")
   elseif self.stage=="hat" and self.world.store.hatIndex==51 then
     local _,tx,top=panel:buttons(w)
     panel:click(self.world,tx+10,top+10,w,h)
@@ -69,6 +70,7 @@ local function testStoreTribe(self)
     local ok,err=self.client:send(cmd.packet,cmd.args)
     if not ok then return self:stop(false,tostring(err)) end
     self.stage="tribe"
+    print("E2E TRIBE: sent L create CITest")
   elseif self.stage=="tribe" and self.world.tribe=="CITest" then
     local left,y,_,height=panel:position(w,h)
     local cmd=panel:click(self.world,left+40,y+height-50,w,h)
@@ -78,6 +80,7 @@ local function testStoreTribe(self)
     local ok,err=self.client:send(cmd.packet,cmd.args)
     if not ok then return self:stop(false,tostring(err)) end
     self.stage="leave"
+    print("E2E TRIBE: sent N leave")
   elseif self.stage=="leave" and self.world.tribe==nil then
     return self:stop(true,"store equipped by server, tribe created and left through Node")
   end
@@ -105,6 +108,10 @@ function I:update(dt)
     if event.kind=="game_packet" then
       local p=event.data
       self.world:apply(p.name,p.args)
+      if self.mode=="store_tribe" and
+        (p.name=="5" or p.name=="g" or p.name=="3" or p.name=="4") then
+        print("E2E RESPONSE: "..p.name.." "..tostring(p.args[1]))
+      end
       if p.name=="C" then
         self.hasC=true
         print("E2E: original server confirmed spawn C")
