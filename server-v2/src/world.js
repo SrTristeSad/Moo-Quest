@@ -11,8 +11,14 @@ const RECIPES={
   4:{cost:{stone:25},scale:50,hp:800,group:1,limit:30},
   6:{cost:{wood:20,stone:5},scale:49,hp:300,group:2,limit:15},
   7:{cost:{wood:30,stone:10},scale:52,hp:400,group:2,limit:15},
-  10:{cost:{wood:50,stone:10},scale:45,hp:350,group:3,limit:20},
-  11:{cost:{wood:60,stone:20},scale:47,hp:450,group:3,limit:20},
+  10:{cost:{wood:50,stone:10},scale:45,hp:350,group:3,limit:20,pps:1},
+  11:{cost:{wood:60,stone:20},scale:47,hp:450,group:3,limit:20,pps:1.5},
+  12:{cost:{wood:100,stone:50},scale:47,hp:750,group:3,limit:20,pps:2},
+  // No map editing or NPC support: these exist only when players construct.
+  15:{cost:{wood:30,stone:30},scale:50,hp:500,group:5,limit:5,pit:true},
+  16:{cost:{stone:20,wood:5},scale:45,hp:150,group:6,limit:12,boost:1.5},
+  19:{cost:{wood:30,food:10},scale:45,hp:400,group:9,limit:4,heal:10},
+  21:{cost:{wood:30,stone:25},scale:45,hp:400,group:12,limit:3,blocker:300},
   // Player-built automatic defense. Static only: no NPC or editable map.
   17:{cost:{wood:200,stone:150},scale:43,hp:800,group:7,limit:2,turret:true}
 };
@@ -37,13 +43,16 @@ const UPGRADES=new Map([
   [5,{kind:'weapon',id:5,age:2}], [6,{kind:'weapon',id:6,age:2}],
   [7,{kind:'weapon',id:7,age:2}], [8,{kind:'weapon',id:8,age:2}],
   [17,{kind:'item',id:1,age:3}], [20,{kind:'item',id:4,age:3}],
+  [31,{kind:'item',id:15,age:4}], [32,{kind:'item',id:16,age:4}],
   [23,{kind:'item',id:7,age:5}], [27,{kind:'item',id:11,age:5}],
   [9,{kind:'weapon',id:9,age:6}], [10,{kind:'weapon',id:10,age:6}],
   [11,{kind:'weapon',id:11,age:6}], [14,{kind:'weapon',id:14,age:6}],
   [2,{kind:'weapon',id:2,age:8,pre:1}], [4,{kind:'weapon',id:4,age:8,pre:3}],
   [12,{kind:'weapon',id:12,age:8,pre:9}],
   // Index for the Lua item upgrade = number of weapon IDs (16) + item ID.
-  [33,{kind:'item',id:17,age:7}],
+  [33,{kind:'item',id:17,age:7}], [35,{kind:'item',id:19,age:7}],
+  [37,{kind:'item',id:21,age:7}],
+  [28,{kind:'item',id:12,age:8,pre:11}],
   [13,{kind:'weapon',id:13,age:9,pre:12}],
   [15,{kind:'weapon',id:15,age:9,pre:12}]
 ]);
@@ -127,7 +136,8 @@ export class World {
       native:false,team:null,hat:0,tail:0,
       ownedHats:new Set([0,51]),ownedAccessories:new Set([0]),
       resources:{wood:0,stone:0,food:0,points:0,kills:0},
-      inventory:{weapons:[0],items:[0,3,6,10]},weaponIndex:0,buildIndex:-1,score:0};
+      inventory:{weapons:[0],items:[0,3,6,10]},weaponIndex:0,buildIndex:-1,score:0,
+      rootedUntil:0,nextHealAt:0,lastGeneratorAt:this.now(),generatorRemainder:0};
     this.players.set(p.id,p);
     this.events.push({kind:'join',id:p.id,sid:p.sid,name:p.name});return p;
   }
@@ -202,6 +212,12 @@ export class World {
     if(allow&&!p.team){tribe.members.add(p.id);p.team=owner.team;this.events.push({kind:'tribe_joined',name:p.team,sid:p.sid});}
     return true;
   }
+  structureCount(ownerSid,itemId){
+    const group=RECIPES[itemId]?.group;
+    if(group===undefined)return null;
+    return {group,count:[...this.structures.values()].filter(o=>
+      o.owner===ownerSid&&RECIPES[o.id]?.group===group).length};
+  }
   place(id,itemId){
     const p=this.players.get(id),recipe=RECIPES[itemId];
     if(!p||p.hp<=0||!recipe||!p.inventory.items.includes(itemId)||p.buildIndex!==itemId)return false;
@@ -212,6 +228,15 @@ export class World {
     for(const o of [...this.structures.values(),...this.resources.values()]){
       if(Math.hypot(x-o.x,y-o.y)<scale+(o.scale||50)*0.7)return false;
     }
+    // Placement cannot trap a player or bypass a rival's building blocker.
+    if([...this.players.values()].some(other=>other.hp>0&&
+      Math.hypot(x-other.x,y-other.y)<scale+30))return false;
+    if([...this.structures.values()].some(block=>{
+      const owner=[...this.players.values()].find(other=>other.sid===block.owner);
+      return RECIPES[block.id]?.blocker &&
+        block.owner!==p.sid && !(p.team&&owner?.team===p.team) &&
+        Math.hypot(x-block.x,y-block.y)<RECIPES[block.id].blocker;
+    }))return false;
     for(const [k,n] of Object.entries(recipe.cost))p.resources[k]-=n;
     const sid=this.nextObjectSid++;
     this.structures.set(sid,{sid,x,y,scale,type:4,id:itemId,owner:p.sid,
@@ -234,7 +259,7 @@ export class World {
     p.xp+=amount;
     while(p.xp>=p.maxXp&&p.age<20){
       p.xp-=p.maxXp;p.age++;p.maxXp=LEVEL_XP(p.age);
-      if([2,3,5,6,7,8,9].includes(p.age))p.upgradePoints++;
+      if([2,3,4,5,6,7,8,9].includes(p.age))p.upgradePoints++;
     }
     this.events.push({kind:'progress',player:id,xp:p.xp,maxXp:p.maxXp,age:p.age,
       points:p.upgradePoints,upgradeAge:p.upgradeAge});
@@ -248,7 +273,7 @@ export class World {
     // One selection per stage. Older paths remain available to players who
     // choose melee rather than ranged at age six.
     group.push(rule.id);p.upgradePoints--;
-    p.upgradeAge=({2:3,3:5,5:6,6:7,7:8,8:9})[rule.age]??20;
+    p.upgradeAge=({2:3,3:4,4:5,5:6,6:7,7:8,8:9})[rule.age]??20;
     this.events.push({kind:'upgrade',player:id,equipmentKind:rule.kind,id:rule.id,
       points:p.upgradePoints,upgradeAge:p.upgradeAge});
     return true;
@@ -382,7 +407,8 @@ export class World {
     p.resources={wood:0,stone:0,food:0,points:0,kills:0};p.score=0;p.buildIndex=-1;p.weaponIndex=0;
     p.inventory={weapons:[0],items:[0,3,6,10]};p.xp=0;p.age=1;
     p.maxXp=LEVEL_XP(1);p.upgradePoints=0;p.upgradeAge=2;
-    p.vx=0;p.vy=0;p.lastAttack=0;
+    p.vx=0;p.vy=0;p.lastAttack=0;p.rootedUntil=0;p.nextHealAt=0;
+    p.lastGeneratorAt=this.now();p.generatorRemainder=0;
     this.events.push({kind:'respawn',id:p.id,sid:p.sid,x:p.x,y:p.y});return true;
   }
   tick(dt){
@@ -424,9 +450,13 @@ export class World {
     for(const p of this.players.values()){
       if(p.hp===0&&p.deadUntil&&at>=p.deadUntil&&!p.native)this.respawn(p.id);
       if(p.hp<=0)continue;
-      const x=Math.max(24,Math.min(this.size-24,p.x+p.vx*250*step));
-      const y=Math.max(24,Math.min(this.size-24,p.y+p.vy*250*step));
-      const blocking=[...this.structures.values()].some(o=>o.id===3&&Math.hypot(x-o.x,y-o.y)<o.scale+30);
+      const boosted=[...this.structures.values()].some(o=>o.id===16&&
+        Math.hypot(p.x-o.x,p.y-o.y)<o.scale+32);
+      const speed=at<p.rootedUntil?0:250*(boosted?1.5:1);
+      const x=Math.max(24,Math.min(this.size-24,p.x+p.vx*speed*step));
+      const y=Math.max(24,Math.min(this.size-24,p.y+p.vy*speed*step));
+      const blocking=[...this.structures.values()].some(o=>[3,4,5].includes(o.id)&&
+        Math.hypot(x-o.x,y-o.y)<o.scale+30);
       if(!blocking){p.x=x;p.y=y;}
       for(const trap of this.structures.values()){
         if(![6,7].includes(trap.id))continue;
@@ -446,10 +476,42 @@ export class World {
         }
         break;
       }
-      // Passive score from placed resource generators, authoritative clock.
-      if(this.tickNumber%30===0){
-        const amount=[...this.structures.values()].filter(o=>[10,11].includes(o.id)&&o.owner===p.sid).length;
-        if(amount){p.resources.points+=amount;p.score+=amount;this.events.push({kind:'income',player:p.id,amount});}
+      // Healing pads only affect living owners and tribe allies. Pit traps
+      // immobilize hostile players for a bounded interval; per-trap cooldown
+      // prevents repeated activation every simulation tick.
+      for(const pad of this.structures.values()){
+        const spec=RECIPES[pad.id];
+        if(!spec || (!spec.pit && !spec.heal))continue;
+        if(Math.hypot(p.x-pad.x,p.y-pad.y)>pad.scale+24)continue;
+        const owner=[...this.players.values()].find(other=>other.sid===pad.owner);
+        const ally=pad.owner===p.sid||Boolean(p.team&&owner?.team===p.team);
+        if(spec.pit&&!ally){
+          pad.trapCooldown??=new Map();
+          if(at>=(pad.trapCooldown.get(p.id)||0)){
+            pad.trapCooldown.set(p.id,at+4000);
+            p.rootedUntil=Math.max(p.rootedUntil,at+1200);
+            this.events.push({kind:'trap',player:p.id,sid:pad.sid,until:p.rootedUntil});
+          }
+        }
+        if(spec.heal&&ally&&p.hp<p.maxHp&&at>=p.nextHealAt){
+          const amount=Math.min(spec.heal,p.maxHp-p.hp);
+          p.hp+=amount;p.nextHealAt=at+1000;
+          this.events.push({kind:'heal',player:p.id,sid:p.sid,amount,hp:p.hp,x:p.x,y:p.y});
+        }
+      }
+      // Resource generators use elapsed wall-clock time, not the number of
+      // ticks a VPS happens to execute. Keep fractional output and bound
+      // a single delayed tick to five seconds of accrual (no idle farming).
+      const elapsed=Math.max(0,Math.min(5,(at-p.lastGeneratorAt)/1000));
+      p.lastGeneratorAt=at;
+      const rate=[...this.structures.values()].reduce((sum,o)=>
+        sum+(o.owner===p.sid?(RECIPES[o.id]?.pps||0):0),0);
+      p.generatorRemainder+=elapsed*rate;
+      const income=Math.floor(p.generatorRemainder);
+      if(income>0){
+        p.generatorRemainder-=income;
+        p.resources.points+=income;p.score+=income;
+        this.events.push({kind:'income',player:p.id,amount:income});
       }
     }
     this.fireTurrets(at);

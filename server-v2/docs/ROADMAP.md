@@ -56,6 +56,17 @@ Implementado na fundação experimental:
   limite por jogador, identificação de hostis, proteção de aliados, cadência
   de 2200 ms, balas reais de tipo 1 e eventos `M`/`X`/`Y` para Lua;
   sem NPCs, editor, comandos gráficos ou detecção de alvos no cliente;
+- novas construções e melhorias da progressão por idade no Node: armadilha
+  (15, idade 4), impulsionador (16, idade 4), plataforma de cura
+  (19, idade 7), bloqueador contra construções de rivais (21, idade 7)
+  e moinho avançado (12, idade 8, exige moinho 11);
+- a armadilha imobiliza rivais temporariamente (com recarga), a plataforma
+  cura apenas o proprietário e os aliados, o impulsionador altera a velocidade
+  do movimento validado pelo Node e bloqueadores não impedem sua própria tribo;
+- geradores de ouro calculados pelo tempo transcorrido e não pela quantidade
+  de ticks da VPS, mantendo frações e limitando acúmulo depois de travamentos;
+- contagem de estruturas no pacote Lua `S` agora é por grupo de construção
+  (paredes, moinhos etc.), e não por ID individual;
 - testes unitários de codecs, entrada, inventário, compras, construção,
   recursos, retorno após coleta, cura, XP e escolhas de equipamentos. O teste
   WebSocket de ponta a ponta inclui loja, cura e upgrades, além da entrada.
@@ -72,9 +83,10 @@ precisa de auditoria/recriação licenciada antes de lançamento comercial.
    cliente Lua/LÖVE no Windows, provando `M -> C/D -> movimento -> coleta`.
 2. Implementar os recursos, animais existentes, obstáculos, objetos e biomas
    requeridos pelo cliente, sem introduzir NPCs ou editores de mapa.
-3. Completar os equipamentos e efeitos restantes: já há arco, besta e armas
-   de disparo básicas, porém ainda faltam muitas combinações de itens, variantes,
-   escudos, torres, objetos especiais e as respectivas animações/proteções.
+3. Completar os equipamentos e efeitos restantes: já há arco, escudo, torres,
+   armadilha, impulso, cura, bloqueio de construções e moinhos básicos, mas ainda
+   faltam minas/árvores plantadas, teletransporte, reaparecimento em construção,
+   demais variantes, itens e efeitos, com testes de colisão.
    Não assumir paridade só porque os pacotes `X`/`Y` passaram na CI.
 4. Morte/renascimento, clãs, loja, chat, placar, perfil e moderação no Node,
    usando confirmações autoritativas; testes para manipulação de pacotes,

@@ -232,8 +232,10 @@ export class GameServer {
         const state=[...this.nativeClients.values()].find(s=>s.p?.sid===evt.owner);
         if(state){
           for(const key of ['wood','stone'])state.send('N',[key,state.p.resources[key],1]);
-          const count=[...this.room.structures.values()].filter(o=>o.owner===state.p.sid && o.id===evt.id).length;
-          state.send('S',[evt.id,count]);
+          // S addresses the shared Lua item GROUP, not the concrete item ID:
+          // e.g. every grade of wall shares group 1; mills share group 3.
+          const total=this.room.structureCount(state.p.sid,evt.id);
+          if(total)state.send('S',[total.group,total.count]);
         }
       }else if(evt.kind==='income'){
         const state=[...this.nativeClients.values()].find(s=>s.p?.id===evt.player);
