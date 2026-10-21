@@ -46,7 +46,13 @@ test('public guest token is verified server-side, bound to remote IP and exact h
   assert.equal(await unreachable.verify(request,{captchaToken:'dummy-valid-turnstile-token'}),false);
 });
 
-test('development guest verification leaves current Lua ingress contract unchanged',async()=>{
+test('development guest ingress only accepts direct loopback, not remote callers or reverse-proxy traffic',async()=>{
   const verifier=createGuestVerifier({publicMode:false});
-  assert.equal(await verifier.verify(request,{captcha:true}),true);
+  assert.equal(await verifier.verify(request,{captcha:true}),false);
+  assert.equal(await verifier.verify({socket:{remoteAddress:'127.0.0.1'},headers:{}},
+    {captcha:true}),true);
+  assert.equal(await verifier.verify({socket:{remoteAddress:'127.0.0.1'},
+    headers:{'x-forwarded-for':'203.0.113.2'}},{captcha:true}),false);
+  assert.equal(await verifier.verify({socket:{remoteAddress:'::1'},
+    headers:{'x-real-ip':'203.0.113.2'}},{captcha:true}),false);
 });

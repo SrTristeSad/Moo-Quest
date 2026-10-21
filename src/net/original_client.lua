@@ -8,6 +8,7 @@ local Bootstrap=require("src.protocol.bootstrap")
 local Random=require("src.net.secure_random")
 local Build=require("src.protocol.original_build")
 local OriginalSession=require("src.protocol.original_session")
+local V2Session=require("src.protocol.v2_session")
 local Join=require("src.net.original_join")
 local MessagePack=require("src.protocol.msgpack")
 local Original={}
@@ -42,13 +43,14 @@ function Original.new(options)
     autoSpawn=options.autoSpawn~=false,
     authToken=options.authToken,
     expectedBuild=options.expectedBuild,
+    nativeSession=options.nativeSession==true,
     join=options.join or Join,
     ltn12=options.ltn12,
     did=nil,ticket=nil,spawnSent=false,sid=nil,packetCount=0,
     http=socketHttp,random=options.random or Random.bytes,
     sha1=options.sha1 or function(data) return love.data.hash("sha1",data) end,
     socketLib=options.socket,
-    state="idle",status="Servidor original ainda nao conectado.",
+    state="idle",status=options.nativeSession and "Servidor V2 ainda nao conectado." or "Servidor original ainda nao conectado.",
     error=nil,build=nil,handshake=nil,session=nil,websocket=nil,events={}
   },Original)
 end
@@ -65,7 +67,7 @@ function Original:connect()
   local build,reason=httpPing(self.http,self.host,self.port)
   if not build then
     self.state="failed";self.error=reason
-    self.status="Servidor original indisponivel: "..reason
+    self.status=(self.nativeSession and "Servidor V2 indisponivel: " or "Servidor original indisponivel: ")..reason
     return false,reason
   end
   if self.expectedBuild and build~=self.expectedBuild then
@@ -104,13 +106,14 @@ function Original:connect()
   local ok,err=ws:connect(self.host,self.port,path)
   if not ok then
     self.state="failed";self.error=err
-    self.status="Falha no WebSocket original: "..tostring(err)
+    self.status=(self.nativeSession and "Falha no WebSocket V2: " or "Falha no WebSocket original: ")..tostring(err)
     return false,err
   end
   self.websocket=ws
   self.state="connecting"
   self.error=nil
-  self.status="Ticket guest original emitido; abrindo WebSocket em localhost..."
+  self.status=self.nativeSession and "Ticket V2 emitido; abrindo WebSocket local..." or
+    "Ticket guest original emitido; abrindo WebSocket em localhost..."
   -- Do not print URLs containing the secret single-use ticket.
   return true
 end
@@ -121,7 +124,8 @@ function Original:update()
   for _,evt in ipairs(ws:drain()) do
     if evt.kind=="open" then
       self.state="waiting_handshake"
-      self.status="WebSocket original aberto; aguardando io-init..."
+      self.status=self.nativeSession and "WebSocket V2 aberto; aguardando io-init..." or
+        "WebSocket original aberto; aguardando io-init..."
     elseif evt.kind=="binary" then
       if not self.handshake then
         local handshake,err=Bootstrap.decodeHandshake(evt.value)
@@ -143,7 +147,8 @@ function Original:update()
             self.state="blocked"
             self.status="Build local diferente do servidor remoto; parametros rejeitados."
           else
-            local session,sessionError=OriginalSession.new(handshake,params,
+            local sessionFactory=self.nativeSession and V2Session or OriginalSession
+            local session,sessionError=sessionFactory.new(handshake,params,
               function(data) return love.data.hash("sha256",data) end)
             if not session then
               self.state="blocked"
@@ -151,7 +156,8 @@ function Original:update()
             else
               self.session=session
               self.state="keyed_transport"
-              self.status="Handshake original aceito; aguardando Play no cliente Lua."
+              self.status=self.nativeSession and "Sessao V2 autenticada; aguardando Play." or
+                "Handshake original aceito; aguardando Play no cliente Lua."
               if self.autoSpawn then
                 local okSpawn,spawnErr=self:spawn()
                 if not okSpawn then
@@ -197,7 +203,8 @@ function Original:update()
           if packet.name=="C" and type(packet.args[1])=="number" then
             self.sid=packet.args[1]
             self.state="spawn_confirmed"
-            self.status="Spawn confirmado pelo servidor Node original! ID "..tostring(self.sid)
+            self.status=(self.nativeSession and "Spawn confirmado no Node V2! ID " or
+              "Spawn confirmado pelo servidor Node original! ID ")..tostring(self.sid)
           elseif packet.name=="B" then
             self.status="Servidor enviou desconexao: "..tostring(packet.args[1])
           end

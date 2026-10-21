@@ -26,6 +26,20 @@ nao fornece para convidados.
   a porta 8080 caso outro backend responda e nao importa imagens
   de referencia. Exige PostgreSQL/Redis e instalacao inicial em /setup.
 
+## Continuacao: protocolo V2 do cliente
+- Em modo V2, `src/protocol/v2_session.lua` calcula os IDs de comando
+  e evento do servidor nativo e autentica seus quadros MessagePack com
+  HMAC-SHA256 (incluindo sequencia e MAC de 6 bytes). Usa o SHA-256 da
+  instalacao LÖVE, nunca dados recebidos do servidor como segredo externo.
+- Vetores deterministas conferem IDs de sessoes do Node e o quadro
+  binario exato emitido para um teste conhecido, em Lua 5.1/5.4.
+- A sessao e selecionada exclusivamente no caminho `MOOQUEST_REQUIRE_V2=1`.
+  O transporte legado continua disponivel apenas para compatibilidade
+  de testes enquanto ocorre a substituicao.
+- A tela de contas V2 usa credenciais PostgreSQL, e ingresso com Bearer Redis.
+  A interface administrativa legada de clãs ainda depende das antigas APIs;
+  a V2 deve usar a tribo do mundo ate uma UI propria ser concluida.
+
 ## Proximas etapas para desativar o codigo anterior
 1. Validar no LÖVE real: entrada, movimento, inventario, coleta, armas,
    morte, loja, cla, equipar e restauracao de contas.

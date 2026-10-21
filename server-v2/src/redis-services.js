@@ -66,8 +66,10 @@ export class RedisTickets{
     const count=await incrementWithTTL(this.client,key,10);
     if(count>8)return null;
     const token=randomBytes(18).toString('hex');
+    const revision=accountId?
+      String(await this.client.get(this.prefix+'ticket-revision:'+accountId)||'0'):null;
     await this.client.set(this.prefix+'ticket:'+token,
-      JSON.stringify({ipHash,accountId}),{EX:30,NX:true});
+      JSON.stringify({ipHash,accountId,revision}),{EX:30,NX:true});
     return token;
   }
   async consumeDetails(token,ipHash){
@@ -76,7 +78,13 @@ export class RedisTickets{
     const payload=await this.client.getDel(this.prefix+'ticket:'+token);
     if(!payload)return null;
     const claim=JSON.parse(payload);
-    return claim.ipHash===ipHash?{accountId:claim.accountId||null}:null;
+    if(claim.ipHash!==ipHash)return null;
+    if(claim.accountId){
+      const revision=String(await this.client.get(
+        this.prefix+'ticket-revision:'+claim.accountId)||'0');
+      if(revision!==claim.revision)return null;
+    }
+    return {accountId:claim.accountId||null};
   }
   async consume(token,ipHash){
     return Boolean(await this.consumeDetails(token,ipHash));
@@ -98,7 +106,13 @@ export class RedisPlayerTokens{
     return await this.client.get(this.key(token));
   }
   async revoke(token){
-    if(typeof token==='string'&&/^[a-f0-9]{64}$/.test(token))
-      await this.client.del(this.key(token));
+    if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))return;
+    const accountId=await this.get(token);
+    if(!accountId)return;
+    // Epoch prevents a pre-logout admission ticket being redeemed later.
+    // The epoch expires after all prior 30s tickets have necessarily expired.
+    const revisionKey=this.prefix+'ticket-revision:'+accountId;
+    await this.client.multi().incr(revisionKey).expire(revisionKey,90)
+      .del(this.key(token)).exec();
   }
 }

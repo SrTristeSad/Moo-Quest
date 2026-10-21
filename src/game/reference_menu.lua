@@ -71,7 +71,7 @@ function Menu.new()
     nameFocus=false,grid=true,world=menuView(),
     startPending=false,status="",authMode=nil,authStep="email",
     authEmail="",authCode="",authFocus="email",authFlow=nil,
-    authMessage="",accountEmail=nil,
+    authMessage="",accountEmail=nil,accountBackend="legacy",
     connectionState="connecting",showTechnical=false,
     technicalMessage=""},Menu)
 end
@@ -220,10 +220,17 @@ function Menu:textinput(chars)
   if type(chars)~="string" then return end
   if self.authMode then
     if self.authStep=="email" then
-      local clean=chars:gsub("[%c%s]","")
-      self.authEmail=(self.authEmail..clean):sub(1,120)
+      local clean=self.accountBackend=="v2"
+        and chars:gsub("[^%w_]","")
+        or chars:gsub("[%c%s]","")
+      self.authEmail=(self.authEmail..clean):sub(1,
+        self.accountBackend=="v2" and 20 or 120)
     else
-      self.authCode=(self.authCode..chars:gsub("[^0-9]","")):sub(1,6)
+      if self.accountBackend=="v2" then
+        self.authCode=(self.authCode..chars:gsub("[%c]","")):sub(1,128)
+      else
+        self.authCode=(self.authCode..chars:gsub("[^0-9]","")):sub(1,6)
+      end
     end
     return
   end
@@ -251,7 +258,8 @@ function Menu:draw(connectionState,status)
   love.graphics.translate(offX,offY)
   love.graphics.scale(scale)
   rect(0,0,1280,720,0,0,0,0.5,0)
-  center("MOOMOO.io",0,72,1280,64,{1,1,1})
+  center(self.accountBackend=="v2" and "MOO-QUEST" or "MOOMOO.io",
+    0,72,1280,64,{1,1,1})
   -- Three-column game menu is copied from the HTML/CSS layout, not
   -- a fabricated HUD displayed during gameplay.
   rect(68,205,285,335,1,1,1,0.97,9)
@@ -350,17 +358,22 @@ function Menu:draw(connectionState,status)
   -- Account section always starts at the same vertical position, regardless
   -- of how long the Node error/path is. Login and registration remain visible.
   if self.authMode then
-    text(self.authMode=="register" and "CADASTRAR  (LOCAL)" or
-      "ENTRAR  (LOCAL)",839,396,17,{0.19,0.20,0.21})
+    text(self.authMode=="register" and "CADASTRAR" or
+      "ENTRAR",839,396,17,{0.19,0.20,0.21})
     rect(839,423,344,41,0.94,0.94,0.94,1,5)
     if self.authStep=="email" then
       local value=self.authEmail
       if #value>31 then value="..."..value:sub(-28) end
-      text((value~="" and value or "Email")..
+      text((value~="" and value or (self.accountBackend=="v2" and "Usuario" or "Email"))..
         (self.authFocus=="email" and "|" or ""),850,432,15,
         value~="" and {0.17,0.17,0.17} or {0.59,0.59,0.59})
     else
-      text("Codigo: "..self.authCode.."|",850,432,15)
+      if self.accountBackend=="v2" then
+        local hidden=string.rep("*",math.min(25,#self.authCode))
+        text("Senha: "..hidden.."|",850,432,15)
+      else
+        text("Codigo: "..self.authCode.."|",850,432,15)
+      end
     end
     rect(839,472,161,40,0.49,0.90,0.35,1,5)
     center(self.authStep=="email" and "Continuar" or "Confirmar",
@@ -368,26 +381,31 @@ function Menu:draw(connectionState,status)
     rect(1011,472,172,40,0.88,0.88,0.88,1,5)
     center("Cancelar",1011,482,172,15,{0.25,0.25,0.25})
     local helper=self.authMessage~="" and self.authMessage or
-      "Teste local: qualquer codigo de 6 digitos e aceito."
+      (self.accountBackend=="v2"
+        and "Conta V2 com senha; cadastro depende do administrador."
+        or "Teste local: qualquer codigo de 6 digitos e aceito.")
     font(11);love.graphics.setColor(0.44,0.36,0.34)
     love.graphics.printf(helper,839,516,344,"left")
   elseif self.accountEmail then
-    text("CONTA LOCAL CONECTADA",839,401,16,{0.16,0.47,0.24})
+    text(self.accountBackend=="v2" and "CONTA V2 CONECTADA" or
+      "CONTA LOCAL CONECTADA",839,401,16,{0.16,0.47,0.24})
     local email=self.accountEmail
     if #email>38 then email=email:sub(1,35).."..." end
     text(email,839,435,14,{0.31,0.31,0.31})
     rect(839,472,161,40,0.49,0.90,0.35,1,5)
-    center("Meu cla",839,482,161,15,{0.12,0.23,0.12})
+    center(self.accountBackend=="v2" and "Cla na partida" or "Meu cla",839,482,161,15,{0.12,0.23,0.12})
     rect(1011,472,172,40,0.92,0.92,0.92,1,5)
     center("Sair da conta",1011,482,172,15)
   else
-    text("CONTA LOCAL",839,402,17,{0.22,0.22,0.22})
+    text(self.accountBackend=="v2" and "CONTA V2" or "CONTA LOCAL",839,402,17,{0.22,0.22,0.22})
     rect(839,444,161,42,0.49,0.90,0.35,1,6)
     center("Entrar",839,456,161,16,{0.12,0.25,0.11})
     rect(1011,444,172,42,0.88,0.88,0.88,1,6)
     center("Cadastrar",1011,456,172,16,{0.25,0.25,0.25})
     font(12);love.graphics.setColor(0.42,0.42,0.42)
-    love.graphics.printf("Ou jogue como convidado usando Play. Contas apenas para testes locais.",
+    love.graphics.printf(self.accountBackend=="v2"
+      and "Conta com senha e progresso salvo; convidado permitido no modo local."
+      or "Ou jogue como convidado usando Play. Contas apenas para testes locais.",
       839,498,344,"left")
   end
   -- Optional technical details display above the cards instead of covering

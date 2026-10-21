@@ -102,6 +102,11 @@ test('PostgreSQL player account + Redis token protects persistent progress acros
   assert.match(authorized.token,/^[a-f0-9]{64}$/);
   const head={authorization:'Bearer '+authorized.token};
   assert.equal((await fetch(base+'/api/account/me',{headers:head})).status,200);
+  const summary=await (await fetch(base+'/api/account/progress',{headers:head})).json();
+  assert.equal(summary.username,username);
+  assert.equal(summary.snapshot,'last_committed');
+  assert.equal(summary.buildingCount,0);
+  assert.equal((await fetch(base+'/api/account/progress')).status,401);
   assert.equal((await fetch(base+'/api/account/me',{headers:{authorization:'Bearer '+('1'.repeat(64))}})).status,401);
   const request={host:base+'/s/LC',captcha:true,did:'c'.repeat(32)};
   assert.equal((await post('/api/join',request,{authorization:'Bearer '+('1'.repeat(64))})).status,401);

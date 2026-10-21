@@ -103,7 +103,8 @@ export class GameServer {
   }
   connectNative(ws,ipHash,trustedOrigin,accountId=null) {
     const session=new NativeSession();
-    const state={ws,session,p:null,held:false,lastSnapshotAt:0,spawning:false,accountId:null,clanBusy:false};
+    const state={ws,session,p:null,held:false,lastSnapshotAt:0,spawning:false,
+      accountId:null,grantedAccountId:accountId,clanBusy:false};
     this.nativeClients.set(ws,state);
     ws.send(session.handshake());
     const send=(name,args=[])=>{
@@ -509,6 +510,13 @@ export class GameServer {
     }
   }
   kick(id, reason = 'admin') { const ws = this.online.get(id); if (!ws) return false; ws.close(1008, String(reason).slice(0, 100)); return true; }
+  disconnectAccount(accountId) {
+    if(!accountId)return;
+    for(const state of this.nativeClients.values()){
+      if(state.grantedAccountId===accountId)
+        state.ws.close(1008,'session_revoked');
+    }
+  }
   async stop() {
     clearInterval(this.loop);this.loop=null;
     for(const server of [this.wss,this.nativeWss]) {

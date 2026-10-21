@@ -22,7 +22,11 @@ test('40 concurrent native clients: verified ingress path, cap, real movement an
   const storage=new Storage(dir);
   storage.data.owner={username:'admin',password:'hash'};
   storage.data.settings.maxPlayers=40;
-  const app=createHTTP({root,storage,auth:new Auth(),updates:new Updates(dir,storage.dir,{
+  // This test simulates a verified admission gateway; it must not rely
+  // on insecure development captcha:true from remote reverse-proxy IPs.
+  const guestVerifier={publicMode:true,verify:async()=>true};
+  const app=createHTTP({root,storage,auth:new Auth(),guestVerifier,
+    updates:new Updates(dir,storage.dir,{
     manifestURL:null,publicKeyFile:null})});
   const game=new GameServer(app.server,storage);
   app.setGame(game);

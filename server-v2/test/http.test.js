@@ -26,6 +26,9 @@ test('setup needs console code, admin controls need cookie and CSRF',async t=>{
   assert.equal((await req('/ready')).status,503);
   const ping=await (await req('/ping')).json();
   assert.equal(ping.build,'mqv2native');
+  const capabilities=await (await req('/api/capabilities')).json();
+  assert.equal(capabilities.build,'mqv2native');
+  assert.equal(capabilities.guestAdmission,'direct_loopback_only');
   assert.equal((await req('/api/join',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({host:'http://127.0.0.1:8080/s/LC',captcha:true})})).status,503);
   assert.equal((await req('/setup')).status,200);
   let r=await req('/setup',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},

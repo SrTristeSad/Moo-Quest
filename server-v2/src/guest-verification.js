@@ -23,7 +23,15 @@ export function createGuestVerifier({
   return {
     publicMode,
     async verify(req,body){
-      if(!publicMode)return true;
+      if(!publicMode){
+        // Development guest admission must NEVER be silently exposed via
+        // aaPanel reverse proxies or public listeners. Accounts use Bearer.
+        const peer=req.socket?.remoteAddress;
+        const loopback=['127.0.0.1','::1','::ffff:127.0.0.1'].includes(peer);
+        const hasProxyHeaders=['x-forwarded-for','forwarded','x-real-ip']
+          .some(key=>req.headers?.[key]!==undefined);
+        return loopback&&!hasProxyHeaders&&requestIdentity(req).trustedOrigin;
+      }
       const token=body?.captchaToken;
       if(typeof token!=='string'||token.length<10||token.length>2048)return false;
       const identity=requestIdentity(req);

@@ -1,11 +1,14 @@
--- Moo-Quest is a Lua client for the UNMODIFIED al007ex/moomoo-clone server.
--- Real native gameplay rendering is gated by actual server C/D/a/H/I packets.
--- Never generate local entities or claim spawn before the Node server confirms it.
+-- Moo-Quest Lua/LÖVE client. The V2 launcher selects the independent
+-- server transport and account API. The legacy compatibility mode remains
+-- available while migrating old test workflows. Never simulate a spawn.
 local Original=require("src.net.original_client")
 local World=require("src.game.world_state")
 local View=require("src.game.reference_view")
 local Menu=require("src.game.reference_menu")
 local Auth=require("src.net.local_auth")
+local V2Accounts=require("src.net.v2_accounts")
+local V2Join=require("src.net.v2_join")
+local v2Mode=os.getenv("MOOQUEST_REQUIRE_V2")=="1"
 local Config=require("src.game.config")
 local Hud=require("src.game.reference_hud")
 local Panels=require("src.game.reference_panels")
@@ -30,6 +33,7 @@ local world=World.new()
 local camera=nil
 local menuCamera=nil
 local menu=Menu.new()
+menu.accountBackend=v2Mode and "v2" or "legacy"
 local panels=Panels.new()
 local profile=Profile.new()
 local clans=Clans.new()
@@ -101,7 +105,9 @@ function love.load()
     return
   end
   local ok,result=pcall(Original.new,{host="127.0.0.1",port=8080,server="LC",autoSpawn=false,
-    expectedBuild=os.getenv("MOOQUEST_REQUIRE_V2")=="1" and "mqv2native" or nil})
+    expectedBuild=v2Mode and "mqv2native" or nil,
+    join=v2Mode and V2Join or nil,
+    nativeSession=v2Mode})
   if not ok then
     startupError="Falha ao inicializar cliente de rede: "..tostring(result)
     return
@@ -329,7 +335,7 @@ function love.draw()
         (client and (client.error or client.status)) or startupError
     end
     menu:draw(state,status)
-    clans:draw(false)
+    if not v2Mode then clans:draw(false) end
     Notices.draw(world,w,h)
     return
   end
@@ -343,7 +349,7 @@ function love.draw()
     Hud.draw(world,chatOpen,chatDraft,
       chatOpen or panels:isOpen() or clans:isOpen() or profile:isOpen())
     panels:draw(world)
-    clans:draw(true)
+    if not v2Mode then clans:draw(true) end
     Notices.draw(world,w,h)
     profile:draw(world)
     if uiSmoke and uiSmokeClicked and not uiSmokeDrawn then
@@ -372,8 +378,9 @@ function love.draw()
   love.graphics.print("MOO-QUEST | CLIENTE LUA / LOVE 2D",36,36,0,1.6)
   love.graphics.setColor(0.28,0.40,0.33)
   love.graphics.rectangle("fill",36,82,w-72,2)
-  line(107,"Servidor: motor Node original do al007ex/moomoo-clone (config local adicional)")
-  line(144,"Endereco: http://127.0.0.1:8080  |  Jogo: LC  |  Transporte: WebSocket original")
+  line(107,v2Mode and "Servidor: motor Node.js V2 independente" or
+    "Servidor: Node legado para validacao")
+  line(144,"Endereco: 127.0.0.1:8080 | LC | WebSocket "..(v2Mode and "V2" or "legado"))
   if startupError then
     love.graphics.setColor(1,0.65,0.46)
     love.graphics.printf(tostring(startupError),36,197,w-72)
@@ -394,14 +401,15 @@ function love.draw()
       "O porte visual continua em validacao com o cliente original.",
       36,410,w-72)
   else
-    love.graphics.printf("O cliente solicita um ticket guest na API ORIGINAL "..
-      "(/api/join), abre o WebSocket e tenta um spawn autenticado. "..
+    love.graphics.printf("O cliente solicita um ticket em /api/join "..
+      "e abre o WebSocket para tentar um spawn autenticado. "..
       "A partida ainda NAO foi confirmada: a janela aberta nao prova jogabilidade.",
       36,410,w-72)
   end
   love.graphics.setColor(0.67,0.77,0.71)
   love.graphics.printf("R: tentar novamente/renascer   |   WASD: movimento apos spawn   |   ESC: sair\n"..
-    "Motor Node.js original; sem servidor Lua, proxy ou modificacoes nas regras de jogo.",
+    (v2Mode and "Servidor V2 independente; acesso local de testes." or
+    "Servidor legado para testes de compatibilidade."),
     36,h-115,w-72)
 end
 
@@ -429,6 +437,66 @@ local function requestPlay()
   return true
 end
 local function accountAction(action)
+  if v2Mode then
+    if action=="auth_request" then
+      if not V2Accounts.validUsername(menu.authEmail) then
+        menu.authMessage="Usuario: 3 a 20 letras, numeros ou underscore"
+        return
+      end
+      menu.authStep="code"
+      menu.authCode=""
+      menu.authFocus="code"
+      menu.authMessage="Use senha de 12 a 128 caracteres. Nenhum codigo por e-mail."
+      return
+    elseif action=="auth_verify" then
+      local password=menu.authCode
+      menu.authCode="" -- never keep a plaintext password in the menu
+      if not V2Accounts.validPassword(password) then
+        menu.authMessage="A senha precisa ter de 12 a 128 caracteres"
+        return
+      end
+      local account,err
+      if menu.authMode=="register" then
+        local registered
+        registered,err=V2Accounts.register(menu.authEmail,password)
+        if not registered then
+          menu.authMessage=tostring(err);return
+        end
+      end
+      account,err=V2Accounts.login(menu.authEmail,password)
+      password=nil
+      if not account then menu.authMessage=tostring(err);return end
+      if not client then menu.authMessage="Cliente V2 indisponivel";return end
+      client.authToken=account.token
+      clans:reset()
+      menu.accountEmail=account.username
+      menu.authEmail=""
+      menu.authMode=nil
+      menu.authFlow=nil
+      menu.authMessage=""
+      menu.status="Conta V2 autenticada. Abrindo personagem persistente..."
+      world=World.new()
+      local ok,why=client:connect()
+      if not ok then menu.status="Erro ao ingressar: "..tostring(why) end
+      return
+    elseif action=="auth_logout" then
+      if not client or not client.authToken then return end
+      local ok,err=V2Accounts.logout(client.authToken)
+      if not ok then
+        menu.status="Nao foi possivel revogar sessao: "..tostring(err)
+        return
+      end
+      client.authToken=nil
+      clans:reset()
+      menu.accountEmail=nil
+      menu.status="Sessao revogada; retornando como convidado local."
+      world=World.new()
+      local connected,why=client:connect()
+      if not connected then menu.status="Erro: "..tostring(why) end
+      return
+    end
+    return
+  end
   if action=="auth_request" then
     local flow,err=Auth.requestCode(menu.authEmail)
     if not flow then
@@ -481,7 +549,11 @@ menuAction=function(action)
     return true
   end
   if action=="clan_open" then
-    clans:toggle(client and client.authToken)
+    if v2Mode then
+      menu.status="No V2, crie ou gerencie o cla no painel Tribo durante a partida."
+    else
+      clans:toggle(client and client.authToken)
+    end
     return true
   end
   if action=="auth_open" or action=="auth_back" then
@@ -683,7 +755,7 @@ function love.mousepressed(x,y,button)
   if phase=="menu" then
     if button==1 then
       local width,height=love.graphics.getDimensions()
-      if clans:isOpen() and clans:click(x,y,width,height,false,client and client.authToken) then return end
+      if not v2Mode and clans:isOpen() and clans:click(x,y,width,height,false,client and client.authToken) then return end
       menu.connectionState=client and client.state or "failed"
       local action=menu:click(x,y,width,height)
       menuAction(action)
@@ -698,7 +770,7 @@ function love.mousepressed(x,y,button)
       if closed then client:send("V",{-1}) end
       if consumed then return end
     end
-    if clans:click(x,y,w,h,true,client and client.authToken) then
+    if not v2Mode and clans:click(x,y,w,h,true,client and client.authToken) then
       if clans:isOpen() and panels:isOpen() then panels:close() end
       -- Keep the permanent Clan window exclusive with Shop and Tribe,
       -- matching how the original client hides competing overlays.
