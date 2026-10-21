@@ -1,0 +1,40 @@
+name: LOVE 2D graphics smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  love-runtime:
+    name: LOVE 2D Linux headless graphics
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MOOQUEST_TESTS: "1"
+      MOOQUEST_TESTS_EXIT: "1"
+      SDL_AUDIODRIVER: dummy
+      LIBGL_ALWAYS_SOFTWARE: "1"
+    steps:
+      - name: Checkout source (no third-party game assets)
+        uses: actions/checkout@v4
+      - name: Install LÖVE 2D and virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y love xvfb xauth libgl1-mesa-dri
+          love --version
+      - name: Run LuaJIT and Canvas tests inside LÖVE
+        run: |
+          set -eu
+          xvfb-run -a -s "-screen 0 1280x720x24" love .
+      - name: Upload local LÖVE report (pass or failure)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: love-headless-test-report
+          path: ~/.local/share/love/moo_quest/test-results.txt
+          if-no-files-found: warn
