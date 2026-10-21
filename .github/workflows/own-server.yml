@@ -48,6 +48,10 @@ jobs:
             sleep 0.2
           done
           test "$ready" -eq 1
+          # BrowserQuest-Revived inspired liveness/readiness endpoints must
+          # work without modifying the Moo-Quest encrypted game protocol.
+          curl -fsS http://127.0.0.1:8080/health | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.project!=='Moo-Quest'||x.status!=='ok'||x.stopping)process.exit(1)})"
+          curl -fsS http://127.0.0.1:8080/ready | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.project!=='Moo-Quest'||x.ready!==true)process.exit(1)})"
           node tools/check-node-spawn.mjs
           node tools/check-clan-api.mjs
           # Native client joins the SAME server with the SAME generated build.
