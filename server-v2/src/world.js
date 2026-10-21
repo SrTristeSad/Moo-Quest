@@ -212,6 +212,12 @@ export class World {
     if(allow&&!p.team){tribe.members.add(p.id);p.team=owner.team;this.events.push({kind:'tribe_joined',name:p.team,sid:p.sid});}
     return true;
   }
+  structureCount(ownerSid,itemId){
+    const group=RECIPES[itemId]?.group;
+    if(group===undefined)return null;
+    return {group,count:[...this.structures.values()].filter(o=>
+      o.owner===ownerSid&&RECIPES[o.id]?.group===group).length};
+  }
   place(id,itemId){
     const p=this.players.get(id),recipe=RECIPES[itemId];
     if(!p||p.hp<=0||!recipe||!p.inventory.items.includes(itemId)||p.buildIndex!==itemId)return false;
@@ -444,9 +450,13 @@ export class World {
     for(const p of this.players.values()){
       if(p.hp===0&&p.deadUntil&&at>=p.deadUntil&&!p.native)this.respawn(p.id);
       if(p.hp<=0)continue;
-      const x=Math.max(24,Math.min(this.size-24,p.x+p.vx*250*step));
-      const y=Math.max(24,Math.min(this.size-24,p.y+p.vy*250*step));
-      const blocking=[...this.structures.values()].some(o=>o.id===3&&Math.hypot(x-o.x,y-o.y)<o.scale+30);
+      const boosted=[...this.structures.values()].some(o=>o.id===16&&
+        Math.hypot(p.x-o.x,p.y-o.y)<o.scale+32);
+      const speed=at<p.rootedUntil?0:250*(boosted?1.5:1);
+      const x=Math.max(24,Math.min(this.size-24,p.x+p.vx*speed*step));
+      const y=Math.max(24,Math.min(this.size-24,p.y+p.vy*speed*step));
+      const blocking=[...this.structures.values()].some(o=>[3,4,5].includes(o.id)&&
+        Math.hypot(x-o.x,y-o.y)<o.scale+30);
       if(!blocking){p.x=x;p.y=y;}
       for(const trap of this.structures.values()){
         if(![6,7].includes(trap.id))continue;
@@ -466,10 +476,42 @@ export class World {
         }
         break;
       }
-      // Passive score from placed resource generators, authoritative clock.
-      if(this.tickNumber%30===0){
-        const amount=[...this.structures.values()].filter(o=>[10,11].includes(o.id)&&o.owner===p.sid).length;
-        if(amount){p.resources.points+=amount;p.score+=amount;this.events.push({kind:'income',player:p.id,amount});}
+      // Healing pads only affect living owners and tribe allies. Pit traps
+      // immobilize hostile players for a bounded interval; per-trap cooldown
+      // prevents repeated activation every simulation tick.
+      for(const pad of this.structures.values()){
+        const spec=RECIPES[pad.id];
+        if(!spec || (!spec.pit && !spec.heal))continue;
+        if(Math.hypot(p.x-pad.x,p.y-pad.y)>pad.scale+24)continue;
+        const owner=[...this.players.values()].find(other=>other.sid===pad.owner);
+        const ally=pad.owner===p.sid||Boolean(p.team&&owner?.team===p.team);
+        if(spec.pit&&!ally){
+          pad.trapCooldown??=new Map();
+          if(at>=(pad.trapCooldown.get(p.id)||0)){
+            pad.trapCooldown.set(p.id,at+4000);
+            p.rootedUntil=Math.max(p.rootedUntil,at+1200);
+            this.events.push({kind:'trap',player:p.id,sid:pad.sid,until:p.rootedUntil});
+          }
+        }
+        if(spec.heal&&ally&&p.hp<p.maxHp&&at>=p.nextHealAt){
+          const amount=Math.min(spec.heal,p.maxHp-p.hp);
+          p.hp+=amount;p.nextHealAt=at+1000;
+          this.events.push({kind:'heal',player:p.id,sid:p.sid,amount,hp:p.hp,x:p.x,y:p.y});
+        }
+      }
+      // Resource generators use elapsed wall-clock time, not the number of
+      // ticks a VPS happens to execute. Keep fractional output and bound
+      // a single delayed tick to five seconds of accrual (no idle farming).
+      const elapsed=Math.max(0,Math.min(5,(at-p.lastGeneratorAt)/1000));
+      p.lastGeneratorAt=at;
+      const rate=[...this.structures.values()].reduce((sum,o)=>
+        sum+(o.owner===p.sid?(RECIPES[o.id]?.pps||0):0),0);
+      p.generatorRemainder+=elapsed*rate;
+      const income=Math.floor(p.generatorRemainder);
+      if(income>0){
+        p.generatorRemainder-=income;
+        p.resources.points+=income;p.score+=income;
+        this.events.push({kind:'income',player:p.id,amount:income});
       }
     }
     this.fireTurrets(at);
