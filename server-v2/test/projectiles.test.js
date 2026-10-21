@@ -92,6 +92,8 @@ test('walls intercept arrows, protect their own team and can be destroyed by ene
 test('arrows expire without clients setting the projectile damage or travel range',()=>{
   const {w,shooter}=scenario();
   shooter.inventory.weapons.push(9);w.select(shooter.id,9,true);
+  const victim=[...w.players.values()].find(p=>p!==shooter);
+  victim.x=14000;victim.y=14000;
   assert.equal(w.attack(shooter.id),true);
   const sid=[...w.projectiles.keys()][0];
   for(let n=0;n<12;n++)w.tick(0.1);
