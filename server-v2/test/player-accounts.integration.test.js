@@ -131,7 +131,11 @@ test('PostgreSQL player account + Redis token protects persistent progress acros
   assert.equal(restored.hp,78);
   assert.equal(restored.hat,57);
   assert.ok(restored.inventory.items.includes(16));
-  assert.ok(second.packets.some(x=>x.name==='5'&&x.args[1]===57));
+  const unlockDeadline=Date.now()+1500;
+  while(!second.packets.some(x=>x.name==='5'&&x.args[1]===57)
+    &&Date.now()<unlockDeadline)await sleep(10);
+  assert.ok(second.packets.some(x=>x.name==='5'&&x.args[1]===57),
+    'Lua storefront unlock must arrive after the C spawn packet');
   assert.equal((await post('/api/account/logout',{},head)).status,200);
   assert.equal((await post('/api/join',request,head)).status,401);
 });
