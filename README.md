@@ -184,3 +184,43 @@ Arquivos principais atualizados:
 `INICIAR-WINDOWS.bat` para conferir menu, Play, PNGs, rios, arma e
 contadores numa partida. Envie o texto `RELATORIO-TESTES-LUA.txt`
 se os testes indicarem falhas. O porte completo 1:1 segue em andamento.
+
+## Atualizacao: Play, Entrar e Cadastrar testados contra o Node (21/10/2026)
+
+A captura de tela do usuario mostrava a tela de entrada com `Connection: Ready`,
+mas sem acesso a conta e sem uma forma comprovada de passar para a partida.
+
+**Resolvido e validado por GitHub Actions:**
+- A tela de entrada agora tem controles **Entrar**, **Cadastrar** e **Sair**
+  (no painel direito), alem da entrada como convidado via Play.
+- Ambos os botoes de conta usam os endpoints ja existentes do servidor
+  reconstruido: `POST /api/auth/code` e `POST /api/auth/verify`.
+  Depois da validacao, o cliente reabre a sessao Node com `auth` em
+  `POST /api/join`; o WebSocket recebe um ticket vinculado a conta.
+- Os controles e o Enter acionam o mesmo fluxo `Original:spawn()` do
+  protocolo original. Mensagens de aguardando conexao/partida sao visiveis.
+- O workflow `.github/workflows/node-spawn.yml` instala o Node original
+  fixado, o LÖVE 11.5 e os PNGs apenas no runner temporario; em seguida
+  verifica **cinco jornadas reais**: autenticacao e spawn Node via JS,
+  Lua convidado direto, Lua conta direta, Play via interface,
+  Entrar->Play via interface e Cadastrar->Play via interface.
+  Os testes exigem `M -> C -> D` verdadeiros e executam o
+  `View.draw` e o HUD grafico, nao apenas mocks de rede.
+- `.github/workflows/lua-tests.yml` e `love-smoke.yml` verificam
+  os modulos (inclusive `tests/local_auth.lua` e os alvos clicaveis
+  de `tests/reference_menu.lua`).
+
+**Seguranca:** A API do upstream e um **simulador local**, nao um servico
+real de autenticacao: `/auth/code` cria contas automaticamente a partir do
+email e `/auth/verify` aceita QUALQUER codigo de seis digitos sem enviar
+email. O cliente deixa isso explicito. **Nao use esse metodo em servidor
+publico ou com dados pessoais reais**. Implementar cadastro e login
+seguros para producao requer um backend de contas apropriado e autorizacao
+para alterar essa parte do servidor. Tokens ficam apenas em memoria do
+processo do cliente Lua.
+
+**Escopo:** Os testes comprovam o percurso no Linux/headless com o servidor
+local fixado; Windows ainda deve ser conferido no computador do usuario.
+O cliente continua incompleto visualmente em relacao a todos os menus do
+original. As artes terceirizadas so sao sincronizadas localmente,
+nao incluídas em commits.
