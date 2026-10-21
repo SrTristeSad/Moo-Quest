@@ -84,6 +84,26 @@ Com isso, dos **seis pacotes** anteriormente marcados sem tratamento,
 `F` (estatísticas) e `p` (perfil) a integrar na interface.
 Esta etapa não equivale a paridade 1:1 do jogo inteiro.
 
+## Progresso subsequente — perfis e estatísticas reais `V → p/F` (PR #12)
+
+- O cliente envia `V(sid)` somente após a escolha de um jogador ou ao
+  abrir o próprio perfil pela tecla **P**. O Node retorna o JSON `p` e
+  as estatísticas numéricas `F`. Clicar no placar usa os SIDs do pacote
+  autoritativo `G`, sem criar jogadores inexistentes.
+- `world_state.lua` interpreta a estrutura de `p` com o decodificador
+  JSON seguro existente e `F` com os 13 campos reais do Node. Somente
+  dados recebidos do servidor aparecem na janela. Perfis anônimos e
+  convidados respeitam a filtragem aplicada pelo Node. IDs internos de
+  convidados destinados à moderação não são exibidos.
+- Ao fechar, o cliente envia `V(-1)` para encerrar o acompanhamento
+  no servidor. A janela tem prioridade de entrada para evitar ataques
+  ao clicar e preserva loja, clãs, chat e efeitos de combate.
+- Os testes verificam a estrutura das respostas, validações, privacidade,
+  a seleção de SIDs do placar e pixels do painel no LÖVE.
+- Esta etapa fecha as lacunas `p` e `F` do inventário de pacotes, **mas
+  não é prova de paridade total** das interfaces, do mapa, da economia
+  ou da jogabilidade no Windows.
+
 ## Critério objetivo para chamar 1:1
 
 Todos os fluxos do escopo original aplicável têm controle correspondente, visual correspondente, evento Node validado, teste automatizado específico e evidência de execução manual lado a lado. **Um PR com 7 workflows verdes não é equivalente a paridade 1:1.**

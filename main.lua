@@ -12,6 +12,7 @@ local Panels=require("src.game.reference_panels")
 local Clans=require("src.game.account_clans")
 local Death=require("src.game.reference_death")
 local Notices=require("src.game.reference_notices")
+local Profile=require("src.game.reference_profile")
 local Upgrades=require("src.game.reference_upgrades")
 local Assets=require("src.game.reference_assets")
 local Camera=require("src.camera")
@@ -30,6 +31,7 @@ local camera=nil
 local menuCamera=nil
 local menu=Menu.new()
 local panels=Panels.new()
+local profile=Profile.new()
 local clans=Clans.new()
 local death=Death.new()
 local phase="menu"
@@ -142,6 +144,7 @@ function love.update(dt)
       world:apply(packet.name,packet.args)
       serverPackets=serverPackets+1
       if packet.name=="C" then
+        profile:close()
         panels:reset()
         clans:close()
         death:reset()
@@ -170,6 +173,12 @@ function love.update(dt)
           end
         end
       elseif packet.name=="P" then
+        -- No stale profile selection after death; stop the real Node's
+        -- watchStats stream instead of just concealing the local overlay.
+        if profile:isOpen() then
+          profile:close()
+          client:send("V",{-1})
+        end
         -- Match killPlayer() in the browser: hide the HUD, show "YOU DIED"
         -- over the live world, then reveal the usual Play screen after 3s.
         panels:reset()
@@ -331,10 +340,11 @@ function love.draw()
       {showGrid=menu.grid,
        localAim=View.localAim(lockDir,currentAttackDir(),lastAim)})
     Hud.draw(world,chatOpen,chatDraft,
-      chatOpen or panels:isOpen() or clans:isOpen())
+      chatOpen or panels:isOpen() or clans:isOpen() or profile:isOpen())
     panels:draw(world)
     clans:draw(true)
     Notices.draw(world,w,h)
+    profile:draw(world)
     if uiSmoke and uiSmokeClicked and not uiSmokeDrawn then
       uiSmokeDrawn=true
       print("UI E2E PASS: Play click -> original C/D -> graphical View + HUD rendered")
@@ -479,8 +489,40 @@ menuAction=function(action)
   return false
 end
 
+-- The profile is read-only: both opening and closing use Node V packets.
+-- A local modal NEVER gives the client authority to create account stats.
+local function closeProfile()
+  if not profile:isOpen() then return end
+  profile:close()
+  if client and client.state=="spawn_confirmed" then
+    client:send("V",{-1})
+  end
+end
+local function openProfile(sid)
+  if type(sid)~="number" or sid<0 or sid%1~=0
+    or not client or client.state~="spawn_confirmed" then return false end
+  local ok,err=client:send("V",{sid})
+  if not ok then
+    latestEvent="Perfil indisponivel: "..tostring(err)
+    return false
+  end
+  profile:open(sid)
+  panels:close()
+  clans:close()
+  chatOpen=false;chatDraft=""
+  input.keys={};lastMove=false
+  mouseAttack=false;spaceAttack=false
+  client:send("e",{})
+  client:send("F",{0,Pack.null})
+  return true
+end
+
 function love.keypressed(key)
   if phase=="death" then return end
+  if profile:isOpen() then
+    if key=="escape" or key=="p" then closeProfile() end
+    return
+  end
   if clans:isOpen() then
     clans:keypressed(key)
     return
@@ -547,6 +589,10 @@ function love.keypressed(key)
   input:keypressed(key)
   -- Mirror the reference client's default gameplay bindings.
   if client and client.state=="spawn_confirmed" and not died then
+    if key=="p" and world.sid then
+      openProfile(world.sid)
+      return
+    end
     if key=="e" then client:send("K",{1});return end
     if key=="x" then
       local ok=client:send("K",{0})
@@ -644,6 +690,11 @@ function love.mousepressed(x,y,button)
   if not client or client.state~="spawn_confirmed" or died then return end
   if button==1 then
     local w,h=love.graphics.getDimensions()
+    if profile:isOpen() then
+      local consumed,closed=profile:click(x,y,w,h)
+      if closed then client:send("V",{-1}) end
+      if consumed then return end
+    end
     if clans:click(x,y,w,h,true,client and client.authToken) then
       if clans:isOpen() and panels:isOpen() then panels:close() end
       -- Keep the permanent Clan window exclusive with Shop and Tribe,
@@ -683,6 +734,11 @@ function love.mousepressed(x,y,button)
     end
     if panels:isOpen() then return end
     if chatOpen then return end
+    local profileSid=Hud.leaderboardHitTest(world,w,x,y)
+    if profileSid~=nil then
+      openProfile(profileSid)
+      return
+    end
     if Hud.mapHitTest(w,h,x,y) then
       client:send("S",{1})
       return

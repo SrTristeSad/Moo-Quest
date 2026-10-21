@@ -7,6 +7,7 @@ local CombatText=require("src.game.reference_combat_text")
 local BossEffects=require("src.game.reference_boss_effects")
 local Animals=require("src.game.animals")
 local Store=require("src.game.store_catalog")
+local JSON=require("src.net.json")
 local function freeStore()
   local owned={hats={},accessories={},hatIndex=0,accessoryIndex=0}
   for _,h in ipairs(Store.hats) do
@@ -39,6 +40,7 @@ function World.new()
     resources={},resourceGain={},itemCounts={},inventory={weapons={},items={}},leaderboard={},
     combatText={},bossEffects={},
     updateSeconds=nil,restartSeconds=nil,pongCount=0,
+    profiles={},lifeStats={},
     xp=0,maxXP=0,age=1,upgradePoints=0,upgradeAge=0,
     minimapData={},mapPings={},mapMarker=nil,lastDeath=nil,
     serverAnimals={},teams={},tribe=nil,tribeOwner=false,tribeMembers={},joinRequests={},
@@ -150,6 +152,9 @@ function World:apply(name,args)
     self.itemCounts={}
     self.combatText={}
     self.bossEffects={}
+    -- Stats/profiles belong to server SIDs from this session, never a
+    -- local estimate inferred from kills, damage text, or resource totals.
+    self.profiles={};self.lifeStats={}
     return true
   elseif name=="D" then
     -- [id,sid,name,x,y,dir,health,maxHealth,scale,skinColor,...]
@@ -395,6 +400,46 @@ function World:apply(name,args)
   elseif name=="U" then
     if number(args[1]) then self.upgradePoints=args[1] end
     if number(args[2]) then self.upgradeAge=args[2] end
+    return true
+  elseif name=="p" then
+    -- Server sendProfile(viewer,sid): JSON-string, not a Lua table.
+    -- Parse with the existing bounded, non-evaluating JSON decoder.
+    local sid,raw=args[1],args[2]
+    if not validId(sid) or type(raw)~="string" or #raw>32768 then
+      return false
+    end
+    local profile=JSON.decode(raw)
+    if type(profile)~="table" or type(profile.name)~="string"
+      or #profile.name>80 then return false end
+    -- Keep only the fields displayed by the native profile card.
+    -- Never bypass the Node's anonymous / guest privacy decisions.
+    self.profiles[sid]={
+      name=profile.name,guest=profile.guest==true,anon=profile.anon==true,
+      role=type(profile.role)=="string" and profile.role or nil,
+      clan=type(profile.clan)=="table" and
+        type(profile.clan.name)=="string" and profile.clan.name or nil,
+      kills=number(profile.kills) and profile.kills or nil,
+      deaths=number(profile.deaths) and profile.deaths or nil,
+      bestScore=number(profile.bestScore) and profile.bestScore or nil,
+      lives=number(profile.lives) and profile.lives or nil,
+      playtime=number(profile.playtime) and profile.playtime or nil
+    }
+    return true
+  elseif name=="F" then
+    -- Node sendStats(viewer,sid): 13 flat arguments, never a map.
+    local sid=args[1]
+    if not validId(sid) then return false end
+    local fields={"kills","wood","food","stone","gold","damage",
+      "animalDamage","healing","animals","bosses"}
+    local stats={}
+    for i,field in ipairs(fields) do
+      if not number(args[i+1]) or args[i+1]<0 then return false end
+      stats[field]=args[i+1]
+    end
+    if not number(args[13]) or args[13]<0 then return false end
+    stats.score=args[13]
+    -- Guest account IDs are privileged data; do not expose on the card.
+    self.lifeStats[sid]=stats
     return true
   elseif name=="G" then
     local list=array(args[1]);self.leaderboard={}
