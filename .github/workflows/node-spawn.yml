@@ -30,6 +30,10 @@ jobs:
           cp support/local-anticheat-config.js node-runtime/server/src/anticheat/config.js
           cd node-runtime
           npm install --omit=dev --no-audit --no-fund
+      - name: Install LÖVE 2D, LuaSocket and headless display for true client E2E
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y love lua-socket xvfb xauth libgl1-mesa-dri
       - name: Boot unmodified Node game logic and require real C after M
         run: |
           set -eu
@@ -46,3 +50,11 @@ jobs:
           done
           test "$ready" -eq 1
           node tools/check-node-spawn.mjs
+          echo "Run REAL Lua guest connection to Node via LÖVE"
+          SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
+            MOOQUEST_INTEGRATION=guest \
+            xvfb-run -a -s "-screen 0 1280x720x24" love .
+          echo "Run REAL Lua local account connection to Node via LÖVE"
+          SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
+            MOOQUEST_INTEGRATION=account \
+            xvfb-run -a -s "-screen 0 1280x720x24" love .
