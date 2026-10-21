@@ -208,6 +208,27 @@ podiam desaparecer enquanto parte da arte ainda estava na tela.
   foi modificada. **Os testes gráficos não substituem uma comparação
   manual integral do cliente original no Windows.**
 
+## Progresso subsequente — interação real da loja e foco das janelas (PR #17)
+
+- **Defeito de foco:** `main.lua` abria chat com `Enter` mesmo quando
+  a loja ou a janela de tribo estava aberta. O chat ficava atrás da janela
+  e recebia entrada de teclado indevidamente. O tratamento de teclas do
+  painel agora acontece **antes** do atalho de chat; Esc e teclas de
+  paginação continuam operando normalmente.
+- **Tooltip que faltava:** o JavaScript do jogo usa `onmouseover` e
+  `onmouseout` em todas as linhas da loja para apresentar a descrição
+  do equipamento. Agora `reference_panels.lua::hover` acompanha o
+  ponteiro, respeita somente as linhas inteiramente visíveis e limpa a
+  descrição ao sair da linha, navegar ou trocar de aba.
+- O clique de loja mantém o protocolo exato `c(action,id,isAccessory)`.
+  **Não há simulação local de compras, saldo, desbloqueios ou equipe**;
+  só o Node responde com `5` e `N`.
+- Testes cobrem os dois catálogos reais (chapéus e acessórios), o espaço
+  entre as linhas, a linha cortada, páginas, troca de abas, Enter e
+  a ausência de mutações financeiras durante a interação de hover.
+- A aparência e os efeitos de todos os equipamentos, HUD, chefe,
+  combate, animações e mapas não foram alterados.
+
 ## Critério objetivo para chamar 1:1
 
 Todos os fluxos do escopo original aplicável têm controle correspondente, visual correspondente, evento Node validado, teste automatizado específico e evidência de execução manual lado a lado. **Um PR com 7 workflows verdes não é equivalente a paridade 1:1.**
