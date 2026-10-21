@@ -34,7 +34,8 @@ async function launch(t){
   const playerTokens=new RedisPlayerTokens(redis,{prefix});
   const updates=new Updates(temp,store.dir,{manifestURL:null,publicKeyFile:null});
   const app=createHTTP({root,storage:store,auth,updates,accounts,playerTokens,httpsCookies:false});
-  const game=new GameServer(app.server,store,new RedisTickets(redis,{prefix}),{accounts});
+  const game=new GameServer(app.server,store,new RedisTickets(redis,{prefix}),
+    {accounts,reservedClanTags:await accounts.listClanTags()});
   app.setGame(game);
   await new Promise(r=>app.server.listen(0,'127.0.0.1',r));
   game.start();
@@ -78,7 +79,7 @@ async function enter(base,ticket,name='ClaimedWithoutProof'){
   const until=Date.now()+4000;
   while(!packets.some(p=>p.name==='C')&&Date.now()<until)await sleep(10);
   assert.ok(packets.some(p=>p.name==='C'),'native handshake completed');
-  return {ws,packets};
+  return {ws,packets,send:(name,args,seq)=>ws.send(session.makeTestRequest(name,args,seq))};
 }
 
 test('PostgreSQL player account + Redis token protects persistent progress across native reconnects',async t=>{
@@ -112,6 +113,20 @@ test('PostgreSQL player account + Redis token protects persistent progress acros
   assert.equal(p.accountId,registered.id);
   p.resources.wood=87;p.resources.points=300;p.xp=13;p.age=4;p.hp=78;
   p.ownedHats.add(57);p.hat=57;p.inventory.items.push(16);
+  // Place a real construction via server rules, not by forging a SQL row.
+  const spot=(()=>{
+    for(let x=500;x<game.room.size-500;x+=300)
+      for(let y=500;y<game.room.size-500;y+=300){
+        if(Math.abs(y-game.room.size/2)<700)continue;
+        if([...game.room.resources.values()].every(o=>
+          Math.hypot(x-o.x,y-o.y)>o.scale+140))return {x,y};
+      }
+  })();
+  assert.ok(spot,'free map geometry for a real construction');
+  p.x=spot.x-95;p.y=spot.y;p.angle=0;
+  game.room.select(p.id,3,false);
+  assert.equal(game.room.place(p.id,3),true);
+  assert.ok([...game.room.structures.values()].some(o=>o.owner===p.sid));
   first.ws.close();
   await new Promise(resolve=>first.ws.once('close',resolve));
   const deadline=Date.now()+3000;
@@ -120,6 +135,8 @@ test('PostgreSQL player account + Redis token protects persistent progress acros
   const persisted=await accounts.load(registered.id);
   assert.equal(persisted.profile.resources.wood,87);
   assert.equal(persisted.profile.hat,57);
+  assert.equal(persisted.profile.structures.length,1);
+  assert.equal(persisted.profile.structures[0].id,3);
   join=await (await post('/api/join',request,head)).json();
   const second=await enter(base,join.ticket);
   t.after(()=>second.ws.terminate());
@@ -131,6 +148,8 @@ test('PostgreSQL player account + Redis token protects persistent progress acros
   assert.equal(restored.hp,78);
   assert.equal(restored.hat,57);
   assert.ok(restored.inventory.items.includes(16));
+  assert.equal([...game.room.structures.values()].filter(o=>o.owner===restored.sid).length,1);
+  assert.ok([...game.room.structures.values()].some(o=>o.owner===restored.sid&&o.id===3));
   const unlockDeadline=Date.now()+1500;
   while(!second.packets.some(x=>x.name==='5'&&x.args[1]===57)
     &&Date.now()<unlockDeadline)await sleep(10);
