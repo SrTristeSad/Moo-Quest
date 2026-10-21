@@ -224,3 +224,52 @@ local fixado; Windows ainda deve ser conferido no computador do usuario.
 O cliente continua incompleto visualmente em relacao a todos os menus do
 original. As artes terceirizadas so sao sincronizadas localmente,
 nao incluídas em commits.
+
+## Correcao do menu e build local (captura de 21/10/2026)
+
+O erro da captura era `Connection: blocked` apos `io-init`, porque o
+cliente nao encontrava `protocol-build.json` no endereco definido por
+`MOOQUEST_BUILD_FILE`. **Nao era uma falha de login nem algo que o Play
+pudesse contornar.** A instalacao de referencia gera parametros novos no
+Node, e o cliente deve usar precisamente a versao da sessao ativa.
+
+- `src/protocol/original_build.lua` procura nos caminhos explicitamente
+  fornecidos (`MOOQUEST_BUILD_FILE`, `PROTOCOL_BUILD_FILE`, `DATA_DIR`,
+  `MOOQUEST_SERVER_DIR`) e no diretorio da instalacao LÖVE/Node.
+  Caminhos inexistentes nao impedem tentar as outras opcoes, mas builds
+  diferentes do valor publicado por `/ping` **sao rejeitados**.
+- `tools/resolve-local-build.mjs` verifica localmente o ID real de
+  `/ping`, localiza somente o JSON correspondente e entrega seu caminho
+  ao `INICIAR-WINDOWS.bat`. O iniciador para antes de abrir o LÖVE se
+  houver outra copia do Node operando na porta 8080 e nenhum build local
+  correspondente; **nao inventa chaves nem desativa autenticacao**.
+- O menu mostra um status curto e uma dica objetiva no painel do servidor.
+  A explicacao tecnica com caminho absoluto so aparece ao tocar
+  `Detalhes`, numa area separada. `Entrar`, `Cadastrar`, email e
+  codigo mantem seus proprios controles sem sobreposicao.
+- `Play` fica cinza/indisponivel durante `blocked`, `failed` e
+  `connecting`, e verde quando o WebSocket autenticado fica pronto.
+  O clique e a tecla Enter compartilham a mesma regra, consultando o
+  estado **atual da rede**, nao o da tela anterior.
+- `tests/build_lookup.lua` simula build ausente, antigo e correto;
+  `tests/reference_menu.lua` verifica os estados de Play, botao Detalhes
+  e os alvos dos formularios.
+- `.github/workflows/node-spawn.yml` testa o resolvedor no Node real
+  antes da entrada Lua, inclusive com `MOOQUEST_BUILD_FILE` errado.
+  `.github/workflows/windows-build.yml` verifica o caminho gerado pelo
+  servidor original em um runner **Windows**, independente dos testes LÖVE
+  em Linux.
+
+**Como testar no seu PC:** Feche **as janelas antigas do servidor Node.js**
+da copia anterior; depois execute o `INICIAR-WINDOWS.bat` atualizado.
+Mantenha a pasta `node-runtime` que ja possui, para nao refazer o download.
+Se o servidor for externo ou tiver `DATA_DIR` proprio, configure
+`MOOQUEST_BUILD_FILE` com o arquivo JSON gerado por aquele mesmo Node.
+Se o iniciador nao achar uma versao correspondente, ele mostra a falha
+no console **antes** de iniciar o cliente, evitando horas na tela
+`Connection: blocked`.
+
+**Nao foi criada nenhuma mecanica de jogo nem arte nova.** As contas do
+servidor reconstruido continuam apenas locais/de teste e nao constituem
+autenticacao segura para producao. Paridade visual de todas as telas do
+cliente original continua em desenvolvimento.
