@@ -111,8 +111,10 @@ local function boundaries(camera,w,h)
   if y1<h then love.graphics.rectangle("fill",0,math.max(0,y1),w,h-math.max(0,y1)) end
 end
 
-local function drawObjectLayer(world,camera,w,h,layer)
-  for _,o in pairs(world.objects) do
+local function drawObjectLayer(orderedObjects,camera,w,h,layer)
+  -- JS prepareObjectRenderLists fills buckets in objectManager ARRAY order.
+  -- No pairs(): that reorders overlapping sprites unpredictably in Lua.
+  for _,o in ipairs(orderedObjects) do
     if Objects.layer(o)==layer and see(o,camera,w,h,tonumber(o.scale) or 100) then
       local x,y=camera:worldToScreen(o.x,o.y)
       Objects.draw(o,x+(o.wiggleX or 0)*camera.zoom,
@@ -120,25 +122,40 @@ local function drawObjectLayer(world,camera,w,h,layer)
     end
   end
 end
+-- Packet X includes the projectile TYPE, not an image name or diameter.
+-- Resolve the actual source and dimensions from the original items list.
+-- Four types use original sprites; two are original Canvas circles.
+function View.projectileStyle(projectile)
+  if type(projectile)~="table" or type(projectile.indx)~="number"
+    or projectile.indx%1~=0 then return nil end
+  local spec=Catalog.projectiles[projectile.indx+1]
+  if not spec or type(spec.scale)~="number" then return nil end
+  return {
+    layer=projectile.layer or spec.layer or 0,
+    radius=spec.scale,
+    src=spec.src,
+    circle=not spec.src and spec.indx==1
+  }
+end
 local function drawProjectiles(world,camera,w,h,layer)
   for _,p in pairs(world.projectiles) do
-    if (p.layer or 0)==layer and see(p,camera,w,h,180) then
+    local spec=View.projectileStyle(p)
+    if spec and spec.layer==layer and
+      see(p,camera,w,h,spec.radius) then
       local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
-      local src=type(p.indx)=="number" and
-        Catalog.projectiles[p.indx+1] or nil
-      if src then
-        love.graphics.push()
-        love.graphics.translate(x,y)
-        love.graphics.rotate(p.dir or 0)
-        if src.src then
-          Assets.draw("weapons",src.src..".png",0,0,
-            (src.scale or 100)*camera.zoom,(src.scale or 100)*camera.zoom)
-        elseif src.indx==1 then
-          Shapes.circle(0,0,(src.scale or 20)*camera.zoom,
-            "#939393",Shapes.outline)
-        end
-        love.graphics.pop()
+      love.graphics.push("all")
+      love.graphics.translate(x,y)
+      love.graphics.rotate(p.dir or 0)
+      if spec.src then
+        -- The original drawImage uses (scale,scale) image dimensions;
+        -- no zoom is applied twice when rotating the actual source PNG.
+        Assets.draw("weapons",spec.src..".png",0,0,
+          spec.radius*camera.zoom,spec.radius*camera.zoom)
+      elseif spec.circle then
+        Shapes.circle(0,0,spec.radius*camera.zoom,
+          "#939393",Shapes.outline)
       end
+      love.graphics.pop()
     end
   end
 end
@@ -435,7 +452,8 @@ function View.draw(world,camera,dt,options)
   -- Show server-defined attack areas on the ground, below animals/players.
   -- This makes the imminent boss hit visible without changing collisions.
   BossEffects.draw(world.bossEffects,camera)
-  drawObjectLayer(world,camera,w,h,-1)
+  local objects=world.orderedObjects and world:orderedObjects() or {}
+  drawObjectLayer(objects,camera,w,h,-1)
   drawProjectiles(world,camera,w,h,0)
   for _,p in pairs(world.players) do
     if (p.zIndex or 0)==0 and p.x and p.y and p.invisible~=1
@@ -445,15 +463,15 @@ function View.draw(world,camera,dt,options)
     local kind=world and world:animalKind(a.index) or Animals.byId(a.index)
     if kind and see(a,camera,w,h,kind.scale*2.4) then renderAnimal(a,camera,world) end
   end
-  drawObjectLayer(world,camera,w,h,0)
+  drawObjectLayer(objects,camera,w,h,0)
   drawProjectiles(world,camera,w,h,1)
-  drawObjectLayer(world,camera,w,h,1)
+  drawObjectLayer(objects,camera,w,h,1)
   for _,p in pairs(world.players) do
     if (p.zIndex or 0)==1 and p.x and p.y and p.invisible~=1
       and see(p,camera,w,h) then drawPlayer(p,camera,dt or 0,aimFor(p)) end
   end
-  drawObjectLayer(world,camera,w,h,2)
-  drawObjectLayer(world,camera,w,h,3)
+  drawObjectLayer(objects,camera,w,h,2)
+  drawObjectLayer(objects,camera,w,h,3)
   boundaries(camera,w,h)
   -- The JS reference composites this violet-blue tint after game objects
   -- and before world labels, not over the HTML/CSS HUD.
