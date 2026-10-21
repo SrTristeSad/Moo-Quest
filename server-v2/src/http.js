@@ -1,6 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { requestIdentity } from './request-identity.js';
 import { passwordHash, passwordMatches, cookieToken, cookieHeader } from './auth.js';
 const MIME = { css: 'text/css; charset=utf-8', js: 'application/javascript; charset=utf-8',
   html: 'text/html; charset=utf-8' };
@@ -60,7 +61,7 @@ export function createHTTP({ root, storage, auth, updates, game = null,
   accounts=null,playerTokens=null,stopStatus = () => false,
   httpsCookies = process.env.MOO_PUBLIC_HTTPS === '1' }) {
   const publicDir = path.join(root, 'public');
-  const rateKey = req => req.socket.remoteAddress || 'unknown';
+  const rateKey = req => requestIdentity(req).address;
   let gameRef = game;
   const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -94,6 +95,8 @@ export function createHTTP({ root, storage, auth, updates, game = null,
         if(!installed||!accounts||!playerTokens)return respond(res,503,{error:'accounts_unavailable'});
         if(req.method==='POST'&&pathname==='/api/account/register'){
           if(!storage.data.settings.publicRegistration)return respond(res,403,{error:'registration_disabled'});
+          if(!(await auth.allowRegistration(rateKey(req))))
+            return respond(res,429,{error:'registration_rate_limited'});
           const body=await readBody(req);
           const result=await accounts.register(body.username,body.password);
           return respond(res,201,{id:result.id,username:result.username});
