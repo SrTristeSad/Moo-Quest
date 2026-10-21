@@ -36,13 +36,20 @@ export class PostgresStorage{
       payload JSONB NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
-    let initial=freshState();
-    if(this.importLegacy){
+    const existing=await this.pool.query('SELECT payload FROM mq_admin_state WHERE id=1');
+    if(existing.rowCount===0){
+      let initial=freshState();
       const legacy=path.join(this.dir,'config.json');
-      if(fs.existsSync(legacy))initial=validate(loadJSON(legacy,initial));
+      // Never silently create a new owner over an existing JSON installation:
+      // that would appear to erase the established admin credentials.
+      if(fs.existsSync(legacy)){
+        if(!this.importLegacy)throw new Error(
+          'Existing config.json detected: back up data, then set MOO_IMPORT_JSON=1 for first migration');
+        initial=validate(loadJSON(legacy,initial));
+      }
+      await this.pool.query('INSERT INTO mq_admin_state(id,payload) VALUES(1,$1::jsonb) ON CONFLICT (id) DO NOTHING',
+        [JSON.stringify(initial)]);
     }
-    await this.pool.query('INSERT INTO mq_admin_state(id,payload) VALUES(1,$1::jsonb) ON CONFLICT (id) DO NOTHING',
-      [JSON.stringify(initial)]);
     const rows=await this.pool.query('SELECT payload FROM mq_admin_state WHERE id=1');
     if(rows.rowCount!==1)throw new Error('PostgreSQL admin state unavailable');
     this.data=validate(rows.rows[0].payload);
@@ -65,6 +72,10 @@ export class PostgresStorage{
     this.data.audit.push({at:new Date().toISOString(),kind,...extra});
     if(this.data.audit.length>500)this.data.audit.splice(0,this.data.audit.length-500);
     return this.save();
+  }
+  async isHealthy(){
+    try { await this.pool.query('SELECT 1'); return true; }
+    catch { return false; }
   }
   async close(){
     await this.pending;
