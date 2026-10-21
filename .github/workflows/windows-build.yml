@@ -1,0 +1,75 @@
+name: Windows original build discovery
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-build-path:
+    name: Windows Node and protocol-build resolver
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Lua client only
+        uses: actions/checkout@v4
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Download pinned original Node server in runner workspace
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $sha = '06f7c1ca965a7628671676c8d9a7efd3997bb5e7'
+          $zip = Join-Path $env:RUNNER_TEMP "moomoo.zip"
+          $unpack = Join-Path $env:RUNNER_TEMP "moo-source"
+          Invoke-WebRequest -Uri "https://github.com/al007ex/moomoo-clone/archive/$sha.zip" -OutFile $zip
+          Expand-Archive -LiteralPath $zip -DestinationPath $unpack
+          Move-Item (Join-Path $unpack "moomoo-clone-$sha") node-runtime
+          Copy-Item support/local-anticheat-config.js node-runtime/server/src/anticheat/config.js
+          npm install --prefix node-runtime --omit=dev --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw "Original npm install failed" }
+      - name: Verify matching server-generated build from PowerShell and Windows paths
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $serverRoot = Join-Path (Get-Location) "node-runtime"
+          $stdout = Join-Path $env:RUNNER_TEMP "moomoo-node.stdout.log"
+          $stderr = Join-Path $env:RUNNER_TEMP "moomoo-node.stderr.log"
+          $proc = Start-Process -FilePath (Get-Command node).Source -ArgumentList 'server/src/index.js' -WorkingDirectory $serverRoot -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+          try {
+            $ready = $false
+            for ($i=0; $i -lt 80; $i++) {
+              try {
+                $ping=Invoke-RestMethod "http://127.0.0.1:8080/ping" -TimeoutSec 2
+                if ($ping.status -eq "ok" -and $ping.build) { $ready=$true; break }
+              } catch {}
+              Start-Sleep -Milliseconds 200
+            }
+            if (-not $ready) { throw "Original Node did not start" }
+            $expected = [IO.Path]::GetFullPath((Join-Path $serverRoot "server/data/protocol-build.json"))
+            if (-not (Test-Path $expected)) { throw "Node did not generate its protocol-build.json" }
+            $actual = (& node tools/resolve-local-build.mjs).Trim()
+            if ($LASTEXITCODE -ne 0 -or ([IO.Path]::GetFullPath($actual)) -ne $expected) {
+              throw "Resolver did not select the actual original Node build"
+            }
+            $env:MOOQUEST_BUILD_FILE = Join-Path $env:RUNNER_TEMP "stale-or-missing-build.json"
+            $recovered = (& node tools/resolve-local-build.mjs).Trim()
+            if ($LASTEXITCODE -ne 0 -or ([IO.Path]::GetFullPath($recovered)) -ne $expected) {
+              throw "Wrong environment path blocked recovery from the original server build"
+            }
+            if (-not ((Get-Content INICIAR-WINDOWS.bat -Raw).Contains("resolve-local-build.mjs"))) {
+              throw "Windows launcher is not wired to the resolver"
+            }
+            Write-Host "PASS: original Windows Node server build found and verified against /ping"
+            Write-Host "PASS: stale MOOQUEST_BUILD_FILE recovered without modifying Node files"
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            if (Test-Path $stdout) { Get-Content $stdout -Tail 30 }
+            if (Test-Path $stderr) { Get-Content $stderr -Tail 30 }
+          }
