@@ -253,6 +253,25 @@ export class World {
       points:p.upgradePoints,upgradeAge:p.upgradeAge});
     return true;
   }
+  // Shield absorption applies only to frontal incoming damage while the
+  // defensive equipment is selected. Client packets cannot set damage.
+  protectedDamage(target,raw,sourceX,sourceY){
+    let amount=raw;
+    const shield=WEAPONS[target.weaponIndex]?.shield;
+    if(shield&&Number.isFinite(sourceX)&&Number.isFinite(sourceY)){
+      const direction=Math.atan2(sourceY-target.y,sourceX-target.x);
+      if(Math.cos(direction-target.angle)>=0.25)
+        amount=Math.max(0,Math.round(raw*(1-shield)));
+    }
+    return amount;
+  }
+  spawnProjectile({owner,ownerSid,team,x,y,dir,range,speed,damage,type,layer=0,
+    sourceSid=null,ammo={}}){
+    const sid=this.nextProjectileSid++;
+    this.projectiles.set(sid,{sid,owner,ownerSid,team,x,y,dir,range,speed,damage,type,layer,sourceSid});
+    this.events.push({kind:'projectile_spawn',sid,player:owner,x,y,dir,range,speed,type,layer,ammo});
+    return sid;
+  }
   attack(id){
     const p=this.players.get(id),time=this.now();
     if(!p||p.hp<=0)return false;
@@ -264,16 +283,13 @@ export class World {
       if(!Object.entries(weapon.ammo).every(([k,v])=>p.resources[k]>=v))return false;
       for(const [k,v] of Object.entries(weapon.ammo))p.resources[k]-=v;
       p.lastAttack=time;
-      const sid=this.nextProjectileSid++;
       const x=p.x+Math.cos(p.angle)*46,y=p.y+Math.sin(p.angle)*46;
-      this.projectiles.set(sid,{sid,owner:p.id,ownerSid:p.sid,team:p.team,
-        x,y,dir:p.angle,range:weapon.range,speed:weapon.speed,
-        damage:weapon.damage,type:weapon.projectile,layer:0});
-      this.events.push({kind:'projectile_spawn',sid,player:p.id,x,y,dir:p.angle,
-        range:weapon.range,speed:weapon.speed,type:weapon.projectile,layer:0,
-        ammo:{...weapon.ammo}});
+      this.spawnProjectile({owner:p.id,ownerSid:p.sid,team:p.team,x,y,dir:p.angle,
+        range:weapon.range,speed:weapon.speed,damage:weapon.damage,
+        type:weapon.projectile,ammo:{...weapon.ammo}});
       return true;
     }
+    if(weapon.shield)return false; // Defensive selection cannot damage wildlife.
     p.lastAttack=time;
     let victim=null,distance=weapon.reach;
     for(const other of this.players.values()){
@@ -283,8 +299,9 @@ export class World {
       if(d<distance&&Math.cos(angle-p.angle)>=0.15){victim=other;distance=d;}
     }
     if(victim){
-      victim.hp=Math.max(0,victim.hp-weapon.damage);
-      this.events.push({kind:'hit',from:p.id,to:victim.id,damage:weapon.damage,hp:victim.hp,x:victim.x,y:victim.y});
+      const damage=this.protectedDamage(victim,weapon.damage,p.x,p.y);
+      victim.hp=Math.max(0,victim.hp-damage);
+      this.events.push({kind:'hit',from:p.id,to:victim.id,damage,hp:victim.hp,x:victim.x,y:victim.y});
       if(victim.hp===0){victim.deadUntil=time+3000;victim.vx=0;victim.vy=0;p.resources.kills++;p.score+=100;this.events.push({kind:'death',id:victim.id,killer:p.id});this.awardXp(p.id,40);}
       return true;
     }
@@ -398,8 +415,9 @@ export class World {
       a.y=Math.max(60,Math.min(this.size-60,a.y+Math.sin(a.dir)*speed));
       if(target&&best<80&&at>=a.nextAttack){
         a.nextAttack=at+1100;
-        target.hp=Math.max(0,target.hp-a.damage);
-        this.events.push({kind:'animal_attack',sid:a.sid,to:target.id,hp:target.hp,damage:a.damage,x:target.x,y:target.y});
+        const damage=this.protectedDamage(target,a.damage,a.x,a.y);
+        target.hp=Math.max(0,target.hp-damage);
+        this.events.push({kind:'animal_attack',sid:a.sid,to:target.id,hp:target.hp,damage,x:target.x,y:target.y});
         if(target.hp===0){target.deadUntil=at+3000;target.vx=0;target.vy=0;this.events.push({kind:'death',id:target.id});}
       }
     }
@@ -455,6 +473,9 @@ export class World {
         offer('animal',animal,segmentHit(arrow.x,arrow.y,nx,ny,animal.x,animal.y,42));
       }
       for(const structure of this.structures.values()){
+        // Automatic defenses must not collide with the structure from which
+        // their projectile originated, even at zero distance.
+        if(structure.sid===arrow.sourceSid)continue;
         offer('structure',structure,segmentHit(arrow.x,arrow.y,nx,ny,
           structure.x,structure.y,Math.max(15,structure.scale*0.6)));
       }
@@ -472,9 +493,10 @@ export class World {
         const {kind,target}=first;
         const shooter=this.players.get(arrow.owner);
         if(kind==='player'){
-          target.hp=Math.max(0,target.hp-arrow.damage);
+          const damage=this.protectedDamage(target,arrow.damage,arrow.x,arrow.y);
+          target.hp=Math.max(0,target.hp-damage);
           this.events.push({kind:'hit',from:arrow.owner,to:target.id,
-            damage:arrow.damage,hp:target.hp,x:target.x,y:target.y});
+            damage,hp:target.hp,x:target.x,y:target.y});
           if(target.hp===0){
             target.deadUntil=at+3000;target.vx=0;target.vy=0;
             if(shooter){shooter.resources.kills++;shooter.score+=100;this.awardXp(shooter.id,40);}
