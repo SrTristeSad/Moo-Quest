@@ -22,6 +22,9 @@ local Camera=require("src.camera")
 local Input=require("src.input")
 local Pack=require("src.protocol.msgpack")
 local client=nil
+-- Account credentials stay in RAM for this LÖVE session; never serialize
+-- refresh tokens to a readable config file or print them in UI/logs.
+local v2Session=nil
 local integration=nil
 local uiSmokeMode=os.getenv("MOOQUEST_UI_E2E")
 local uiSmoke=uiSmokeMode~=nil and #uiSmokeMode>0
@@ -85,6 +88,26 @@ local function backspaceUtf8(text)
   return text:sub(1,pos-1)
 end
 
+local function refreshV2Account()
+  if not v2Mode or not v2Session or not v2Session.refreshToken then
+    return nil,"Entre na conta novamente"
+  end
+  local updated,err=V2Accounts.refresh(v2Session.refreshToken)
+  if not updated then
+    if err=="invalid_refresh_token" or err=="account_unavailable" then
+      v2Session=nil
+      if client then client.authToken=nil end
+      menu.accountEmail=nil
+      clans:reset()
+    end
+    menu.status="Nao foi possivel renovar a sessao V2"
+    return nil,err
+  end
+  v2Session=updated
+  menu.accountEmail=updated.username
+  return updated
+end
+
 function love.load()
   love.graphics.setDefaultFilter("linear","linear")
   camera=Camera.new()
@@ -107,7 +130,8 @@ function love.load()
   local ok,result=pcall(Original.new,{host="127.0.0.1",port=8080,server="LC",autoSpawn=false,
     expectedBuild=v2Mode and "mqv2native" or nil,
     join=v2Mode and V2Join or nil,
-    nativeSession=v2Mode})
+    nativeSession=v2Mode,
+    authRefresh=v2Mode and refreshV2Account or nil})
   if not ok then
     startupError="Falha ao inicializar cliente de rede: "..tostring(result)
     return
@@ -467,6 +491,7 @@ local function accountAction(action)
       password=nil
       if not account then menu.authMessage=tostring(err);return end
       if not client then menu.authMessage="Cliente V2 indisponivel";return end
+      v2Session=account
       client.authToken=account.token
       clans:reset()
       menu.accountEmail=account.username
@@ -481,11 +506,13 @@ local function accountAction(action)
       return
     elseif action=="auth_logout" then
       if not client or not client.authToken then return end
-      local ok,err=V2Accounts.logout(client.authToken)
+      local ok,err=V2Accounts.logout(client.authToken,nil,
+        v2Session and v2Session.refreshToken)
       if not ok then
         menu.status="Nao foi possivel revogar sessao: "..tostring(err)
         return
       end
+      v2Session=nil
       client.authToken=nil
       clans:reset()
       menu.accountEmail=nil
