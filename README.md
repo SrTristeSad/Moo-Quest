@@ -12,14 +12,19 @@ sem gateway TCP alternativo nem entidades inventadas no Lua.
 Node conforme coleta e custo real. Veja [SERVER-ORIGIN.md](SERVER-ORIGIN.md)
 para as alteracoes e a licenca Apache 2.0 de origem.
 
-**Artes:** o arquivo original baixado tem **seis PNGs INVALIDOS**
-(`weapons/hammer_1.png`, `sword_1.png`, `dagger_1.png`, `samurai_1.png`,
-`hats/hat_14_p.png`, `hat_53_p.png`). Nao sao falhas do LÖVE.
-`tools/sync-reference-art.mjs` NAO copia esses arquivos quebrados,
-NAO sobrescreve uma arte valida sua e NAO inventa substitutos. Importe um
-martelo PNG valido da sua arte em
-`assets/custom/img/weapons/hammer_1.png` para poder iniciar jogando
-com a arma inicial visivel. O arquivo `ARTES-PENDENTES.txt` lista o restante.
+**Artes (corrigido):** os seis arquivos da referencia que pareciam
+"PNG corrompidos" sao na verdade **WebP validos armazenados com extensao
+.png**, inclusive `weapons/hammer_1.png` e `sword_1.png`.
+`tools/sync-reference-art.mjs` detecta a assinatura real e converte
+**automaticamente** WebP para PNG, preservando exatamente os pixels e o
+canal de transparencia originais (sem redesenhar nada). Caso falte a antiga
+pasta `node-runtime/client/public/img`, ele baixa a **referencia congelada
+diretamente do GitHub apenas para uso local** e recupera todos os 180
+sprites. Nao precisa criar outro martelo: ele agora e recuperado pelo
+preparador. `assets/custom/` continua prioritario para as artes que voce
+quiser trocar futuramente. `ARTES-PENDENTES.txt` informa apenas falhas
+**reais** de download/leitura/conversao, sem chamar imagens ausentes de
+corrompidas. Os PNGs e o ZIP temporario nao sao publicados no repositorio.
 
 Referencia do Node congelada: [commit 06f7c1c](https://github.com/al007ex/moomoo-clone/tree/06f7c1ca965a7628671676c8d9a7efd3997bb5e7).
 O servidor tem apenas configuracao de contas/anticheat **local de testes**;
@@ -49,16 +54,19 @@ Necessarios Node.js 20+ e LÖVE 2D 11.5.
 3. Execute `PREPARAR-SERVIDOR.bat` para instalar dependencias do servidor
    agora versionado em `server/`. O script copia dados antigos para
    `server/data/` somente quando ainda nao existe um estado novo.
-4. Confira `ARTES-PENDENTES.txt`: o upstream fornece um martelo corrompido.
-   Forneca `assets/custom/img/weapons/hammer_1.png` valido, de sua arte.
-   Enquanto a arma inicial for invalida, o iniciador para deliberadamente.
+4. O preparador procura os sprites que voce ja tem; se a pasta antiga
+   nao existir, baixa a referencia do GitHub e converte os seis WebPs
+   que estao com nome .png. **Nao precisa fornecer um martelo novo.**
+   O arquivo `ARTES-PENDENTES.txt` e um diagnostico para eventuais
+   falhas reais de rede/arquivos.
 5. Execute `INICIAR-WINDOWS.bat`. Ele identifica o servidor Moo-Quest
    pela rota `/mooquest/status` e recusa um Node antigo rodando em 8080.
    Ao iniciar o Lua, `Play` exige o handshake verdadeiro.
 6. `TESTAR-WINDOWS.bat` roda os testes unitarios do cliente.
 
-As artes nao sao incluidas no Git; outras 5 imagens da referencia tambem
-precisam ser substituidas antes de suas respectivas aparicoes no jogo.
+As artes nao sao incluidas no Git. Todas as **180 imagens originais**
+sao recuperadas ou reutilizadas localmente, incluindo as 6 WebP
+convertidas em PNG real automaticamente.
 
 Leia [docs/EXECUTAR-LOCAL.md](docs/EXECUTAR-LOCAL.md), [docs/REGRA-PRINCIPAL.md](docs/REGRA-PRINCIPAL.md) e [docs/PARIDADE.md](docs/PARIDADE.md).
 
