@@ -20,6 +20,52 @@ local function freeStore()
 end
 local World={}
 World.__index=World
+-- The original JS objectManager stores objects in an ARRAY and reuses
+-- the first inactive slot. Lua pairs(objects) has no stable paint order,
+-- so overlapping structures could unpredictably change their z-order.
+local function removeObject(world,sid)
+  world.objects[sid]=nil
+  local slot=world.objectSlotBySid[sid]
+  if slot then
+    world.objectSlots[slot]=false
+    world.objectSlotBySid[sid]=nil
+  end
+end
+local function insertObject(world,sid,obj)
+  local slot=world.objectSlotBySid[sid]
+  if not slot then
+    for i=1,world.objectSlotCount do
+      if world.objectSlots[i]==false then slot=i;break end
+    end
+    if not slot then
+      world.objectSlotCount=world.objectSlotCount+1
+      slot=world.objectSlotCount
+    end
+    world.objectSlotBySid[sid]=slot
+  end
+  world.objectSlots[slot]=sid
+  world.objects[sid]=obj
+end
+function World:orderedObjects()
+  local out,seen={},{}
+  for i=1,self.objectSlotCount do
+    local sid=self.objectSlots[i]
+    local o=sid and self.objects[sid]
+    if o then
+      out[#out+1]=o
+      seen[sid]=true
+    end
+  end
+  -- Menu mock objects are defined without Node H packets. Keep a stable
+  -- fallback order for them too, without modifying their visuals.
+  local tail={}
+  for sid,o in pairs(self.objects) do
+    if not seen[sid] then tail[#tail+1]={sid=sid,obj=o} end
+  end
+  table.sort(tail,function(a,b) return a.sid<b.sid end)
+  for _,v in ipairs(tail) do out[#out+1]=v.obj end
+  return out
+end
 local function number(v) return type(v)=="number" and v==v and v~=math.huge and v~=-math.huge end
 local function validId(v) return number(v) and v%1==0 and v>=0 end
 local function array(v) return type(v)=="table" and v or {} end
@@ -36,7 +82,9 @@ end
 
 function World.new()
   return setmetatable({
-    sid=nil,spawned=false,dead=false,players={},objects={},animals={},projectiles={},
+    sid=nil,spawned=false,dead=false,players={},objects={},
+    objectSlots={},objectSlotBySid={},objectSlotCount=0,
+    animals={},projectiles={},
     resources={},resourceGain={},itemCounts={},inventory={weapons={},items={}},leaderboard={},
     combatText={},bossEffects={},
     updateSeconds=nil,restartSeconds=nil,pongCount=0,
@@ -208,10 +256,10 @@ function World:apply(name,args)
     for i=1,#data-7,8 do
       local sid,x,y=data[i],data[i+1],data[i+2]
       if validId(sid) and number(x) and number(y) then
-        self.objects[sid]={sid=sid,x=x,y=y,dir=data[i+3],scale=data[i+4],
+        insertObject(self,sid,{sid=sid,x=x,y=y,dir=data[i+3],scale=data[i+4],
           type=data[i+5],
           id=type(data[i+6])=="number" and data[i+6] or nil,
-          owner=data[i+7]}
+          owner=data[i+7]})
       end
     end
     return true
@@ -304,7 +352,7 @@ function World:apply(name,args)
     end
     return true
   elseif name=="Q" then
-    if validId(args[1]) then self.objects[args[1]]=nil end
+    if validId(args[1]) then removeObject(self,args[1]) end
     return true
   elseif name=="O" then
     local p=self.players[args[1]]
@@ -321,7 +369,7 @@ function World:apply(name,args)
     local ownerSid=args[1]
     if validId(ownerSid) then
       for sid,o in pairs(self.objects) do
-        if o.owner==ownerSid then self.objects[sid]=nil end
+        if o.owner==ownerSid then removeObject(self,sid) end
       end
     end
     return true
