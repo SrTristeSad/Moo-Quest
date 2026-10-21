@@ -3,6 +3,17 @@
 local Catalog=require("src.game.catalog")
 local Animation=require("src.game.reference_animation")
 local Animals=require("src.game.animals")
+local Store=require("src.game.store_catalog")
+local function freeStore()
+  local owned={hats={},accessories={},hatIndex=0,accessoryIndex=0}
+  for _,h in ipairs(Store.hats) do
+    if h.price<=0 and not h.dontSell then owned.hats[h.id]=true end
+  end
+  for _,a in ipairs(Store.accessories) do
+    if a.price<=0 and not a.dontSell then owned.accessories[a.id]=true end
+  end
+  return owned
+end
 local World={}
 World.__index=World
 local function number(v) return type(v)=="number" and v==v and v~=math.huge and v~=-math.huge end
@@ -25,7 +36,8 @@ function World.new()
     resources={},resourceGain={},itemCounts={},inventory={weapons={},items={}},leaderboard={},
     xp=0,maxXP=0,age=1,upgradePoints=0,upgradeAge=0,
     minimapData={},mapPings={},mapMarker=nil,lastDeath=nil,
-    serverAnimals={},teams={},
+    serverAnimals={},teams={},tribe=nil,tribeOwner=false,tribeMembers={},joinRequests={},
+    store=freeStore(),
     packets=0,lastPacket=nil
   },World)
 end
@@ -53,7 +65,68 @@ function World:apply(name,args)
       end
       if next(received) then self.serverAnimals=received end
     end
-    if type(handshake.teams)=="table" then self.teams=handshake.teams end
+    if type(handshake.teams)=="table" then
+      self.teams={}
+      for _,team in ipairs(handshake.teams) do
+        if type(team)=="table" and type(team.sid)=="string" then
+          self.teams[#self.teams+1]={sid=team.sid,owner=team.owner,clan=team.clan==true}
+        end
+      end
+    end
+    return true
+  elseif name=="g" then
+    -- Original client addAlliance({sid,owner,clan}).
+    local t=args[1]
+    if type(t)~="table" or type(t.sid)~="string" then return false end
+    for i=#self.teams,1,-1 do
+      if self.teams[i].sid==t.sid then table.remove(self.teams,i) end
+    end
+    self.teams[#self.teams+1]={sid=t.sid,owner=t.owner,clan=t.clan==true}
+    return true
+  elseif name=="1" then
+    if type(args[1])~="string" then return false end
+    for i=#self.teams,1,-1 do
+      if self.teams[i].sid==args[1] then table.remove(self.teams,i) end
+    end
+    return true
+  elseif name=="2" then
+    if not validId(args[1]) or type(args[2])~="string" then return false end
+    self.joinRequests[#self.joinRequests+1]={sid=args[1],name=args[2]}
+    return true
+  elseif name=="3" then
+    -- Authoritative setPlayerTeam() after create/join/leave.
+    self.tribe=type(args[1])=="string" and args[1] or nil
+    self.tribeOwner=args[2]==true or args[2]==1
+    self.tribeMembers={}
+    self.joinRequests={}
+    local p=self:localPlayer()
+    if p then p.team=self.tribe end
+    return true
+  elseif name=="4" then
+    local arr=array(args[1])
+    self.tribeMembers={}
+    for i=1,#arr-1,2 do
+      if validId(arr[i]) and type(arr[i+1])=="string" then
+        self.tribeMembers[#self.tribeMembers+1]={sid=arr[i],name=arr[i+1]}
+      end
+    end
+    return true
+  elseif name=="5" then
+    -- Store purchase (type=0) / equip (type=1), isAccessory index.
+    local action,id,accessory=args[1],args[2],args[3]
+    if (action~=0 and action~=1) or not validId(id) then return false end
+    if accessory~=0 and accessory~=1 and accessory~=false and accessory~=true then return false end
+    local isAccessory=accessory==1 or accessory==true
+    if action==0 then
+      if Store.byId(id,isAccessory) then
+        local owned=isAccessory and self.store.accessories or self.store.hats
+        owned[id]=true
+      end
+    elseif isAccessory then
+      self.store.accessoryIndex=id
+    else
+      self.store.hatIndex=id
+    end
     return true
   elseif name=="C" then
     if not validId(args[1]) then return false end
