@@ -3,8 +3,10 @@
 -- These are the authoritative reference values for world generation.
 local C = {
   mapScale = 14400,
-  inSandbox = true,
-  unlimitedResources = true,
+  -- Moo-Quest bundled Node shared/config.js uses the normal gathering economy.
+  -- These flags must follow OUR running server, not the archived sandbox demo.
+  inSandbox = false,
+  unlimitedResources = false,
   unlimitedAmount = 1000000,
   maxPlayers = 40,
   maxPlayersHard = 50,
