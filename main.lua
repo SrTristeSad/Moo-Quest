@@ -549,16 +549,9 @@ function love.keypressed(key)
     if key=="q" and world.inventory.items[1]~=nil then
       client:send("z",{world.inventory.items[1],false});return
     end
-    local slot=tonumber(key)
-    if slot and slot>=1 and slot<=9 then
-      local weapons=world.inventory.weapons
-      local items=world.inventory.items
-      if weapons[slot]~=nil then
-        client:send("z",{weapons[slot],true})
-      else
-        local item=items[slot-#weapons]
-        if item~=nil then client:send("z",{item,false}) end
-      end
+    if key:match("^[1-9]$") then
+      local index,isWeapon=Hud.slotForKey(world,key)
+      if index~=nil then client:send("z",{index,isWeapon}) end
       return
     end
     if key=="space" and not spaceAttack then
