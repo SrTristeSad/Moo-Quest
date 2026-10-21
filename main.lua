@@ -4,6 +4,8 @@
 local Original=require("src.net.original_client")
 local World=require("src.game.world_state")
 local View=require("src.game.reference_view")
+local Menu=require("src.game.reference_menu")
+local Config=require("src.game.config")
 local Hud=require("src.game.reference_hud")
 local Upgrades=require("src.game.reference_upgrades")
 local Assets=require("src.game.reference_assets")
@@ -13,6 +15,9 @@ local Pack=require("src.protocol.msgpack")
 local client=nil
 local world=World.new()
 local camera=nil
+local menuCamera=nil
+local menu=Menu.new()
+local phase="menu"
 local diagnostic=nil
 local reconnectSeconds=0
 local latestEvent="Nenhum io-init recebido."
@@ -62,6 +67,8 @@ end
 function love.load()
   love.graphics.setDefaultFilter("linear","linear")
   camera=Camera.new()
+  menuCamera=Camera.new()
+  menuCamera:follow(Config.mapScale/2,Config.mapScale/2)
   if os.getenv("MOOQUEST_TESTS")=="1" then
     diagnostic=require("src.test_runner").run()
     -- Automated Windows batch tests must fail with an OS error code, not
@@ -71,7 +78,7 @@ function love.load()
     end
     return
   end
-  local ok,result=pcall(Original.new,{host="127.0.0.1",port=8080,server="LC"})
+  local ok,result=pcall(Original.new,{host="127.0.0.1",port=8080,server="LC",autoSpawn=false})
   if not ok then
     startupError="Falha ao inicializar cliente de rede: "..tostring(result)
     return
@@ -104,6 +111,7 @@ function love.update(dt)
       world:apply(packet.name,packet.args)
       serverPackets=serverPackets+1
       if packet.name=="C" then
+        phase="playing"
         latestEvent="SPAWN CONFIRMADO pelo Node original. SID "..tostring(client.sid)
         movementClock=0
         lastMove=false
@@ -129,6 +137,8 @@ function love.update(dt)
       elseif packet.name=="P" then
         chatOpen=false;chatDraft=""
         died=true
+        phase="menu"
+        menu.status="Voce morreu. Pressione Play para renascer."
         latestEvent="Morte confirmada pelo Node. Pressione R para reaparecer."
       elseif packet.name=="B" then
         latestEvent="Servidor recusou partida: "..tostring(packet.args[1])
