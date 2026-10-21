@@ -52,43 +52,43 @@ function Info.draw(entry,world)
   if not info then return false end
   local gfx=love.graphics
   local left,top,width=20,20,250
-  local descFont=font(19)
+  local descFont=font(22)
   local wrapWidth=width-16
   local _,wrap=descFont:getWrap(info.description,wrapWidth)
   local descLines=math.max(1,#wrap)
   local lines=#info.requirements+(info.class and 1 or 0)
     +(info.price and 1 or 0)
-  local height=14+font(26):getHeight()+8+
+  local height=10+font(30):getHeight()+8+
     descLines*descFont:getHeight()+math.max(0,lines)*27+
     ((info.limit~=nil) and 28 or 0)+12
   gfx.push("all")
   gfx.setColor(0,0,0,0.25)
   gfx.rectangle("fill",left,top,width,height,4,4)
-  local x,y=left+8,top+8
-  put(info.name,x,y,26)
-  y=y+font(26):getHeight()+4
+  local x,y=left+10,top+5
+  put(info.name,x,y,30)
+  y=y+font(30):getHeight()+4
   gfx.setColor(1,1,1,0.65)
   gfx.setFont(descFont)
   gfx.printf(info.description,x,y,wrapWidth,"left")
   y=y+descLines*descFont:getHeight()+8
   if info.class then
-    y=y+put(info.class,x,y,20)
+    y=y+put(info.class,x,y,22)
   end
   if info.price then
-    y=y+put("Price: "..tostring(info.price).." coins",x,y,20)
+    y=y+put("Price: "..tostring(info.price).." coins",x,y,22)
   end
   for _,req in ipairs(info.requirements) do
-    put(req.name,x,y,20)
-    local f=font(20)
+    put(req.name,x,y,22)
+    local f=font(22)
     gfx.setFont(f)
     local label=" x"..tostring(req.amount)
     gfx.setColor(1,1,1,0.6)
     gfx.print(label,x+f:getWidth(req.name),y)
-    y=y+27
+    y=y+f:getHeight()
   end
   if info.limit~=nil then
     put(tostring(info.count).."/"..tostring(info.limit),
-      left+width-80,top+height-30,20)
+      left+width-80,top+height-30,22)
   end
   gfx.pop()
   return true
