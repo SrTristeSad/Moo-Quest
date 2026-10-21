@@ -171,3 +171,38 @@ O servidor falha na inicialização se PostgreSQL ou Redis estiverem
 inacessíveis; não muda silenciosamente para JSON. Faça backup consistente
 do volume PostgreSQL e proteja as credenciais por permissões do aaPanel.
 Os dois bancos não devem ficar abertos à internet.
+
+## Public guest ingress: verified challenges (opt-in, fail-closed)
+
+**Never treat `captcha: true` as proof of a human user.** For a public
+deployment set `MOO_PUBLIC_MODE=1`, `MOO_PUBLIC_HTTPS=1`,
+`MOO_TURNSTILE_SECRET` (Cloudflare Turnstile server secret), and
+`MOO_TURNSTILE_HOSTNAME` (exact registered hostname). Configure TLS and
+a reverse proxy in aaPanel. If the proxy is local and overwrites
+`X-Real-IP`, set `MOO_TRUST_PROXY=1`. The server refuses to start the
+public HTTP interface if required settings are missing.
+
+When public mode is active, guest `POST /api/join` requires
+`{host,captcha:true,captchaToken:"<actual provider token>"}`.
+The backend submits the challenge to Cloudflare Siteverify with the
+connection's remote IP, checks success and exact hostname, and rejects
+verification errors or timeouts. Turnstile tokens are issued by a widget
+on the intended website and cannot be forged using `captcha:true`.
+Registered players using a valid Bearer token do not need a guest
+CAPTCHA. Debug JSON WebSocket `/play` is disabled in public mode.
+
+**Current client limitation:** the Lua/LÖVE client has not yet integrated
+the Turnstile widget or `captchaToken` transport. Public mode therefore
+**disables old anonymous Lua entry** until a real verification workflow
+is added to the client or a separately approved admission mechanism is
+implemented. For private/local development `MOO_PUBLIC_MODE` remains
+unset and the historical `captcha:true` contract is preserved.
+This does not establish bot-proof gameplay or production readiness.
+
+## Parallel ingress test
+
+`npm test` includes a real native-protocol smoke test of **40
+concurrent WebSocket clients**, unique join tickets and a full-server
+rejection, using 40 artificial client IPs behind a simulated local proxy.
+This is a functional concurrency regression test, not a production
+benchmark or evidence of performance on your specific VPS.
