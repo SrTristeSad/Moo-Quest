@@ -85,6 +85,11 @@ function Menu:mapInput(sx,sy,w,h)
 end
 function Menu:click(sx,sy,w,h)
   local x,y=self:mapInput(sx,sy,w,h)
+  -- Clicking another control unfocuses the player name, including when
+  -- opening Login/Register (which otherwise return before the reset below).
+  if self.authMode or not hot(x,y,393,326,370,42) then
+    self.nameFocus=false
+  end
   -- Dedicated compact "details" control; long filesystem paths never
   -- overlap the login/register buttons on the original right card.
   if hot(x,y,1066,307,117,30) then
