@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash, sign } from 'node:crypto';
+import { auditReleaseBoundary } from './check-release-boundary.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const keyPath = process.env.MOO_SIGNING_PRIVATE_KEY_FILE;
 const origin = process.env.MOO_RELEASE_PUBLIC_BASE;
@@ -13,22 +14,7 @@ if (!keyPath || !origin) throw new Error('Set MOO_SIGNING_PRIVATE_KEY_FILE and M
 if (!/^\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/i.test(version)) throw new Error('Invalid release version');
 const base = new URL(origin);
 if (base.protocol !== 'https:' || base.username || base.password) throw new Error('Release base must use HTTPS');
-const files = [];
-function walk(dir) {
-  for (const item of fs.readdirSync(path.join(root,dir),{withFileTypes:true})) {
-    const rel = dir+'/'+item.name;
-    if (item.isSymbolicLink()) throw new Error('No symlinks in signed release');
-    if (item.isDirectory()) returnFiles(rel);
-    else if (item.isFile() && (rel.startsWith('src/') && rel.endsWith('.js') ||
-      rel.startsWith('public/') && /\.(?:html|js|css)$/.test(rel))) files.push(rel);
-  }
-}
-function returnFiles(dir){walk(dir)}
-walk('src');walk('public');
-if (!files.includes('src/index.js') || !files.includes('src/world.js') || !files.includes('public/admin.html')) {
-  throw new Error('Incomplete release tree');
-}
-files.sort();
+const files = auditReleaseBoundary(root);
 fs.mkdirSync(path.join(out,'releases',version),{recursive:true});
 const manifest = {version,notes:'MooQuest independent server release',files:[]};
 for (const rel of files) {
