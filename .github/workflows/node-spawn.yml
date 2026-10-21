@@ -30,6 +30,8 @@ jobs:
           cp support/local-anticheat-config.js node-runtime/server/src/anticheat/config.js
           cd node-runtime
           npm install --omit=dev --no-audit --no-fund
+      - name: Install Moo-Quest local artwork tools (WebP to true PNG)
+        run: npm install --omit=dev --no-audit --no-fund
       - name: Install LÖVE 2D, LuaSocket and headless display for true client E2E
         run: |
           sudo apt-get update
@@ -67,7 +69,9 @@ jobs:
             MOOQUEST_INTEGRATION=account \
             xvfb-run -a -s "-screen 0 1280x720x24" love .
           echo "Install original client PNGs locally for UI render (never committed or uploaded)"
-          MOOQUEST_ART_TEST_ONLY=1 node tools/sync-reference-art.mjs
+          node tools/sync-reference-art.mjs
+          echo "Verify converted images are PNG, not misnamed WebP"
+          node --input-type=module -e "import fs from 'node:fs';for(const n of ['hammer_1.png','sword_1.png','dagger_1.png','samurai_1.png']){const data=fs.readFileSync('assets/reference/img/weapons/'+n);if(data.subarray(0,8).toString('hex')!=='89504e470d0a1a0a')throw Error(n+' is not a PNG')}console.log('PASS: original WebP files converted to real PNGs')"
           echo "PNG audit of archived source (metadata only)"
           node tools/inspect-reference-png.mjs node-runtime/client/public/img || true
           echo "Run real opening-menu Play button -> native C/D -> graphics/HUD"
