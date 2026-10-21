@@ -8,5 +8,9 @@
   "scripts": {
     "start:server": "node server/src/index.js",
     "test:node": "node --test server/src/network/packetUtils.test.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "sharp": "^0.34.3"
   }
 }
