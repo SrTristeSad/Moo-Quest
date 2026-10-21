@@ -1,0 +1,55 @@
+name: Moo-Quest own Node server and resources
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  own-server:
+    name: Bundled Node, normal gather and Lua authenticated spawn
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout the actual Moo-Quest server and Lua client
+        uses: actions/checkout@v4
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install server dependencies and test protocol
+        run: |
+          npm install --omit=dev --no-audit --no-fund
+          npm run test:node
+          node -e "const c=require('./shared/config.js');if(c.unlimitedResources||c.inSandbox)process.exit(1);console.log('PASS: sandbox and unlimited resources disabled');"
+      - name: Install LÖVE runtime for actual Lua join
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y love lua-socket xvfb xauth libgl1-mesa-dri
+      - name: Test migrated server gameplay without official client/images
+        env:
+          MOOQUEST_SERVER_DIR: ${{ github.workspace }}
+          MOOQUEST_EXPECT_ZERO_RESOURCES: "1"
+        run: |
+          set -euo pipefail
+          HOST=127.0.0.1 PORT=8080 node server/src/index.js >/tmp/moo-owned-server.log 2>&1 &
+          server_pid=$!
+          trap 'cat /tmp/moo-owned-server.log; kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for i in $(seq 1 70); do
+            if curl -fsS http://127.0.0.1:8080/ping >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 0.2
+          done
+          test "$ready" -eq 1
+          node tools/check-node-spawn.mjs
+          # Native client joins the SAME server with the SAME generated build.
+          SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
+            MOOQUEST_INTEGRATION=guest \
+            xvfb-run -a -s "-screen 0 1280x720x24" love .
