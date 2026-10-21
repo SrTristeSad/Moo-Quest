@@ -111,4 +111,43 @@ assert(#w.teams==2 and w.teams[1].sid=="ABC")
 assert(p:wheelmoved(0,-1,w))
 p:reset()
 assert(not p:isOpen())
-print("reference store and tribe panels: exact catalog, server-only purchases/teams, all actions passed")
+-- Real browser parity: mouseover selects a store tooltip WITHOUT buying
+-- or equipping, and mouseout clears it. Tests cover scissor-clipped rows,
+-- both catalogs, scroll page changes and tab swaps.
+assert(p:hover(640,360,1280,720)==nil)
+p:toggle("store")
+-- The original browser preserves the last selected tab when reopening.
+-- Explicitly click Hats instead of assuming reset() changed the tab.
+local px,py,pw,ph=p:position(1280,720)
+assert(p:click(w,px+50,py+74,1280,720).consumed and p.tab==0)
+local firstHat=Store.list(false)[1]
+assert(p:hover(px+48,py+117,1280,720)==firstHat)
+assert(p.hoverItem==firstHat)
+assert(p:storeButtonLabel(w,firstHat)~=nil)
+assert(p:hover(px+48,py+156,1280,720)==firstHat)
+assert(p:hover(px+48,py+157,1280,720)==nil,
+  "the 2px gap between rows is NOT a hover target")
+local secondHat=Store.list(false)[2]
+assert(p:hover(px+48,py+107+52+7,1280,720)==secondHat)
+-- Row 5 is clipped under the footer, so no invisible tooltip.
+assert(p:hover(px+48,py+107+4*52+7,1280,720)==nil)
+assert(p:hover(px+16,py+115,1280,720)==nil)
+assert(p:hover(px+50,py+90,1280,720)==nil)
+assert(p:hover(px+50,py+ph+7,1280,720)==nil)
+p:hover(px+48,py+117,1280,720)
+assert(p:scrollBy(4,w,720) and p.hoverItem==nil)
+assert(p:hover(px+48,py+117,1280,720)==Store.list(false)[5])
+-- Tab click clears stale hat hover; only accessory entries may follow.
+local tabs=p:click(w,px+300,py+72,1280,720)
+assert(tabs and tabs.consumed and p.tab==1 and p.hoverItem==nil)
+local accessory=Store.list(true)[1]
+assert(p:hover(px+48,py+117,1280,720)==accessory)
+assert(p.hoverItem==accessory)
+assert(p:keypressed("return",w,720) and p.opened=="store",
+  "Enter must be consumed by the modal, not open the background chat")
+assert(p:keypressed("kpenter",w,720) and p.opened=="store")
+p:toggle("tribe")
+assert(p.hoverItem==nil and p:hover(px+48,py+117,1280,720)==nil)
+p:reset()
+assert(not p:isOpen())
+print("reference store and tribe panels: exact catalog, Node-only operations, mouseover and focus passed")
