@@ -128,7 +128,8 @@ test('mill income is elapsed-time based, fractional, capped during stalls, and p
 });
 
 test('Lua item group counts combine different wall and mill grades',()=>{
-  const {w,owner}=sandbox();
+  const {w,owner,rival}=sandbox();
+  rival.x=10000;rival.y=10000;
   build(w,owner,3);
   build(w,owner,4,2400,1100);
   build(w,owner,10,2800,1100);
