@@ -218,11 +218,16 @@ function love.draw()
     Hud.draw(world,chatOpen,chatDraft)
     -- When a reference PNG is absent, report the missing local source.
     -- Never substitute a generated image or fabricated gameplay entity.
-    if #Assets.missing()>0 then
-      love.graphics.setColor(0,0,0,0.7)
-      love.graphics.rectangle("fill",12,12,520,40,4,4)
+    local absent,total=Assets.missingSummary(3)
+    if total>0 then
+      love.graphics.setColor(0,0,0,0.78)
+      love.graphics.rectangle("fill",12,12,620,47+18*#absent,4,4)
       love.graphics.setColor(1,0.82,0.62)
-      love.graphics.print("Artes originais ausentes: execute PREPARAR-SERVIDOR.bat",20,23)
+      love.graphics.print("Arquivos PNG ausentes ("..total.."):",20,19)
+      for i,file in ipairs(absent) do
+        love.graphics.print(file,20,20+i*18)
+      end
+      love.graphics.print("Execute PREPARAR-SERVIDOR.bat",20,23+(#absent+1)*18)
     end
     return
   end
