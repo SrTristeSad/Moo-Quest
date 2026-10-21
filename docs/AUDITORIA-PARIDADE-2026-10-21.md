@@ -66,6 +66,24 @@ A ausência não implica perda de todos os dados da sessão; significa que os re
 - **P2:** checklist visual comparativo para tamanhos de tela comuns (1280×720, 1920×1080, Android futuro), HUD, menus, fontes, loja e os 180 sprites.
 - **P2:** revisão de licenças: código aberto e artes do cliente de referência não são automaticamente redistribuíveis no jogo comercial.
 
+## Progresso subsequente — eventos `m/r/Z/0` (PR #11)
+
+O cliente Lua agora interpreta o `m` real do servidor para alterar a
+**transparência do próprio jogador** em quatro estados, sem alterar artes,
+mecanismos de combate nem criar entidades. O estado inicial continua vindo
+do pacote `D`. Um shader LÖVE aplica a mesma transparência à geometria e
+aos PNGs do corpo/equipamento, preservando a renderização de jogadores normais.
+
+Os pacotes `r` e `Z` agora originam avisos visíveis e contagens regressivas
+na partida, tela de morte e menu; `Z(-1)` cancela o aviso de reinício.
+O pacote `0` é contado como resposta ao ping do servidor, sem inventar
+uma medida de latência. Há testes em Lua e amostragem dos pixels LÖVE.
+
+Com isso, dos **seis pacotes** anteriormente marcados sem tratamento,
+**quatro passam a ter tratamento explícito** (`m/r/Z/0`). Permanecem
+`F` (estatísticas) e `p` (perfil) a integrar na interface.
+Esta etapa não equivale a paridade 1:1 do jogo inteiro.
+
 ## Critério objetivo para chamar 1:1
 
 Todos os fluxos do escopo original aplicável têm controle correspondente, visual correspondente, evento Node validado, teste automatizado específico e evidência de execução manual lado a lado. **Um PR com 7 workflows verdes não é equivalente a paridade 1:1.**
