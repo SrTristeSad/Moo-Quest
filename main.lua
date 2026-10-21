@@ -449,6 +449,8 @@ function love.keypressed(key)
       if not ok then menu.status=tostring(why) end
       return
     end
+    -- Input must see the live WebSocket state even before the next draw.
+    menu.connectionState=client and client.state or "failed"
     local action=menu:keypressed(key)
     menuAction(action)
     return
@@ -564,6 +566,7 @@ function love.mousepressed(x,y,button)
   if phase=="menu" then
     if button==1 then
       local width,height=love.graphics.getDimensions()
+      menu.connectionState=client and client.state or "failed"
       local action=menu:click(x,y,width,height)
       menuAction(action)
     end
