@@ -74,6 +74,12 @@ function C:refresh()
     return false
   end
   self.mine=mine;self.lastError=nil
+  local clan=self:clan()
+  local valid=false
+  for _,item in ipairs(self:tabs()) do
+    if item.id==self.tab then valid=true;break end
+  end
+  if not valid then self.tab=clan and "members" or "create" end
   self.scroll=0
   return true
 end
