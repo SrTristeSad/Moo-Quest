@@ -239,13 +239,41 @@ function View.playerDrawAngle(player,localAim)
   local direction=type(localAim)=="number" and localAim or (player.dir or 0)
   return direction+(player.dirPlus or 0)
 end
+-- Node setDive sends m(sid,state,duration) for player sprites, just as I
+-- carries states for the Crab King. Fade the EXACT body/weapon/hat PNGs and
+-- primitives in place; no replacement, fake sprite, or predicted movement.
+function View.playerOpacity(player)
+  if not player then return 1 end
+  if player.dive==1 then return 0.55 end
+  if player.dive==2 then return 0.2 end
+  if player.dive==3 then return 0.7 end
+  return 1
+end
+local diveShader=nil
+local function playerDiveShader()
+  if diveShader then return diveShader end
+  -- Shape primitives use their own setColor calls; a shader multiplies
+  -- their final alpha AND the original reference image alpha uniformly.
+  diveShader=love.graphics.newShader([[
+    uniform float diveOpacity;
+    vec4 effect(vec4 color, Image texture, vec2 textureCoords, vec2 screenCoords) {
+      vec4 originalPixel = Texel(texture, textureCoords) * color;
+      return vec4(originalPixel.rgb, originalPixel.a * diveOpacity);
+    }
+  ]])
+  return diveShader
+end
 local function drawPlayer(p,camera,dt,localAim)
   local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
   p.skinRot=(p.skinRot or 0)+dt*1000*0.002
-  love.graphics.push()
+  love.graphics.push("all")
+  local opacity=View.playerOpacity(p)
+  if opacity<1 then
+    local shader=playerDiveShader()
+    shader:send("diveOpacity",opacity)
+    love.graphics.setShader(shader)
+  end
   love.graphics.translate(x,y)
-  -- client/src/index.js renderPlayers: player.dir + player.dirPlus.
-  -- The previous port updated K attack animation but never drew its swing.
   love.graphics.rotate(View.playerDrawAngle(p,localAim))
   love.graphics.scale(camera.zoom)
   playerBody(p,dt)
