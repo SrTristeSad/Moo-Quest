@@ -85,13 +85,18 @@ function Menu:mapInput(sx,sy,w,h)
 end
 function Menu:click(sx,sy,w,h)
   local x,y=self:mapInput(sx,sy,w,h)
+  -- Clicking another control unfocuses the player name, including when
+  -- opening Login/Register (which otherwise return before the reset below).
+  if self.authMode or not hot(x,y,393,326,370,42) then
+    self.nameFocus=false
+  end
   -- Dedicated compact "details" control; long filesystem paths never
   -- overlap the login/register buttons on the original right card.
-  if hot(x,y,1066,300,116,31) then
+  if hot(x,y,1066,307,117,30) then
     self.showTechnical=not self.showTechnical
     return "details"
   end
-  if self.showTechnical and hot(x,y,839,68,344,126) then
+  if self.showTechnical and hot(x,y,833,64,367,136) then
     self.showTechnical=false
     return "details"
   end
@@ -151,6 +156,11 @@ function Menu:click(sx,sy,w,h)
   end
   self.nameFocus=false
   return nil
+end
+-- Name and account inputs are editable text fields. Menu hotkeys must not
+-- reconnect or respawn when the user is typing into either one.
+function Menu:isEditingText()
+  return self.nameFocus or self.authMode~=nil
 end
 function Menu:canPlay()
   return self.connectionState=="keyed_transport"
