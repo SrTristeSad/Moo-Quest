@@ -8,6 +8,7 @@ local Shapes=require("src.game.reference_primitives")
 local Objects=require("src.game.reference_objects")
 local Assets=require("src.game.reference_assets")
 local CombatText=require("src.game.reference_combat_text")
+local BossEffects=require("src.game.reference_boss_effects")
 local View={}
 -- client/src/index.js updateGame waterMult / waterPlus (Canvas only).
 local waterMult=1
@@ -132,6 +133,15 @@ local function drawProjectiles(world,camera,w,h,layer)
     end
   end
 end
+-- Crab King's surface/dive states originate from the Node I packet.
+-- No alternative artwork is fabricated for underwater states.
+function View.animalOpacity(animal,kind)
+  if not kind or not kind.boss then return 1 end
+  if animal.state==2 then return 0.2 end
+  if animal.state==1 then return 0.55 end
+  if animal.state==3 then return 0.7 end
+  return 1
+end
 local function renderAnimal(a,camera,world)
   local kind=world and world:animalKind(a.index) or Animals.byId(a.index)
   if not kind or not kind.src then return end
@@ -139,7 +149,8 @@ local function renderAnimal(a,camera,world)
   -- renderAI: tmpScale = scale * 1.2 * spriteMlt
   local radius=kind.scale*1.2*(kind.spriteMlt or 1)*camera.zoom
   Assets.draw("animals",kind.src..".png",x,y,radius*2,radius*2,
-    (a.dir or 0)+(a.dirPlus or 0)-pi/2)
+    (a.dir or 0)+(a.dirPlus or 0)-pi/2,
+    View.animalOpacity(a,kind))
 end
 local function drawWeapon(weapon,variant,scale)
   local filename,fallback=Assets.weaponFilename(
@@ -375,6 +386,9 @@ function View.draw(world,camera,dt,options)
   if not options or options.showGrid~=false then
     grid(camera,w,h)
   end
+  -- Show server-defined attack areas on the ground, below animals/players.
+  -- This makes the imminent boss hit visible without changing collisions.
+  BossEffects.draw(world.bossEffects,camera)
   drawObjectLayer(world,camera,w,h,-1)
   drawProjectiles(world,camera,w,h,0)
   for _,p in pairs(world.players) do

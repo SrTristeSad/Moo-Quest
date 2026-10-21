@@ -4,6 +4,7 @@ local Catalog=require("src.game.catalog")
 local C=require("src.game.config")
 local Animation=require("src.game.reference_animation")
 local CombatText=require("src.game.reference_combat_text")
+local BossEffects=require("src.game.reference_boss_effects")
 local Animals=require("src.game.animals")
 local Store=require("src.game.store_catalog")
 local function freeStore()
@@ -36,7 +37,7 @@ function World.new()
   return setmetatable({
     sid=nil,spawned=false,dead=false,players={},objects={},animals={},projectiles={},
     resources={},resourceGain={},itemCounts={},inventory={weapons={},items={}},leaderboard={},
-    combatText={},
+    combatText={},bossEffects={},
     xp=0,maxXP=0,age=1,upgradePoints=0,upgradeAge=0,
     minimapData={},mapPings={},mapMarker=nil,lastDeath=nil,
     serverAnimals={},teams={},tribe=nil,tribeOwner=false,tribeMembers={},joinRequests={},
@@ -147,6 +148,7 @@ function World:apply(name,args)
     self.resourceGain={}
     self.itemCounts={}
     self.combatText={}
+    self.bossEffects={}
     return true
   elseif name=="D" then
     -- [id,sid,name,x,y,dir,health,maxHealth,scale,skinColor,...]
@@ -241,6 +243,11 @@ function World:apply(name,args)
       p.chatCountdown=3000
     end
     return true
+  elseif name=="W" then
+    -- Crab King danger areas emitted by Node ai.js::telegraph().
+    -- These effects are visual only: no client-simulated attack or damage.
+    return BossEffects.add(self.bossEffects,args[1],args[2],args[3],
+      args[4],args[5],args[6],args[7])
   elseif name=="J" then
     -- The JavaScript client invokes findAIBySID(sid):startAnim().
     local ai=self.animals[args[1]]
@@ -364,6 +371,7 @@ end
 function World:update(dt)
   if type(dt)~="number" or dt<=0 then return end
   CombatText.update(self.combatText,dt)
+  BossEffects.update(self.bossEffects,dt)
   for key,gain in pairs(self.resourceGain) do
     gain.remaining=gain.remaining-dt
     if gain.remaining<=0 then self.resourceGain[key]=nil end

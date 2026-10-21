@@ -48,10 +48,10 @@ function A.weaponFilename(source,suffix,exists)
   if check(desired) then return desired,false end
   return source..".png",true
 end
-function A.draw(category,filename,x,y,w,h,angle)
+function A.draw(category,filename,x,y,w,h,angle,alpha)
   local image=A.get(category,filename)
   if not image then return false end
-  love.graphics.setColor(1,1,1,1)
+  love.graphics.setColor(1,1,1,alpha or 1)
   love.graphics.draw(image,x,y,angle or 0,
     w/image:getWidth(),h/image:getHeight(),image:getWidth()/2,image:getHeight()/2)
   return true
