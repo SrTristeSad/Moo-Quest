@@ -21,6 +21,7 @@ M.paths={
   "tests/reference_boss_effects.lua",
   "tests/reference_server_notices.lua",
   "tests/reference_secret_map.lua",
+  "tests/reference_projectile_layers.lua",
   "tests/reference_profile.lua",
   "tests/reference_upgrades.lua",
   "tests/reference_hud.lua",
