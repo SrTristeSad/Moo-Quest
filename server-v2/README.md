@@ -33,6 +33,30 @@ O aplicativo Lua atual não possui configuração de endereço remoto/HTTPS para
 apontar diretamente ao domínio aaPanel. Isto exige uma pequena configuração
 de transporte ou inicialização futura **sem redesenhar o cliente**.
 
+## Contas persistentes de jogadores (primeira fase)
+
+- `POST /api/account/register` recebe `{username,password}`; exige nome
+  alfanumérico ou underscore (3–20 caracteres), senha de 12–128 caracteres.
+  O cadastro público vem **desativado por padrão**. O administrador pode
+  habilitar `publicRegistration:true` via API autenticada
+  `POST /api/admin/settings` com cookie e CSRF.
+- `POST /api/account/login` valida a senha scrypt e retorna token de
+  jogador válido por oito horas; Redis armazena apenas hash do token.
+- `GET /api/account/me` e `POST /api/account/logout` usam o cabeçalho
+  `Authorization: Bearer <token>`.
+- `POST /api/join` continua funcionando para convidados. Somente quem envia
+  Bearer autenticado obtém ticket de entrada vinculado à conta. Identificadores
+  `did` fornecidos pelo cliente **não concedem acesso a contas**.
+- Na entrada autenticada pelo WebSocket binário, PostgreSQL restaura
+  recursos, nível, XP, armas desbloqueadas, inventário de construções,
+  itens de loja e vida. Os dados são salvos periodicamente (30 segundos),
+  na desconexão e no encerramento. A morte preserva cosméticos comprados,
+  mas reinicia a progressão de sobrevivência.
+- Estruturas colocadas no mundo e equipes/clãs **ainda não persistem**.
+  A entrada no modo autenticado pelo cliente LÖVE requer futuramente
+  interface de login e envio do Bearer; o **cliente Lua permanece inalterado**
+  nesta etapa. Os testes binários simulam o protocolo existente.
+
 ## Protocolo do cliente Lua
 
 A implementação V2 tem seu próprio módulo `src/native-protocol.js`: handshake

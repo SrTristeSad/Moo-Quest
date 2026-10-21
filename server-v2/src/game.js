@@ -21,8 +21,11 @@ function requestIdentity(req){
 }
 
 export class GameServer {
-  constructor(httpServer, storage, ticketStore=null) {
+  constructor(httpServer, storage, ticketStore=null, {accounts=null}={}) {
     this.ticketStore=ticketStore;
+    this.accounts=accounts;
+    this.activeAccounts=new Set();
+    this.profileWrites=new Set();
     this.storage = storage;
     const keyFile = path.join(storage.dir, 'mod-secret.key');
     if (!fs.existsSync(keyFile)) fs.writeFileSync(keyFile, randomBytes(32), { mode: 0o600, flag: 'wx' });
@@ -55,11 +58,15 @@ export class GameServer {
       if (location.pathname === '/s/LC') {
         if (location.searchParams.get('b') !== 'mqv2native') { socket.destroy(); return; }
         const ticket=location.searchParams.get('token');
-        if (!ticket || !ticket.startsWith('tk:') ||
-            !(await this.consumeTicket(ticket.slice(3), ipHash))) {
-          socket.destroy(); return;
+        let claim=null;
+        if(ticket&&ticket.startsWith('tk:')){
+          claim=this.ticketStore?.consumeDetails?
+            await this.ticketStore.consumeDetails(ticket.slice(3),ipHash):
+            await this.consumeTicket(ticket.slice(3),ipHash)?{accountId:null}:null;
         }
-        this.nativeWss.handleUpgrade(req,socket,head,ws=>this.connectNative(ws,ipHash,trustedOrigin));
+        if(!claim) {socket.destroy();return;}
+        this.nativeWss.handleUpgrade(req,socket,head,
+          ws=>this.connectNative(ws,ipHash,trustedOrigin,claim.accountId));
         return;
       }
       this.wss.handleUpgrade(req, socket, head, ws => this.connect(ws, ipHash, trustedOrigin));
@@ -69,7 +76,7 @@ export class GameServer {
       }
     });
   }
-  async issueTicket(req, body) {
+  async issueTicket(req, body, accountId=null) {
     if (this.storage.data.settings.maintenance || this.room.players.size >= this.room.maxPlayers)
       return null;
     if (!body || body.captcha !== true || typeof body.host !== 'string' ||
@@ -78,12 +85,13 @@ export class GameServer {
     // development guest ingress with independent IP rate limiting.
     const ipHash=createHmac('sha256',this.banKey).update(requestIdentity(req).address).digest('hex');
     if(this.ticketStore){
-      const ticket=await this.ticketStore.issue(ipHash);
+      const ticket=await this.ticketStore.issue(ipHash,accountId);
       if(!ticket)return null;
       const did=(typeof body.did==='string'&&/^[a-f0-9]{16,64}$/.test(body.did))?
         body.did:randomBytes(16).toString('hex');
       return {ticket,did};
     }
+    if(accountId)return null; // Registered sessions require Redis-bound tickets.
     const now=Date.now(), previous=this.ticketRate.get(ipHash)||[];
     const recent=previous.filter(ts=>now-ts<10000);
     if(recent.length>=8) {this.ticketRate.set(ipHash,recent);return null;}
@@ -99,9 +107,9 @@ export class GameServer {
     const grant=this.tickets.get(token);this.tickets.delete(token);
     return !!grant && Date.now()-grant.at<30000 && grant.ipHash===ipHash;
   }
-  connectNative(ws,ipHash,trustedOrigin) {
+  connectNative(ws,ipHash,trustedOrigin,accountId=null) {
     const session=new NativeSession();
-    const state={ws,session,p:null,held:false,lastSnapshotAt:0};
+    const state={ws,session,p:null,held:false,lastSnapshotAt:0,spawning:false,accountId:null};
     this.nativeClients.set(ws,state);
     ws.send(session.handshake());
     const send=(name,args=[])=>{
@@ -111,24 +119,57 @@ export class GameServer {
     };
     state.send=send;
     let count=0,windowAt=Date.now();
-    ws.on('message',(raw,isBinary)=>{
+    ws.on('message',async (raw,isBinary)=>{
       if(!isBinary){ws.close(1003,'binary_only');return;}
       const now=Date.now();if(now-windowAt>=1000){windowAt=now;count=0;}
       if(++count>32){ws.close(1008,'rate_limit');return;}
       let request;
       try{request=session.decode(raw);}catch{ws.close(1008,'invalid_packet');return;}
       const {name,args}=request;
+      if(state.spawning)return;
       if(name==='M'){
         if(!state.p){
           const profile=args[0];
           if(!profile||typeof profile.name!=='string'){ws.close(1008,'bad_spawn');return;}
-          try{state.p=this.room.join(ws,profile.name);}catch{send('B',['server is full']);ws.close();return;}
-          state.p.native=true;state.p.skinColor=Number.isInteger(profile.skin)?Math.max(0,Math.min(9,profile.skin)):0;
-          state.p.ipHash=ipHash;state.p.trustedOrigin=trustedOrigin;
-          this.online.set(state.p.id,ws);
+          state.spawning=true;
+          try{
+            let saved=null;
+            if(accountId){
+              if(!this.accounts||this.activeAccounts.has(accountId)){
+                ws.close(1008,'account_in_use');return;
+              }
+              this.activeAccounts.add(accountId);state.accountId=accountId;
+              saved=await this.accounts.load(accountId);
+              if(!saved){ws.close(1008,'unknown_account');return;}
+            }
+            if(ws.readyState!==ws.OPEN)return;
+            state.p=this.room.join(ws,saved?.username||profile.name,saved?.profile);
+            state.p.accountId=state.accountId;
+            state.p.native=true;
+            if(!saved)state.p.skinColor=Number.isInteger(profile.skin)?
+              Math.max(0,Math.min(9,profile.skin)):0;
+            state.p.ipHash=ipHash;state.p.trustedOrigin=trustedOrigin;
+            this.online.set(state.p.id,ws);
+          }catch(error){
+            console.error('[MooQuest] player entry failure:',error.message);
+            send('B',['server unavailable']);ws.close(1011,'spawn_error');return;
+          }finally{
+            state.spawning=false;
+            if(!state.p&&state.accountId){
+              this.activeAccounts.delete(state.accountId);state.accountId=null;
+            }
+          }
         }else if(!this.room.respawn(state.p.id))return;
         // Actual Lua client requires C before its own D on EVERY spawn.
         for(const [packet,values] of this.room.initialPackets(state.p))send(packet,values);
+        // Restore the catalog unlock flags already owned by an authenticated
+        // player. This uses only existing '5' Lua protocol messages.
+        if(state.accountId){
+          for(const id of state.p.ownedHats)if(id!==0)send('5',[0,id,0]);
+          for(const id of state.p.ownedAccessories)if(id!==0)send('5',[0,id,1]);
+          if(state.p.hat)send('5',[1,state.p.hat,0]);
+          if(state.p.tail)send('5',[1,state.p.tail,1]);
+        }
         for(const other of this.nativeClients.values()) {
           if(other!==state&&other.p)other.send('D',[this.room.playerData(state.p),false]);
         }
@@ -169,9 +210,28 @@ export class GameServer {
     });
     ws.on('close',()=>{
       this.nativeClients.delete(ws);
-      if(state.p){this.online.delete(state.p.id);this.room.leave(state.p.id);this._nativeBroadcast('E',[state.p.id]);this._nativeBroadcast('R',[state.p.sid]);this._syncTribes();}
+      if(state.p){
+        // Capture before leave removes the player and their temporary
+        // structures. A reconnect cannot race the queued save.
+        const save=this.persistPlayer(state.p);
+        this.online.delete(state.p.id);this.room.leave(state.p.id);
+        this._nativeBroadcast('E',[state.p.id]);this._nativeBroadcast('R',[state.p.sid]);this._syncTribes();
+        if(state.accountId){
+          if(save)void save.finally(()=>this.activeAccounts.delete(state.accountId));
+          else this.activeAccounts.delete(state.accountId);
+        }
+      }
     });
     ws.on('error',()=>{});
+  }
+  persistPlayer(p){
+    if(!this.accounts||!p.accountId)return null;
+    let task;
+    task=this.accounts.save(p.accountId,this.room.persistentProfile(p))
+      .catch(error=>console.error('[MooQuest] player save failed:',error.message))
+      .finally(()=>this.profileWrites.delete(task));
+    this.profileWrites.add(task);
+    return task;
   }
   _nativeBroadcast(name,args){
     for(const state of this.nativeClients.values())if(state.p)state.send(name,args);
@@ -334,6 +394,8 @@ export class GameServer {
       }
       this.room.tick(dt);
       this.counter++;
+      if(this.counter%900===0)
+        for(const p of this.room.players.values())this.persistPlayer(p);
       if (this.counter % 3 !== 0) return;
       const world = JSON.stringify(this.room.snapshot());
       const allEvents=this.room.takeEvents();
@@ -371,5 +433,6 @@ export class GameServer {
       for(const ws of server.clients)ws.terminate();
       await new Promise(resolve=>server.close(()=>resolve()));
     }
+    await Promise.all([...this.profileWrites]);
   }
 }
