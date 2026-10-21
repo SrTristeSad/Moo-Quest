@@ -3,6 +3,7 @@
 local Catalog=require("src.game.catalog")
 local C=require("src.game.config")
 local Animation=require("src.game.reference_animation")
+local CombatText=require("src.game.reference_combat_text")
 local Animals=require("src.game.animals")
 local Store=require("src.game.store_catalog")
 local function freeStore()
@@ -35,6 +36,7 @@ function World.new()
   return setmetatable({
     sid=nil,spawned=false,dead=false,players={},objects={},animals={},projectiles={},
     resources={},resourceGain={},itemCounts={},inventory={weapons={},items={}},leaderboard={},
+    combatText={},
     xp=0,maxXP=0,age=1,upgradePoints=0,upgradeAge=0,
     minimapData={},mapPings={},mapMarker=nil,lastDeath=nil,
     serverAnimals={},teams={},tribe=nil,tribeOwner=false,tribeMembers={},joinRequests={},
@@ -144,6 +146,7 @@ function World:apply(name,args)
     self.resources={kills=0}
     self.resourceGain={}
     self.itemCounts={}
+    self.combatText={}
     return true
   elseif name=="D" then
     -- [id,sid,name,x,y,dir,health,maxHealth,scale,skinColor,...]
@@ -220,6 +223,10 @@ function World:apply(name,args)
     -- Reference updateMinimap() receives [x1,y1,x2,y2,...] for teammates.
     self.minimapData=array(args[1])
     return true
+  elseif name=="8" then
+    -- Reference showText(x,y,value,type). The fourth arg is unused by
+    -- the original client. Do not infer damage from O/I health snapshots.
+    return CombatText.spawn(self.combatText,args[1],args[2],args[3])
   elseif name=="9" then
     -- Reference pingMap(x,y), shrinking alpha with scale from 0 to 40.
     if number(args[1]) and number(args[2]) then
@@ -356,6 +363,7 @@ function World:apply(name,args)
 end
 function World:update(dt)
   if type(dt)~="number" or dt<=0 then return end
+  CombatText.update(self.combatText,dt)
   for key,gain in pairs(self.resourceGain) do
     gain.remaining=gain.remaining-dt
     if gain.remaining<=0 then self.resourceGain[key]=nil end
