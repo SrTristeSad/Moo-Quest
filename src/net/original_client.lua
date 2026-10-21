@@ -40,6 +40,7 @@ function Original.new(options)
     server=options.server or "LC",
     name=options.name or "Jogador",
     autoSpawn=options.autoSpawn~=false,
+    authToken=options.authToken,
     join=options.join or Join,
     ltn12=options.ltn12,
     did=nil,ticket=nil,spawnSent=false,sid=nil,packetCount=0,
@@ -72,6 +73,7 @@ function Original:connect()
   -- One fresh, single-use ticket is required for every WebSocket attempt.
   local grant,joinError=self.join.guest({
     host=self.host,port=self.port,server=self.server,did=self.did,
+    authToken=self.authToken,
     http=self.http,ltn12=self.ltn12
   })
   if not grant then
