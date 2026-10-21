@@ -275,7 +275,8 @@ server.on("upgrade", (req, socket, head) => {
 // waits for the advertised countdown, stops simulation ticks and flushes
 // pending permanent-clan/account mutations before the process exits.
 lifecycle = createServerLifecycle({
-    games, accounts, httpServer: server, websocketServer: wss, log
+    games, accounts, httpServer: server, websocketServer: wss,
+    social, stream, log
 });
 installShutdownSignals(lifecycle, { log });
 
