@@ -66,6 +66,56 @@ function World:orderedObjects()
   for _,v in ipairs(tail) do out[#out+1]=v.obj end
   return out
 end
+-- JS player and AI entity arrays have stable iteration order between frames.
+-- Keep SID order-of-first-appearance separately from current visibility:
+-- hidden entities may become visible again without being appended later.
+local function trackPaintOrder(world,kind,sid)
+  local tracked=world.entityPaintTracked[kind]
+  if not tracked[sid] then
+    local order=world.entityPaintOrder[kind]
+    order[#order+1]=sid
+    tracked[sid]=true
+  end
+end
+local function removePaintOrder(world,kind,sid)
+  local tracked=world.entityPaintTracked[kind]
+  if not tracked[sid] then return end
+  tracked[sid]=nil
+  local order=world.entityPaintOrder[kind]
+  for i=1,#order do
+    if order[i]==sid then
+      table.remove(order,i)
+      break
+    end
+  end
+end
+local function orderedEntities(world,kind)
+  local entities=world[kind]
+  local result,seen={},{}
+  for _,sid in ipairs(world.entityPaintOrder[kind]) do
+    local e=entities[sid]
+    if e then
+      result[#result+1]=e
+      seen[sid]=true
+    end
+  end
+  -- Local tests may set up simulated menu entities without packets.
+  -- Show those too, in deterministic SID order; don't fabricate any entities.
+  local fallback={}
+  for sid,e in pairs(entities) do
+    if not seen[sid] then fallback[#fallback+1]={sid=sid,entity=e} end
+  end
+  table.sort(fallback,function(a,b) return a.sid<b.sid end)
+  for _,v in ipairs(fallback) do result[#result+1]=v.entity end
+  return result
+end
+function World:orderedPlayers()
+  return orderedEntities(self,"players")
+end
+function World:orderedAnimals()
+  return orderedEntities(self,"animals")
+end
+
 local function number(v) return type(v)=="number" and v==v and v~=math.huge and v~=-math.huge end
 local function validId(v) return number(v) and v%1==0 and v>=0 end
 local function array(v) return type(v)=="table" and v or {} end
@@ -85,6 +135,8 @@ function World.new()
     sid=nil,spawned=false,dead=false,players={},objects={},
     objectSlots={},objectSlotBySid={},objectSlotCount=0,
     animals={},projectiles={},
+    entityPaintOrder={players={},animals={}},
+    entityPaintTracked={players={},animals={}},
     resources={},resourceGain={},itemCounts={},inventory={weapons={},items={}},leaderboard={},
     combatText={},bossEffects={},
     updateSeconds=nil,restartSeconds=nil,pongCount=0,
@@ -221,6 +273,7 @@ function World:apply(name,args)
     p.dive=(validId(d[15]) and d[15]<=3) and d[15] or 0
     p.invisible=d[16];p.disguised=d[17]
     self.players[id]=p
+    trackPaintOrder(self,"players",id)
     return true
   elseif name=="a" then
     local positions,attrs,hidden=array(args[1]),array(args[2]),array(args[3])
@@ -231,6 +284,7 @@ function World:apply(name,args)
         local p=self.players[sid] or {sid=sid,scale=35,health=100,maxHealth=100}
         receivePosition(p,x,y,dir/100)
         self.players[sid]=p
+        trackPaintOrder(self,"players",sid)
       end
     end
     -- Attributes are flattened groups of TEN.
@@ -246,8 +300,11 @@ function World:apply(name,args)
         p.icon=attrs[i+8]
         p.zIndex=type(attrs[i+9])=="number" and attrs[i+9] or 0
         self.players[sid]=p
+        trackPaintOrder(self,"players",sid)
       end
     end
+    -- The JavaScript source marks hidden players as invisible in their
+    -- existing array slot; don't recycle their paint-order position.
     for _,sid in ipairs(hidden) do self.players[sid]=nil end
     return true
   elseif name=="H" then
@@ -274,8 +331,10 @@ function World:apply(name,args)
         receivePosition(ai,x,y,number(data[i+4]) and data[i+4]/100 or 0)
         ai.health=data[i+5];ai.nameIndex=data[i+6];ai.state=data[i+7]
         self.animals[sid]=ai
+        trackPaintOrder(self,"animals",sid)
       end
     end
+    -- Hidden animals keep their original JS-array slot for later return.
     for _,sid in ipairs(hidden) do self.animals[sid]=nil end
     return true
   elseif name=="7" then
@@ -361,7 +420,10 @@ function World:apply(name,args)
   elseif name=="E" then
     -- E carries the socket ID, unlike the numeric SID in player-position snapshots.
     for sid,p in pairs(self.players) do
-      if p.id==args[1] then self.players[sid]=nil end
+      if p.id==args[1] then
+        self.players[sid]=nil
+        removePaintOrder(self,"players",sid)
+      end
     end
     return true
   elseif name=="R" then
