@@ -79,6 +79,7 @@ test('placement costs, ownership and group limits apply to all four buildings',(
   w.structures.clear();
   owner.resources.stone=59;
   owner.x=2100;owner.y=1100;owner.angle=0;
+  w.select(owner.id,0,true);
   w.select(owner.id,22,false);
   const wood=owner.resources.wood;
   assert.equal(w.place(owner.id,22),false);
