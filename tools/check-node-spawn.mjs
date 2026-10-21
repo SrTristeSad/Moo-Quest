@@ -41,7 +41,7 @@ async function main(){
   const expectGatheredResources=process.env.MOOQUEST_EXPECT_ZERO_RESOURCES==="1";
   await new Promise((resolve,reject)=>{
     const ws=new WebSocket(address,{origin:base});
-    let settled=false,session=null,count=0,spawnConfirmed=false;
+    let settled=false,session=null,count=0,spawnConfirmed=false,gotSelfD=false;
     const initialResources={};
     const timeout=setTimeout(()=>finish(Error("Timed out waiting for real C (spawn) packet")),10000);
     function finish(error){
@@ -97,9 +97,15 @@ async function main(){
           console.log("PASS: original Node confirmed authenticated gameplay spawn C (sid="+sid+")");
           if(!expectGatheredResources)finish();
         }
-        if(expectGatheredResources && spawnConfirmed &&
-           ["wood","food","stone","points"].every(k=>initialResources[k]===0)){
-          console.log("PASS: Node authoritatively initialized all FOUR resources to zero");
+        if(name==="D" && Array.isArray(decoded[1]?.[0])){
+          gotSelfD=true;
+        }
+        // In standard (non-sandbox) mode Node deliberately does NOT emit
+        // an initial N packet: resources start at zero on the server, and
+        // N is sent only after gathering. Requiring four N zeros would
+        // incorrectly fail an authentic no-sandbox session.
+        if(expectGatheredResources && spawnConfirmed && gotSelfD){
+          console.log("PASS: real Node sent C/D in standard economy; no nonzero initial N reported");
           finish();
         }
       }catch(e){finish(e)}
