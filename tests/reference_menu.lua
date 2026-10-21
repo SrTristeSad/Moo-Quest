@@ -46,5 +46,6 @@ assert(m:click(1034,462,1280,720)=="auth_open")
 assert(m.authMode=="register")
 m.authMode=nil
 m.accountEmail="player@example.com"
-assert(m:click(963,487,1280,720)=="auth_logout")
+assert(m:click(963,487,1280,720)=="clan_open")
+assert(m:click(1063,487,1280,720)=="auth_logout")
 print("original opening menu hit targets and character entry passed")
