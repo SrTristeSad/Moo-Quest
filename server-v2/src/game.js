@@ -127,6 +127,12 @@ export class GameServer {
           try{
             let saved=null;
             if(accountId){
+              // Existing online sessions always retain exclusive ownership,
+              // even if an earlier periodic save temporarily failed.
+              if([...this.room.players.values()].some(p=>p.accountId===accountId)){
+                ws.close(1008,'account_in_use');return;
+              }
+              if(this.unsavedProfiles.has(accountId))await Promise.all([...this.profileWrites]);
               // Recover the latest authoritative snapshot before allowing
               // login after a previous database write failure.
               if(this.unsavedProfiles.has(accountId)){
@@ -333,6 +339,12 @@ export class GameServer {
         this._nativeBroadcast('J',[evt.sid]);
         if(victim)this._nativeBroadcast('O',[victim.sid,victim.hp]);
         this._nativeBroadcast('8',[evt.x,evt.y,-evt.damage,1]);
+      }else if(evt.kind==='steal'){
+        // Both inventories change in a server-approved melee transfer.
+        const taker=[...this.nativeClients.values()].find(st=>st.p?.id===evt.from);
+        const victim=[...this.nativeClients.values()].find(st=>st.p?.id===evt.to);
+        taker?.send('N',[evt.key,taker.p.resources[evt.key],1]);
+        victim?.send('N',[evt.key,victim.p.resources[evt.key],1]);
       }else if(evt.kind==='hit'){
         const p=this.room.players.get(evt.to);
         if(p)this._nativeBroadcast('O',[p.sid,p.hp]);
