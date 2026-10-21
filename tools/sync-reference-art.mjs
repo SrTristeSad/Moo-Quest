@@ -8,8 +8,10 @@ import {fileURLToPath} from "node:url";
 import {verifyPNG} from "./inspect-reference-png.mjs";
 
 const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const server=path.resolve(process.env.MOOQUEST_SERVER_DIR||path.join(project,"node-runtime"));
-const source=path.join(server,"client","public","img");
+// Artwork is distinct from the server source. The new repository only
+// vendors Apache-licensed Node code, never the proprietary client images.
+const source=path.resolve(process.env.MOOQUEST_ART_SOURCE_DIR||
+  path.join(project,"node-runtime","client","public","img"));
 const target=path.join(project,"assets","reference","img");
 const userArt=path.join(project,"assets","custom","img");
 const expected={animals:17,weapons:81,hats:55,accessories:21,resources:4,icons:2};
