@@ -67,6 +67,14 @@ Implementado na fundação experimental:
   de ticks da VPS, mantendo frações e limitando acúmulo depois de travamentos;
 - contagem de estruturas no pacote Lua `S` agora é por grupo de construção
   (paredes, moinhos etc.), e não por ID individual;
+- minas e árvores plantadas (IDs 13/14, upgrades Lua 29/30) oferecem coleta
+  em golpes autorizados pelo Node, com custos e limites por grupo;
+- plataforma de renascimento (ID 20, upgrade Lua 36) marca um ponto válido de
+  respawn, é consumida ao ser utilizada e envia remoção/contagem corrigida;
+- teletransportador (ID 22, upgrade Lua 38) move jogadores vivos somente
+  para coordenadas escolhidas e verificadas pelo servidor, com cooldown;
+- remoção de construções comunica ao Lua contagem atual inclusive zero, e
+  construções com custo de comida também atualizam o contador de comida;
 - testes unitários de codecs, entrada, inventário, compras, construção,
   recursos, retorno após coleta, cura, XP e escolhas de equipamentos. O teste
   WebSocket de ponta a ponta inclui loja, cura e upgrades, além da entrada.
@@ -84,9 +92,10 @@ precisa de auditoria/recriação licenciada antes de lançamento comercial.
 2. Implementar os recursos, animais existentes, obstáculos, objetos e biomas
    requeridos pelo cliente, sem introduzir NPCs ou editores de mapa.
 3. Completar os equipamentos e efeitos restantes: já há arco, escudo, torres,
-   armadilha, impulso, cura, bloqueio de construções e moinhos básicos, mas ainda
-   faltam minas/árvores plantadas, teletransporte, reaparecimento em construção,
-   demais variantes, itens e efeitos, com testes de colisão.
+   armadilha, impulso, cura, bloqueio de construções, moinhos, minas/árvores
+   plantadas, teletransporte e reaparecimento em construção, mas ainda faltam
+   demais variantes, itens e efeitos (inclusive cosméticos), testes de colisão
+   e verificação visual do movimento/teletransporte no LÖVE real.
    Não assumir paridade só porque os pacotes `X`/`Y` passaram na CI.
 4. Morte/renascimento, clãs, loja, chat, placar, perfil e moderação no Node,
    usando confirmações autoritativas; testes para manipulação de pacotes,
