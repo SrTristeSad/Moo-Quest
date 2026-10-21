@@ -15,3 +15,9 @@ assets/reference/
 
 # Generated locally by TESTAR-WINDOWS.bat
 RELATORIO-TESTES-LUA.txt
+# Vendored Node runtime deps and private/generated server state
+node_modules/
+server/node_modules/
+server/data/
+assets/custom/
+ARTES-PENDENTES.txt

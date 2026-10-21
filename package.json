@@ -1,0 +1,12 @@
+{
+  "name": "moo-quest-native-client-and-node-server",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "server"
+  ],
+  "scripts": {
+    "start:server": "node server/src/index.js",
+    "test:node": "node --test server/src/network/packetUtils.test.js"
+  }
+}
