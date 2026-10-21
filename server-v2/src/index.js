@@ -2,7 +2,8 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PostgresStorage } from './database.js';
-import { RedisAuth, RedisTickets, connectRedis } from './redis-services.js';
+import { RedisAuth, RedisTickets, RedisPlayerTokens, connectRedis } from './redis-services.js';
+import { PlayerAccounts } from './player-accounts.js';
 import { Updates } from './updates.js';
 import { createHTTP } from './http.js';
 import { GameServer } from './game.js';
@@ -16,10 +17,13 @@ let redis;
 try { redis = await connectRedis(); }
 catch(error) { await storage.close(); throw error; }
 const auth = new RedisAuth(redis);
+const playerTokens=new RedisPlayerTokens(redis);
+const accounts=await new PlayerAccounts(storage.pool).init();
 const updates = new Updates(root, storage.dir);
 let stopping = false;
-const app = createHTTP({ root: moduleRoot, storage, auth, updates, stopStatus: () => stopping });
-const game = new GameServer(app.server, storage, new RedisTickets(redis));
+const app = createHTTP({ root: moduleRoot, storage, auth, updates,
+  accounts,playerTokens,stopStatus: () => stopping });
+const game = new GameServer(app.server, storage, new RedisTickets(redis),{accounts});
 app.setGame(game);
 const host = process.env.MOO_HOST || '127.0.0.1';
 const port = Number(process.env.MOO_PORT || 8100);
@@ -43,6 +47,7 @@ async function shutdown(signal) {
   try {
     await game.stop();
     await new Promise(resolve => app.server.close(resolve));
+    await accounts.flush();
     await redis.quit();
     await storage.close();
     clearTimeout(deadline);
