@@ -6,7 +6,8 @@ assert(Hud.formatResource(nil)=="0")
 assert(Hud.formatResource({})=="0")
 assert(Hud.formatResource(0)=="0")
 assert(Hud.formatResource(500)=="500")
-assert(Hud.formatResource(20000)=="20.0k")
+assert(Hud.formatResource(20000)=="20000")
+assert(Hud.formatResource(1000000)=="1000000")
 
 local width,height=1280,720
 assert(Hud.hitTest(w,width,height,width/2,height-60)==nil)
