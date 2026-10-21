@@ -58,3 +58,8 @@ jobs:
           SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
             MOOQUEST_INTEGRATION=store_tribe \
             timeout 35s xvfb-run -a -s "-screen 0 1280x720x24" love .
+          # Register a real account name, create a permanent clan and
+          # disband it through the native Lua UI and the account API.
+          SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
+            MOOQUEST_INTEGRATION=persistent_clan \
+            timeout 35s xvfb-run -a -s "-screen 0 1280x720x24" love .
