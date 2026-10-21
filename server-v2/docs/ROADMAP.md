@@ -1,42 +1,78 @@
-# Desenvolvimento do servidor autoral
+# Servidor Moo-Quest autoral — escopo CORRIGIDO
 
-## Etapa 1 — fundação independente (esta entrega)
+O **BrowserQuest-Revived** é somente referência para operação: instalação visual no
+**aaPanel**, administração autenticada, logs, backups e atualizações produzidas
+pelo nosso próprio projeto. **O jogo NÃO terá NPC, missões, campanha nem
+editor/modificação administrativa de mapa.** A construção de estruturas pelos
+jogadores durante a partida continua fazendo parte do escopo.
 
-- Node.js 22+, aaPanel, proxy HTTPS, instalador por código local.
-- Painel de administração: status, configuração, anúncios, sessões, jogadores,
-  expulsão/bloqueio persistente por origem criptográfica, auditoria.
-- Atualizador com manifesto Ed25519, HTTPS mesmo domínio, SHA-256 por arquivo,
-  staging isolado e rollback após reinício pelo aaPanel.
-- Arena mínima independente com WebSocket JSON (protocolo V2 ALFA), sem sprites.
-- Testes de instalação, login, segurança, world ticks e conexão real.
+## Objetivo de aceitação (não alcançado ainda)
 
-## Etapa 2 — motor de jogo autoral
+O cliente Lua/LÖVE já implementado deve funcionar com o servidor independente
+sem perder seus efeitos visuais, controles ou telas. O servidor atual não copia
+bibliotecas, classes, lógica de jogadores, scripts ou artes do MooMoo.io ou
+BrowserQuest. Reimplementação de formatos necessários à interoperabilidade
+não equivale a autorização de distribuir artes, marca, textos e visuais
+protegidos; revisão jurídica independente ainda é necessária.
 
-- Mapa em coordenadas contínuas, regiões e biomas configuráveis;
-- colisão espacial eficiente de círculos/estruturas;
-- instâncias e gestão de salas; filas e limites;
-- combate determinístico (cadência, alcance, dano, defesa, morte, respawn);
-- recursos, árvores, rochas, inventário e construção com persistência;
-- mobs/NPCs e IA completamente novos;
-- testes autoritativos de colisão e segurança em carga.
+### Especificação de entrada que o cliente realmente exige
 
-## Etapa 3 — painel completo e persistência
+- `GET /ping`: retorna JSON com `build` alfanumérico;
+- `POST /api/join`: emite ticket de 36 caracteres hex e `did` hexadecimal;
+- WebSocket `/s/LC?b=...&token=tk:...`, resposta `io-init` em MessagePack;
+- sessão HMAC-SHA256 autenticando pacotes binários e sequência monotônica;
+- envio **pelo jogador** dos códigos `M,D,9,e,F,z,H,K,L,N,b,P,Q,c,6,S,0`;
+- recepção inicial de `A,C,D,H,N,V,T,U`, depois `a` (posições/atributos),
+  `I` (animais), `G` (placar), `O` (saúde), `K` (golpe), `P` (morte),
+  `Q,R` (remoção de construções), `5` (equipamento), `3,4` (tribos) etc.
+- Conforme `src/protocol/original_crypto.lua`, o modo **unpinned** do cliente
+  reconhece somente 17 comandos e 36 eventos; para perfis, anúncios e os
+  efeitos adicionais (`p,F,W,m,r,q`) é necessário um modo de transporte
+  completo, independentemente implementado, ou mínima adaptação de transporte
+  do cliente. Não basta habilitar um nome de pacote não reconhecido.
 
-- Painel de salas, logs, jogadores, bans por conta/dispositivo + apelação;
-- contas reais e autenticação HTTPS com verificação;
-- editor de mundo, NPCs, mobs, eventos, itens, receitas e economia;
-- backups automatizados e restore, migrações versionadas;
-- PostgreSQL/Redis opcionais em escala, sem exigir na instalação básica;
-- tarefas agendadas e alertas de infraestrutura.
+### Estado real do novo servidor
 
-## Etapa 4 — protocolo do cliente e publicação
+Implementado na fundação experimental:
 
-- Definir nova documentação e versão de protocolo;
-- adaptar cliente Lua mediante etapa separada, sem alterar arte existente;
-- smoke de jogo real Windows/Linux, VPS aaPanel, load tests e rollback;
-- revisão das licenças, do branding, da segurança e dos termos do produto.
+- infraestrutura Node.js + aaPanel, login proprietário, painel de jogadores,
+  moderação, auditoria e atualização **Ed25519** com rollback;
+- binário de interoperabilidade independente em `src/native-protocol.js`,
+  sem depender do antigo `server/src/protocol`;
+- `/ping`, `/api/join` com ticket de uso único, `/s/LC`, pacote `io-init`,
+  validação HMAC/antirreplay, entrada M -> C/D e atualizações de posição;
+- mundo de coordenadas contínuas 14.400, recursos de coleta e seu reaparecimento,
+  fauna básica (animais sem diálogo/NPC), estruturas com custo e dano,
+  espinhos, combate direcional, cura por alimento, progressão e upgrades parciais,
+  vida/morte, compras limitadas e tribos básicas — decisões do servidor;
+- testes unitários de codecs, entrada, inventário, compras, construção,
+  recursos, retorno após coleta, cura, XP e escolhas de equipamentos. O teste
+  WebSocket de ponta a ponta inclui loja, cura e upgrades, além da entrada.
+  A confirmação visual na versão Windows ainda está pendente.
 
-**A entrega 1 não é o jogo completo nem um painel administrativo completo.**
-Não incluir arquivos do servidor anterior, código de terceiros ou artes no
-pacote final de distribuição. O repositório atual mantém o sistema antigo em
-outra pasta apenas para preservar histórico e permitir migração planejada.
+**Não comprovado:** conexão efetiva com o aplicativo LÖVE em Windows;
+compatibilidade integral de todos os comandos, cosméticos, equipamentos,
+animações, colisão e câmera. O antigo pacote de artes do cliente ainda
+precisa de auditoria/recriação licenciada antes de lançamento comercial.
+
+### Pendências obrigatórias (não declarar concluído antes delas)
+
+1. Rodar o teste **WebSocket real** com dependência `ws` instalada, mais o
+   cliente Lua/LÖVE no Windows, provando `M -> C/D -> movimento -> coleta`.
+2. Implementar os recursos, animais existentes, obstáculos, objetos e biomas
+   requeridos pelo cliente, sem introduzir NPCs ou editores de mapa.
+3. Completar TODOS os itens/armas existentes no cliente, inclusive tempos de
+   ataque, custos, upgrades, inventário, colisões, projéteis e efeitos.
+4. Morte/renascimento, clãs, loja, chat, placar, perfil e moderação no Node,
+   usando confirmações autoritativas; testes para manipulação de pacotes,
+   replay, fraude de posição e execução simultânea de 40 jogadores.
+5. Completar os pacotes estendidos de aviso e efeitos; cobertura 100% do
+   contrato consumido pelo `World:apply` do Lua.
+6. aaPanel: backup/restore verificado, atualização assinada e rollback real,
+   contas persistentes, auditoria de permissões e proteção da API de ingresso.
+7. Testar Linux/Windows lado a lado, paridade funcional/visual e carga.
+8. Revisão jurídica de marcas, artes do cliente, nomes, arquivos, licenças,
+   pacote distribuído e limites da engenharia de interoperabilidade.
+
+**O painel e o atualizador não tornam o jogo completo por si mesmos.**
+Nenhum código do servidor antigo deve entrar no pacote comercial V2.

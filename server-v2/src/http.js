@@ -67,6 +67,17 @@ export function createHTTP({ root, storage, auth, updates, game = null, stopStat
     const installed = Boolean(storage.data.owner);
     try {
       if (req.method === 'GET' && publicFiles.has(pathname)) return page(res, publicDir, publicFiles.get(pathname));
+      // Compatibility ingress for the EXISTING Lua client, not the old
+      // server implementation. The native binary session is first-party.
+      if(req.method==='GET' && pathname==='/ping')return respond(res,200,{
+        status:'ok',build:'mqv2native',servers:[{key:'LC',name:'LC',playerCount:gameRef?.room.players.size||0}]
+      });
+      if(req.method==='POST' && pathname==='/api/join'){
+        if(!installed || !gameRef)return respond(res,503,{error:'not_installed'});
+        const body=await readBody(req);
+        const token=gameRef.issueTicket(req,body);
+        return token?respond(res,200,token):respond(res,429,{error:'join_rejected'});
+      }
       if (req.method === 'GET' && pathname === '/health') return respond(res, 200,
         { status: 'ok', version: '0.1.0', project: 'MooQuest-Own-Server' });
       if (req.method === 'GET' && pathname === '/ready') return respond(res, installed && !stopStatus() ? 200 : 503,
@@ -74,7 +85,7 @@ export function createHTTP({ root, storage, auth, updates, game = null, stopStat
       if (req.method === 'GET' && pathname === '/api/status') return respond(res, 200,
         { name: storage.data.settings.title, players: gameRef?.room.players.size ?? 0,
           capacity: storage.data.settings.maxPlayers, maintenance: storage.data.settings.maintenance,
-          installed, protocol: 'mq-v2-alpha' });
+          installed, protocol: 'mq-v2-native-compat-1', compatibility: 'experimental_not_certified' });
       if (req.method === 'GET' && pathname === '/') return redirect(res, installed ? '/admin/login' : '/setup');
       if (req.method === 'GET' && pathname === '/setup') return installed ? redirect(res, '/admin/login') : page(res, publicDir, 'setup.html');
       if (req.method === 'POST' && pathname === '/setup') {

@@ -1,0 +1,28 @@
+SERVIDOR MOO-QUEST V2 INDEPENDENTE — PREVIA TECNICA
+
+IMPORTANTE: nao esta completo e NAO deve substituir o servidor publico.
+Nao possui NPCs, missoes ou editor de mapa.
+
+1) Use Node.js 22 ou superior.
+2) Na pasta server-v2, execute npm install --omit=dev.
+3) Execute npm test. O teste completo necessita do modulo ws, obtido por npm.
+4) Execute npm start para iniciar o instalador local na porta 8100.
+5) Visite http://127.0.0.1:8100/setup e copie o codigo exibido no log.
+6) Painel em http://127.0.0.1:8100/admin.
+
+TESTE EXPERIMENTAL COM O CLIENTE LUA EXISTENTE:
+  1. Feche o servidor antigo na porta 8080.
+  2. Inicie este servidor com MOO_PORT=8080 e MOO_HOST=127.0.0.1.
+  3. Realize o setup nessa mesma porta.
+  4. Abra o projeto cliente Lua diretamente com LÖVE 2D.
+  5. O protocolo binario foi implementado, mas ainda nao foi testado
+     contra a aplicacao LÖVE real neste ambiente.
+
+FUNCIONALIDADE PARCIAL: Spawn, movimento, coleta, estruturas simples,
+armas iniciais, fauna basica, tribos, compra limitada, morte/renascimento.
+NAO FUNCIONA AINDA COMO CLIENTE 1:1: todos os itens/armas, bosses,
+projetis, efeitos especiais, perfil, stats, modos de conta, avisos ampliados.
+
+ALERTA JURIDICO: o codigo Node nao inclui artes de terceiros, mas o
+cliente existente precisa de analise separada de sprites e identidade.
+Leia README.md, docs/ROADMAP.md e docs/LEGAL-E-ESCOPO.md.

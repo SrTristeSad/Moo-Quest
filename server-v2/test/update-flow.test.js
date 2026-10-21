@@ -16,7 +16,7 @@ test('full signed update: verify bytes, stage, activate and roll back',async t=>
   fs.writeFileSync(pubFile,publicKey.export({format:'pem',type:'spki'}));
   const manifestURL='https://updates.example.net/manifest.json';
   const names=['src/index.js','src/http.js','src/auth.js','src/storage.js',
-    'src/updates.js','src/game.js','src/world.js','public/admin.html',
+    'src/updates.js','src/game.js','src/world.js','src/native-protocol.js','public/admin.html',
     'public/login.html','public/setup.html','public/style.css','public/app.js'];
   const content=new Map();
   const files=names.map(name=>{

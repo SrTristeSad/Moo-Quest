@@ -52,7 +52,7 @@ test('update only accepts genuine Ed25519 releases from configured HTTPS origin'
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const origin = 'https://release.example.org/manifest.json';
   const files = ['src/index.js','src/http.js','src/auth.js','src/storage.js',
-    'src/updates.js','src/game.js','src/world.js','public/admin.html',
+    'src/updates.js','src/game.js','src/world.js','src/native-protocol.js','public/admin.html',
     'public/login.html','public/setup.html','public/style.css','public/app.js']
     .map(p => ({ path: p, url: '/build/' + p, size: 4, sha256: createHash('sha256').update('test').digest('hex') }));
   const payload = { version: '0.2.0', files, notes: 'Atualização oficial' };

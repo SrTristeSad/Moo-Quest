@@ -12,6 +12,9 @@ import { createHTTP } from '../src/http.js';
 import { GameServer } from '../src/game.js';
 const appRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 test('live HTTP + WebSocket: alpha protocol, movement, admin kick, persisted ban',async t=>{
+  const previous=process.env.MOO_DEV_JSON;
+  process.env.MOO_DEV_JSON='1';
+  t.after(()=>{if(previous===undefined)delete process.env.MOO_DEV_JSON;else process.env.MOO_DEV_JSON=previous;});
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'mq-ws-live-'));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
   const storage=new Storage(root),auth=new Auth(),updates=new Updates(root,storage.dir,{manifestURL:null,publicKeyFile:null});
@@ -34,7 +37,7 @@ test('live HTTP + WebSocket: alpha protocol, movement, admin kick, persisted ban
   assert.equal(game.room.players.size,1);
   ws.send(JSON.stringify({kind:'input',dx:1,dy:0,x:99999}));
   await new Promise(r=>setTimeout(r,100));
-  assert.ok(game.room.players.get(me.id).x<4096);
+  assert.ok(game.room.players.get(me.id).x<game.room.size);
   const hash=game.room.players.get(me.id).ipHash;
   assert.match(hash,/^[0-9a-f]{64}$/);
   storage.data.bans[hash]={reason:'e2e ban'};storage.save();
