@@ -322,7 +322,10 @@ function love.draw()
   end
   if client and client.state=="spawn_confirmed" and not died
     and p and p.x and p.y then
-    View.draw(world,camera,frameDelta,{showGrid=menu.grid})
+    -- Match browser renderPlayers(): the local avatar aims at the cursor
+    -- immediately, while the Node remains authoritative for D/F combat.
+    View.draw(world,camera,frameDelta,
+      {showGrid=menu.grid,localAim=currentAttackDir()})
     Hud.draw(world,chatOpen,chatDraft,
       chatOpen or panels:isOpen() or clans:isOpen())
     panels:draw(world)

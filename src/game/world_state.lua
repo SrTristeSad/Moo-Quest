@@ -1,6 +1,7 @@
 -- Protocol-driven game state. All entities originate in packets from the Node server.
 -- Packet layouts: al007ex/moomoo-clone/server/src/moomoo/server.js (pinned baseline).
 local Catalog=require("src.game.catalog")
+local C=require("src.game.config")
 local Animation=require("src.game.reference_animation")
 local Animals=require("src.game.animals")
 local Store=require("src.game.store_catalog")
@@ -272,13 +273,20 @@ function World:apply(name,args)
     local direction,sid=args[1],args[2]
     local o=self.objects[sid]
     if o and number(direction) then
-      o.wiggleX=(o.wiggleX or 0)+10*math.cos(direction)
-      o.wiggleY=(o.wiggleY or 0)+10*math.sin(direction)
+      o.wiggleX=(o.wiggleX or 0)+C.gatherWiggle*math.cos(direction)
+      o.wiggleY=(o.wiggleY or 0)+C.gatherWiggle*math.sin(direction)
     end
     return true
   elseif name=="M" then
+    -- The reference shootTurret(sid,dir) rotates AND kicks the turret back
+    -- opposite its shot. This is cosmetic and must follow a real Node M.
     local sid,dir=args[1],args[2]
-    if self.objects[sid] and number(dir) then self.objects[sid].dir=dir end
+    local obj=self.objects[sid]
+    if obj and number(dir) then
+      obj.dir=dir
+      obj.wiggleX=(obj.wiggleX or 0)+C.gatherWiggle*math.cos(dir+math.pi)
+      obj.wiggleY=(obj.wiggleY or 0)+C.gatherWiggle*math.sin(dir+math.pi)
+    end
     return true
   elseif name=="X" then
     -- Projectile: x,y,dir,remainingRange,speed,projectileType,layer,sid.

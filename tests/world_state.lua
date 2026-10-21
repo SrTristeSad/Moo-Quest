@@ -63,7 +63,26 @@ assert(w:apply("Y",{99,20}) and w.projectiles[99].range==20)
 w:update(0.05)
 assert(w.projectiles[99]==nil)
 assert(w:apply("H",{{111,330,450,0,50,1,6,42}}))
-assert(w:apply("R",{42}) and w.objects[111]==nil)
+-- Real Node turret-shot M must turn the structure and apply the same
+-- visual recoil as the archived browser: opposite the firing angle.
+assert(w:apply("H",{{112,340,450,0,43,0,17,42}}))
+local turret=w.objects[112]
+assert(w:apply("M",{112,0}) and turret.dir==0)
+assert(math.abs(turret.wiggleX+10)<0.00001 and
+  math.abs(turret.wiggleY)<0.00001,
+  "turret should recoil 10 world units opposite shot direction")
+w:update(0.1)
+assert(turret.wiggleX<0 and turret.wiggleX>-10,
+  "turret recoil should decay, not remain permanently offset")
+local before=turret.wiggleY or 0
+assert(w:apply("M",{112,math.pi/2}))
+assert(math.abs(turret.wiggleY-before+10)<0.00001,
+  "turret must recoil toward negative Y when firing downward")
+local recoilX,recoilY=turret.wiggleX,turret.wiggleY
+assert(w:apply("M",{9999,0}) and
+  turret.wiggleX==recoilX and turret.wiggleY==recoilY,
+  "M for an unknown Node object must not create a phantom turret")
+assert(w:apply("R",{42}) and w.objects[111]==nil and w.objects[112]==nil)
 assert(w:apply("P",{}) and w.dead and not w.spawned)
 assert(w.lastDeath and w.lastDeath.x==105 and w.lastDeath.y==205)
 assert(w:apply("C",{42}) and w.spawned and not w.dead)
