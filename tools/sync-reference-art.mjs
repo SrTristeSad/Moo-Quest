@@ -11,6 +11,12 @@ const source=path.join(server,"client","public","img");
 const target=path.join(project,"assets","reference","img");
 const expected={animals:17,weapons:81,hats:55,accessories:21,resources:4,icons:2};
 const categories=Object.keys(expected);
+const required={
+  weapons:["hammer_1.png","sword_1.png","axe_1.png","arrow_1.png"],
+  animals:["cow_1.png","bull_1.png","bull_2.png","pig_1.png"],
+  resources:["wood_ico.png","food_ico.png","stone_ico.png","gold_ico.png"],
+  icons:["crown.png","skull.png"]
+};
 async function main(){
   const info=await fs.stat(source).catch(()=>null);
   if(!info||!info.isDirectory())
