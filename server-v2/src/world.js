@@ -12,7 +12,9 @@ const RECIPES={
   6:{cost:{wood:20,stone:5},scale:49,hp:300,group:2,limit:15},
   7:{cost:{wood:30,stone:10},scale:52,hp:400,group:2,limit:15},
   10:{cost:{wood:50,stone:10},scale:45,hp:350,group:3,limit:20},
-  11:{cost:{wood:60,stone:20},scale:47,hp:450,group:3,limit:20}
+  11:{cost:{wood:60,stone:20},scale:47,hp:450,group:3,limit:20},
+  // Player-built automatic defense. Static only: no NPC or editable map.
+  17:{cost:{wood:200,stone:150},scale:43,hp:800,group:7,limit:2,turret:true}
 };
 const FOOD={0:{cost:10,heal:20},1:{cost:15,heal:40}};
 const WEAPONS={0:{damage:15,reach:85,cooldown:500},
@@ -23,6 +25,8 @@ const WEAPONS={0:{damage:15,reach:85,cooldown:500},
   // indices 0/2/3/5 are the LÖVE renderer's existing visual contract.
   // Speed is world units per millisecond, matching Lua's X packet display.
   9:{damage:25,cooldown:600,projectile:0,speed:1.6,range:1000,ammo:{wood:4}},
+  // Selecting this defensive item never falls back to an offensive hammer.
+  11:{damage:0,reach:0,cooldown:300,shield:0.35},
   12:{damage:35,cooldown:700,projectile:2,speed:2.5,range:1200,ammo:{wood:5}},
   13:{damage:30,cooldown:300,projectile:3,speed:2.0,range:1200,ammo:{wood:10}},
   15:{damage:50,cooldown:1500,projectile:5,speed:3.6,range:1400,ammo:{stone:10}}
@@ -38,6 +42,8 @@ const UPGRADES=new Map([
   [11,{kind:'weapon',id:11,age:6}], [14,{kind:'weapon',id:14,age:6}],
   [2,{kind:'weapon',id:2,age:8,pre:1}], [4,{kind:'weapon',id:4,age:8,pre:3}],
   [12,{kind:'weapon',id:12,age:8,pre:9}],
+  // Index for the Lua item upgrade = number of weapon IDs (16) + item ID.
+  [33,{kind:'item',id:17,age:7}],
   [13,{kind:'weapon',id:13,age:9,pre:12}],
   [15,{kind:'weapon',id:15,age:9,pre:12}]
 ]);
@@ -208,7 +214,8 @@ export class World {
     }
     for(const [k,n] of Object.entries(recipe.cost))p.resources[k]-=n;
     const sid=this.nextObjectSid++;
-    this.structures.set(sid,{sid,x,y,scale,type:4,id:itemId,owner:p.sid,hp:recipe.hp,maxHp:recipe.hp,createdAt:this.now()});
+    this.structures.set(sid,{sid,x,y,scale,type:4,id:itemId,owner:p.sid,
+      hp:recipe.hp,maxHp:recipe.hp,createdAt:this.now(),nextFire:0});
     this.events.push({kind:'build',sid,owner:p.sid,id:itemId,x,y});return true;
   }
   consume(id,itemId){
@@ -227,7 +234,7 @@ export class World {
     p.xp+=amount;
     while(p.xp>=p.maxXp&&p.age<20){
       p.xp-=p.maxXp;p.age++;p.maxXp=LEVEL_XP(p.age);
-      if([2,3,5,6,8,9].includes(p.age))p.upgradePoints++;
+      if([2,3,5,6,7,8,9].includes(p.age))p.upgradePoints++;
     }
     this.events.push({kind:'progress',player:id,xp:p.xp,maxXp:p.maxXp,age:p.age,
       points:p.upgradePoints,upgradeAge:p.upgradeAge});
@@ -241,10 +248,29 @@ export class World {
     // One selection per stage. Older paths remain available to players who
     // choose melee rather than ranged at age six.
     group.push(rule.id);p.upgradePoints--;
-    p.upgradeAge=({2:3,3:5,5:6,6:8,8:9})[rule.age]??20;
+    p.upgradeAge=({2:3,3:5,5:6,6:7,7:8,8:9})[rule.age]??20;
     this.events.push({kind:'upgrade',player:id,equipmentKind:rule.kind,id:rule.id,
       points:p.upgradePoints,upgradeAge:p.upgradeAge});
     return true;
+  }
+  // Shield absorption applies only to frontal incoming damage while the
+  // defensive equipment is selected. Client packets cannot set damage.
+  protectedDamage(target,raw,sourceX,sourceY){
+    let amount=raw;
+    const shield=WEAPONS[target.weaponIndex]?.shield;
+    if(shield&&Number.isFinite(sourceX)&&Number.isFinite(sourceY)){
+      const direction=Math.atan2(sourceY-target.y,sourceX-target.x);
+      if(Math.cos(direction-target.angle)>=0.25)
+        amount=Math.max(0,Math.round(raw*(1-shield)));
+    }
+    return amount;
+  }
+  spawnProjectile({owner,ownerSid,team,x,y,dir,range,speed,damage,type,layer=0,
+    sourceSid=null,ammo={}}){
+    const sid=this.nextProjectileSid++;
+    this.projectiles.set(sid,{sid,owner,ownerSid,team,x,y,dir,range,speed,damage,type,layer,sourceSid});
+    this.events.push({kind:'projectile_spawn',sid,player:owner,x,y,dir,range,speed,type,layer,ammo});
+    return sid;
   }
   attack(id){
     const p=this.players.get(id),time=this.now();
@@ -257,16 +283,13 @@ export class World {
       if(!Object.entries(weapon.ammo).every(([k,v])=>p.resources[k]>=v))return false;
       for(const [k,v] of Object.entries(weapon.ammo))p.resources[k]-=v;
       p.lastAttack=time;
-      const sid=this.nextProjectileSid++;
       const x=p.x+Math.cos(p.angle)*46,y=p.y+Math.sin(p.angle)*46;
-      this.projectiles.set(sid,{sid,owner:p.id,ownerSid:p.sid,team:p.team,
-        x,y,dir:p.angle,range:weapon.range,speed:weapon.speed,
-        damage:weapon.damage,type:weapon.projectile,layer:0});
-      this.events.push({kind:'projectile_spawn',sid,player:p.id,x,y,dir:p.angle,
-        range:weapon.range,speed:weapon.speed,type:weapon.projectile,layer:0,
-        ammo:{...weapon.ammo}});
+      this.spawnProjectile({owner:p.id,ownerSid:p.sid,team:p.team,x,y,dir:p.angle,
+        range:weapon.range,speed:weapon.speed,damage:weapon.damage,
+        type:weapon.projectile,ammo:{...weapon.ammo}});
       return true;
     }
+    if(weapon.shield)return false; // Defensive selection cannot damage wildlife.
     p.lastAttack=time;
     let victim=null,distance=weapon.reach;
     for(const other of this.players.values()){
@@ -276,8 +299,9 @@ export class World {
       if(d<distance&&Math.cos(angle-p.angle)>=0.15){victim=other;distance=d;}
     }
     if(victim){
-      victim.hp=Math.max(0,victim.hp-weapon.damage);
-      this.events.push({kind:'hit',from:p.id,to:victim.id,damage:weapon.damage,hp:victim.hp,x:victim.x,y:victim.y});
+      const damage=this.protectedDamage(victim,weapon.damage,p.x,p.y);
+      victim.hp=Math.max(0,victim.hp-damage);
+      this.events.push({kind:'hit',from:p.id,to:victim.id,damage,hp:victim.hp,x:victim.x,y:victim.y});
       if(victim.hp===0){victim.deadUntil=time+3000;victim.vx=0;victim.vy=0;p.resources.kills++;p.score+=100;this.events.push({kind:'death',id:victim.id,killer:p.id});this.awardXp(p.id,40);}
       return true;
     }
@@ -391,8 +415,9 @@ export class World {
       a.y=Math.max(60,Math.min(this.size-60,a.y+Math.sin(a.dir)*speed));
       if(target&&best<80&&at>=a.nextAttack){
         a.nextAttack=at+1100;
-        target.hp=Math.max(0,target.hp-a.damage);
-        this.events.push({kind:'animal_attack',sid:a.sid,to:target.id,hp:target.hp,damage:a.damage,x:target.x,y:target.y});
+        const damage=this.protectedDamage(target,a.damage,a.x,a.y);
+        target.hp=Math.max(0,target.hp-damage);
+        this.events.push({kind:'animal_attack',sid:a.sid,to:target.id,hp:target.hp,damage,x:target.x,y:target.y});
         if(target.hp===0){target.deadUntil=at+3000;target.vx=0;target.vy=0;this.events.push({kind:'death',id:target.id});}
       }
     }
@@ -427,8 +452,39 @@ export class World {
         if(amount){p.resources.points+=amount;p.score+=amount;this.events.push({kind:'income',player:p.id,amount});}
       }
     }
+    this.fireTurrets(at);
     this.advanceProjectiles(step,at);
     this.tickNumber++;
+  }
+  // Turrets are player-built structures, not NPCs. Targets, attack cadence,
+  // team protection and projectile damage are all computed by the server.
+  fireTurrets(at){
+    for(const turret of this.structures.values()){
+      if(turret.id!==17||at<(turret.nextFire||0))continue;
+      const owner=[...this.players.values()].find(p=>p.sid===turret.owner);
+      if(!owner)continue;
+      let victim=null,best=700;
+      for(const p of this.players.values()){
+        if(p.id===owner.id||p.hp<=0||owner.team&&p.team===owner.team)continue;
+        const distance=Math.hypot(p.x-turret.x,p.y-turret.y);
+        if(distance>=best)continue;
+        best=distance;victim=p;
+      }
+      for(const a of this.animals.values()){
+        if(a.health<=0||a.damage<=0)continue;
+        const distance=Math.hypot(a.x-turret.x,a.y-turret.y);
+        if(distance>=best)continue;
+        best=distance;victim=a;
+      }
+      if(!victim)continue;
+      const dir=Math.atan2(victim.y-turret.y,victim.x-turret.x);
+      turret.nextFire=at+2200;
+      const x=turret.x+Math.cos(dir)*55,y=turret.y+Math.sin(dir)*55;
+      this.events.push({kind:'turret_shot',sid:turret.sid,dir});
+      this.spawnProjectile({owner:owner.id,ownerSid:owner.sid,team:owner.team,
+        x,y,dir,range:700,speed:1.7,damage:18,type:1,layer:1,
+        sourceSid:turret.sid});
+    }
   }
   advanceProjectiles(step,at){
     for(const [sid,arrow] of this.projectiles){
@@ -448,6 +504,9 @@ export class World {
         offer('animal',animal,segmentHit(arrow.x,arrow.y,nx,ny,animal.x,animal.y,42));
       }
       for(const structure of this.structures.values()){
+        // Automatic defenses must not collide with the structure from which
+        // their projectile originated, even at zero distance.
+        if(structure.sid===arrow.sourceSid)continue;
         offer('structure',structure,segmentHit(arrow.x,arrow.y,nx,ny,
           structure.x,structure.y,Math.max(15,structure.scale*0.6)));
       }
@@ -465,9 +524,10 @@ export class World {
         const {kind,target}=first;
         const shooter=this.players.get(arrow.owner);
         if(kind==='player'){
-          target.hp=Math.max(0,target.hp-arrow.damage);
+          const damage=this.protectedDamage(target,arrow.damage,arrow.x,arrow.y);
+          target.hp=Math.max(0,target.hp-damage);
           this.events.push({kind:'hit',from:arrow.owner,to:target.id,
-            damage:arrow.damage,hp:target.hp,x:target.x,y:target.y});
+            damage,hp:target.hp,x:target.x,y:target.y});
           if(target.hp===0){
             target.deadUntil=at+3000;target.vx=0;target.vy=0;
             if(shooter){shooter.resources.kills++;shooter.score+=100;this.awardXp(shooter.id,40);}

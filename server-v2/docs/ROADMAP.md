@@ -50,6 +50,12 @@ Implementado na fundação experimental:
   jogadores, animais, obstáculos e construções; proteção da própria tribo;
 - botão `F` mantido aciona disparos/coleta somente após o intervalo autorizado
   pelo servidor e o envio de `F(0)` interrompe o ataque;
+- escudo de madeira (arma 11) desbloqueado aos seis níveis: defesa frontal
+  calculada pelo Node contra golpes e projéteis, sem falsificar golpes de martelo;
+- torre defensiva construída (item 17, índice Lua 33): custo de recursos,
+  limite por jogador, identificação de hostis, proteção de aliados, cadência
+  de 2200 ms, balas reais de tipo 1 e eventos `M`/`X`/`Y` para Lua;
+  sem NPCs, editor, comandos gráficos ou detecção de alvos no cliente;
 - testes unitários de codecs, entrada, inventário, compras, construção,
   recursos, retorno após coleta, cura, XP e escolhas de equipamentos. O teste
   WebSocket de ponta a ponta inclui loja, cura e upgrades, além da entrada.

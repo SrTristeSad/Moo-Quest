@@ -127,6 +127,26 @@ test('actual current Lua binary wire: /ping + /api/join + io-init + M -> C,D,H,a
   assert.equal(packets.filter(pkt=>pkt.name==='X'&&pkt.args[5]===0).length,shotCount,
     'releasing F stops server-controlled auto-fire');
   await waitFor(()=>packets.some(pkt=>pkt.name==='Y'&&pkt.args[0]===projectile.args[7]&&pkt.args[1]===0));
+
+  // A server-owned defensive emplacement must produce the already supported
+  // Lua M (turret turn), X (projectile), Y (impact/expiry) binary messages.
+  // Deliberately stage the world fixture here; building permissions/costs
+  // are separately validated in defenses.test.js.
+  const towerSid=918273;
+  const tower={sid:towerSid,id:17,x:2700,y:2200,scale:43,owner:p.sid,
+    hp:800,maxHp:800,nextFire:0};
+  game.room.animals.clear();
+  game.room.structures.set(towerSid,tower);
+  game.room.animals.set(918274,{sid:918274,index:2,x:2960,y:2200,homeX:2960,
+    homeY:2200,dir:0,health:200,maxHealth:200,speed:0,damage:12,
+    nextAttack:0,deadUntil:0,nameIndex:0,state:0});
+  await waitFor(()=>packets.some(pkt=>pkt.name==='M'&&pkt.args[0]===towerSid));
+  await waitFor(()=>packets.some(pkt=>pkt.name==='X'&&pkt.args[5]===1&&pkt.args[6]===1));
+  const turretX=packets.find(pkt=>pkt.name==='X'&&pkt.args[5]===1&&pkt.args[6]===1);
+  assert.equal(turretX.args[4],1.7);
+  await waitFor(()=>packets.some(pkt=>pkt.name==='Y'&&pkt.args[0]===turretX.args[7]));
+  assert.ok(game.room.animals.get(918274).health<200,
+    'turret bullet must actually damage a live hostile animal on the server');
   ws.close();
   await new Promise(resolve=>ws.once('close',resolve));
 });

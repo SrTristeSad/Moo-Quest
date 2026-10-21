@@ -238,6 +238,9 @@ export class GameServer {
       }else if(evt.kind==='income'){
         const state=[...this.nativeClients.values()].find(s=>s.p?.id===evt.player);
         state?.send('N',['points',state.p.resources.points,1]);
+      }else if(evt.kind==='turret_shot'){
+        // Native Lua's M event rotates and recoils an existing structure.
+        this._nativeBroadcast('M',[evt.sid,evt.dir]);
       }else if(evt.kind==='projectile_spawn'){
         // X is the existing Lua renderer's projectile creation message.
         // The client never chooses its speed, range, position or damage.
