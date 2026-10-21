@@ -248,3 +248,39 @@ test('persistent registered clan membership survives logout and only its real ow
   assert.equal(memberPlayer.team,null);
   assert.ok(!game.room.tribes.has(tag));
 });
+
+test('failed disconnect save locks a registered account and recovers its last snapshot on reconnect',async t=>{
+  if(!pgURL||!redisURL)return t.skip('live PostgreSQL + Redis only');
+  const {base,accounts,game,post,cleanupUsers}=await launch(t);
+  const username='Save'+randomUUID().slice(0,8);
+  cleanupUsers.push(username);
+  const registered=await accounts.register(username,'long-password-recovery');
+  const login=await (await post('/api/account/login',
+    {username,password:'long-password-recovery'})).json();
+  const credentials={authorization:'Bearer '+login.token};
+  const request={host:base+'/s/LC',captcha:true};
+  const admitted=await (await post('/api/join',request,credentials)).json();
+  const first=await enter(base,admitted.ticket);
+  t.after(()=>first.ws.terminate());
+  const player=[...game.room.players.values()].find(p=>p.accountId===registered.id);
+  assert.ok(player);
+  player.resources.wood=123;
+  const originalSave=accounts.save.bind(accounts);
+  accounts.save=async()=>{throw new Error('simulated transient PostgreSQL outage')};
+  first.ws.close();
+  await new Promise(resolve=>first.ws.once('close',resolve));
+  const deadline=Date.now()+2000;
+  while(!game.unsavedProfiles.has(registered.id)&&Date.now()<deadline)await sleep(10);
+  assert.equal(game.activeAccounts.has(registered.id),true,
+    'account must remain locked if its last state did not reach PostgreSQL');
+  assert.equal(game.unsavedProfiles.get(registered.id).resources.wood,123);
+  accounts.save=originalSave;
+  const ticket=await (await post('/api/join',request,credentials)).json();
+  const second=await enter(base,ticket.ticket);
+  t.after(()=>second.ws.terminate());
+  const restored=[...game.room.players.values()].find(p=>p.accountId===registered.id);
+  assert.ok(restored);
+  assert.equal(restored.resources.wood,123);
+  assert.equal(game.unsavedProfiles.has(registered.id),false);
+  assert.equal((await accounts.load(registered.id)).profile.resources.wood,123);
+});
