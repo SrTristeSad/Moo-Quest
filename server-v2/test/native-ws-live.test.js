@@ -101,6 +101,27 @@ test('actual current Lua binary wire: /ping + /api/join + io-init + M -> C,D,H,a
   ws.send(session.makeTestRequest('H',[1],seq+8));
   await waitFor(()=>packets.some(pkt=>pkt.name==='V'&&pkt.args[1]===1&&pkt.args[0].includes(1)));
   assert.deepEqual(p.inventory.weapons,[0,1]);
+
+  // Exercise the actual Lua-compatible projectile stream over binary WS.
+  // Age and stage are injected by the fixture; the rules for reaching them
+  // and the lack of a free unlock are independently tested in projectiles.
+  p.age=6;p.upgradePoints=1;p.upgradeAge=6;p.resources.wood=8;
+  ws.send(session.makeTestRequest('H',[9],seq+9));
+  await waitFor(()=>packets.some(pkt=>pkt.name==='V'&&pkt.args[1]===1&&pkt.args[0].includes(9)));
+  assert.ok(p.inventory.weapons.includes(9));
+  ws.send(session.makeTestRequest('z',[9,true],seq+10));
+  ws.send(session.makeTestRequest('D',[0],seq+11));
+  // The earlier food action has its own cooldown and must finish first.
+  await pause(650);
+  ws.send(session.makeTestRequest('F',[1,0],seq+12));
+  await waitFor(()=>packets.some(pkt=>pkt.name==='X'&&pkt.args[5]===0));
+  const projectile=packets.find(pkt=>pkt.name==='X'&&pkt.args[5]===0);
+  assert.equal(projectile.args.length,8);
+  assert.equal(projectile.args[4],1.6);
+  await waitFor(()=>packets.some(pkt=>pkt.name==='N'&&pkt.args[0]==='wood'&&pkt.args[1]===4));
+  assert.equal(p.resources.wood,4);
+  ws.send(session.makeTestRequest('F',[0,null],seq+13));
+  await waitFor(()=>packets.some(pkt=>pkt.name==='Y'&&pkt.args[0]===projectile.args[7]&&pkt.args[1]===0));
   ws.close();
   await new Promise(resolve=>ws.once('close',resolve));
 });
