@@ -30,10 +30,42 @@ Referencia do Node congelada: [commit 06f7c1c](https://github.com/al007ex/moomoo
 O servidor tem apenas configuracao de contas/anticheat **local de testes**;
 nao hospedá-lo na internet sem resolver a seguranca.
 
+## Loja e tribos durante a partida
+
+O cliente Lua passou a oferecer os botoes **Shop** (loja) e **Tribe**
+(tribo/alianca) durante a partida, nas posicoes da interface original.
+As janelas seguem as abas da referencia, fecham com Escape, possuem
+rolagem pelo mouse e recebem eventos verdadeiros do Node.
+
+**Shop:** a lista `src/game/store_catalog.lua` contem exatamente os
+49 chapeus e 21 acessorios de `shared/config/store.js`, incluindo
+`dontSell`, precos e nomes. Os itens usam os PNGs originais
+`hats/hat_<id>.png` e `accessories/access_<id>.png`. O servidor
+decide se uma compra e valida, debita os pontos e confirma compra ou
+equipamento pelo pacote `5`. O Lua nao entrega um equipamento por
+conta propria. Os testes Node validam uma compra real de chapeu e
+uma compra real de acessorio, seus custos e o resultado de equipar.
+
+**Tribe:** cria nome de 1 a 7 caracteres ASCII, permite pedir para
+entrar numa tribo, consultar membros, sair, dissolver a tribo
+quando lider, expulsar membros e responder pedidos de entrada.
+Os pacotes de envio originais `L`, `b`, `N`, `P`, `Q`
+e os pacotes recebidos `A`, `g`, `1`, `2`, `3`, `4`
+sao conectados ao cliente Lua. O servidor preserva suas regras de
+nomes reservados, propriedade da tribo e espera de 200 ms entre
+comandos. Teste integrado em LÖVE cria e deixa uma tribo diretamente
+no Node, recebendo as confirmacoes.
+
+**Diferenca importante:** a Tribo do jogo (referencia `Tribe` /
+`Alliance`) e uma alianca temporaria da partida. O servidor tambem
+possui clãs permanentes ligados a conta, pela API `/api/clan`,
+mas sua interface completa de administracao permanente ainda nao
+foi portada. Nao confunda os dois sistemas.
+
 ## Status real
 
 - **Implementado em codigo:** cliente LÖVE, MessagePack, WebSocket RFC6455, consulta `GET /ping`, **POST /api/join (ticket guest valido emitido pelo proprio Node local)**, conexao direta com `?b=<build>&token=tk:<ticket>`, leitura do `io-init`, chave/tabelas autenticadas e envio do pacote original `M` (spawn). Eventos `C` e `a` sao processados para exibir ID e coordenadas autoritativas; WASD, mira e clique enviam comandos reais. **Esta integracao ainda nao foi validada de ponta a ponta no Windows.**
-- **Nao implementado ou nao validado:** login de contas, selo do bundle oficial quando exigido (seal 2), probes/telemetria completos, menus sociais, cenas especiais e verificacao visual pixel a pixel. **Ja existem** porte de swings/ataques de jogadores e animais (pacotes K/J), chat Enter/6, inventario inicial, opcoes de evolucao por idade e renderizacao basica da interface, mas **ainda nao sao uma versao 1:1 comprovada**. A requisicao guest usa **o stand-in de captcha da propria API local**, apropriado somente para testes locais.
+- **Ainda nao implementado ou validado por completo:** interface de clãs permanentes, selo do bundle oficial quando exigido (seal 2), probes/telemetria completos, menus sociais, cenas especiais e verificacao visual pixel a pixel. **Ja existem** porte de swings/ataques de jogadores e animais (pacotes K/J), chat Enter/6, inventario inicial, opcoes de evolucao por idade e renderizacao basica da interface, mas **ainda nao sao uma versao 1:1 comprovada**. A requisicao guest usa **o stand-in de captcha da propria API local**, apropriado somente para testes locais.
 - **Porte grafico do codigo-fonte:** `reference_primitives.lua` e `reference_objects.lua` convertem as rotinas Canvas originais de arvores, arbustos, pedras e **23 itens**; `reference_assets.lua` carrega PNGs reais do cliente JS, copiados apenas na instalacao local; `reference_view.lua` segue camadas, personagem, equipamentos, animais e terrenos de referencia; `reference_hud.lua` segue as posicoes do CSS original. Os dados de entidades continuam vindo do Node por pacotes; a tela de mundo so aparece depois de `C` e posicao autentica. Ainda **sem prova de execucao completa no Windows**.
 
 ### Bloqueio encontrado na propria referencia
