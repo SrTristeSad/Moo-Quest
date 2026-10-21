@@ -22,13 +22,12 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function launch(t){
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'moo-registered-'));
-  t.after(()=>fs.rmSync(temp,{recursive:true,force:true}));
-  const pool=new pg.Pool({connectionString:pgURL});t.after(()=>pool.end());
+  const pool=new pg.Pool({connectionString:pgURL});
   const accounts=await new PlayerAccounts(pool).init();
   const redis=createClient({url:redisURL});redis.on('error',()=>{});
-  await redis.connect();t.after(()=>redis.quit());
+  await redis.connect();
   const prefix='mq:player-test:'+randomUUID()+':';
-  t.after(async()=>{const keys=await redis.keys(prefix+'*');if(keys.length)await redis.del(keys);});
+  const cleanupUsers=[];
   const store=new Storage(temp);store.data.owner={username:'admin',password:'hash'};
   store.data.settings.publicRegistration=true;
   const auth=new RedisAuth(redis,{prefix});
@@ -39,11 +38,25 @@ async function launch(t){
   app.setGame(game);
   await new Promise(r=>app.server.listen(0,'127.0.0.1',r));
   game.start();
-  t.after(async()=>{await game.stop();await new Promise(r=>app.server.close(r));});
+  t.after(async()=>{
+    // Shut down network and flush active profiles BEFORE closing either
+    // database. Node's after() hooks execute in registration order.
+    await game.stop();
+    await new Promise(r=>app.server.close(r));
+    await accounts.flush();
+    for(const username of cleanupUsers)
+      await pool.query('DELETE FROM mq_player_accounts WHERE username_key=$1',
+        [username.toLowerCase()]);
+    const keys=await redis.keys(prefix+'*');
+    if(keys.length)await redis.del(keys);
+    await redis.quit();
+    await pool.end();
+    fs.rmSync(temp,{recursive:true,force:true});
+  });
   const base='http://127.0.0.1:'+app.server.address().port;
   const post=async(route,body,headers={})=>fetch(base+route,{
     method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body)});
-  return {base,accounts,redis,game,store,post,playerTokens,pool};
+  return {base,accounts,redis,game,store,post,playerTokens,pool,cleanupUsers};
 }
 async function enter(base,ticket,name='ClaimedWithoutProof'){
   const ws=new WebSocket(base.replace('http:','ws:')+'/s/LC?b=mqv2native&token=tk:'+ticket);
@@ -70,9 +83,9 @@ async function enter(base,ticket,name='ClaimedWithoutProof'){
 
 test('PostgreSQL player account + Redis token protects persistent progress across native reconnects',async t=>{
   if(!pgURL||!redisURL)return t.skip('live PostgreSQL + Redis only');
-  const {base,accounts,game,store,post,pool}=await launch(t);
+  const {base,accounts,game,store,post,cleanupUsers}=await launch(t);
   const username='Player'+randomUUID().slice(0,8);
-  t.after(()=>pool.query('DELETE FROM mq_player_accounts WHERE username_key=$1',[username.toLowerCase()]));
+  cleanupUsers.push(username);
   store.data.settings.publicRegistration=false;
   assert.equal((await post('/api/account/register',{username,password:'strong-player-password'})).status,403);
   store.data.settings.publicRegistration=true;
@@ -125,7 +138,7 @@ test('PostgreSQL player account + Redis token protects persistent progress acros
 
 test('invalid legacy DID does not become an authenticated account; dead character loses survival state',async t=>{
   if(!pgURL||!redisURL)return t.skip('live PostgreSQL + Redis only');
-  const {base,accounts,post,pool,game}=await launch(t);
+  const {base,accounts,post,game,cleanupUsers}=await launch(t);
   const username='Player'+randomUUID().slice(0,8);
   t.after(()=>pool.query('DELETE FROM mq_player_accounts WHERE username_key=$1',[username.toLowerCase()]));
   const user=await accounts.register(username,'correct-account-password');
@@ -135,7 +148,7 @@ test('invalid legacy DID does not become an authenticated account; dead characte
   t.after(()=>session.ws.terminate());
   const p=[...game.room.players.values()][0];
   assert.equal(p.name,'GuestName');
-  assert.equal(p.accountId,undefined);
+  assert.equal(p.accountId,null);
   assert.equal((await accounts.load(user.id)).profile.version,undefined);
   // Expired/dead save restores cosmetics but cannot skip the game death reset.
   const registered=await accounts.load(user.id);
