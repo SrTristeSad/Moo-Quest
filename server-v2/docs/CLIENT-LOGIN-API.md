@@ -1,7 +1,9 @@
 # API de login do cliente — Moo-Quest V2
 
-Este documento é o contrato de backend para a futura interface Lua ou
-outro cliente. Ele não exige usar o menu atual. A API é JSON sobre HTTP
+Este documento descreve o contrato de backend e a primeira integração
+da interface Lua local. O menu V2 já possui cadastro, login e logout; agora
+renova o par de tokens uma única vez quando /api/join recusa um access
+token expirado (HTTP 401). Ainda não equivale a um cliente remoto completo. A API é JSON sobre HTTP
 (local) ou HTTPS pelo proxy reverso aaPanel. **O cliente remoto exige HTTPS
 para não transmitir segredos em claro.** O servidor Node usa PostgreSQL
 para contas e Redis para sessões. Senhas nunca são devolvidas.
@@ -82,3 +84,23 @@ uma única vez no handshake binário da partida, separado da sessão de conta.
 - Ainda não há recuperação de senha por e-mail, verificação de e-mail,
   MFA, vínculo de dispositivo, sistema de banimento de contas ou UI final.
   Isso deve ser decidido antes de abrir um serviço público.
+
+
+## Situação do cliente Lua/LÖVE
+
+- O menu já cadastra e autentica contas V2 por senha. Ao entrar, guarda
+  access e refresh tokens **somente na memória** do processo; não os grava
+  no diretório do LÖVE, no GitHub ou em logs. Reiniciar o aplicativo exige
+  login novamente. Armazenamento persistente exigiria cofre do sistema.
+- Ao reconectar, **somente** HTTP 401 de /api/join aciona uma tentativa
+  de `POST /api/account/refresh` e uma repetição de ingresso. HTTP 403
+  ou problemas de rede não acionam renovação. Falhas definitivas de refresh
+  invalidam o login na UI. Nenhum token de conta entra em URLs.
+- O logout usa Bearer e pode repetir via refresh token se o access token
+  expirou. A renovação não cria conta, personagem ou progresso local.
+- Transporte `socket.http` + WebSocket do projeto continua
+  **restrito a localhost**. Não usar HTTP ou ws:// pela internet:
+  HTTPS/WSS ainda precisa de implementação segura e validação em Windows.
+- Em `MOO_PUBLIC_MODE=1`, entrada de convidados requer token Turnstile
+  verdadeiro. A integração da UI desse desafio ainda é pendente; não
+  substituir por `captcha:true`.
