@@ -265,6 +265,25 @@ function love.draw()
     36,h-115,w-72)
 end
 
+local function requestPlay()
+  if not client then
+    menu.status=startupError or "Cliente de rede indisponivel."
+    return false
+  end
+  if client.state~="keyed_transport" and
+    not (died and client.state=="spawn_confirmed") then
+    menu.status="Aguardando conexao com Node. Estado: "..tostring(client.state)
+    return false
+  end
+  local ok,why=client:spawn({name=menu.name,skin=menu.skin})
+  if not ok then
+    menu.status="Falha ao entrar: "..tostring(why)
+    return false
+  end
+  died=false
+  menu.status="Entrando na partida; aguardando confirmacao do Node..."
+  return true
+end
 function love.keypressed(key)
   if key=="escape" then
     if chatOpen then chatOpen=false;chatDraft="";return end
