@@ -105,7 +105,7 @@ test('actual current Lua binary wire: /ping + /api/join + io-init + M -> C,D,H,a
   // Exercise the actual Lua-compatible projectile stream over binary WS.
   // Age and stage are injected by the fixture; the rules for reaching them
   // and the lack of a free unlock are independently tested in projectiles.
-  p.age=6;p.upgradePoints=1;p.upgradeAge=6;p.resources.wood=8;
+  p.age=6;p.upgradePoints=1;p.upgradeAge=6;p.resources.wood=20;
   ws.send(session.makeTestRequest('H',[9],seq+9));
   await waitFor(()=>packets.some(pkt=>pkt.name==='V'&&pkt.args[1]===1&&pkt.args[0].includes(9)));
   assert.ok(p.inventory.weapons.includes(9));
