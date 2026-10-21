@@ -116,8 +116,11 @@ assert(not p:isOpen())
 -- both catalogs, scroll page changes and tab swaps.
 assert(p:hover(640,360,1280,720)==nil)
 p:toggle("store")
-local firstHat=Store.list(false)[1]
+-- The original browser preserves the last selected tab when reopening.
+-- Explicitly click Hats instead of assuming reset() changed the tab.
 local px,py,pw,ph=p:position(1280,720)
+assert(p:click(w,px+50,py+74,1280,720).consumed and p.tab==0)
+local firstHat=Store.list(false)[1]
 assert(p:hover(px+48,py+117,1280,720)==firstHat)
 assert(p.hoverItem==firstHat)
 assert(p:storeButtonLabel(w,firstHat)~=nil)
