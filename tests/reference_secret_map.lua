@@ -34,7 +34,9 @@ if love and love.graphics and love.graphics.newCanvas then
       return x+focusX-200,y+focusY-200
     end
     gfx.push("all")
-    gfx.setCanvas(canvas)
+    -- LÖVE requires an explicit stencil buffer when testing stencil
+    -- geometry inside an offscreen Canvas (onscreen already has one).
+    gfx.setCanvas({canvas,stencil=true})
     gfx.clear(0,0,0,0)
     -- Test both the terrain pass and ORIGINAL outside-boundary alpha pass.
     S.draw(camera,400,400,wave or 1)
