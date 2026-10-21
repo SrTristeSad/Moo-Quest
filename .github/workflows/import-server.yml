@@ -1,0 +1,111 @@
+name: One-time Apache server import
+
+on:
+  push:
+    paths:
+      - .github/workflows/import-server.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout destination
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Download pinned public reconstructed game SERVER only
+        run: |
+          set -euo pipefail
+          SOURCE_SHA=06f7c1ca965a7628671676c8d9a7efd3997bb5e7
+          curl -fL --retry 3 -o /tmp/upstream.zip "https://github.com/al007ex/moomoo-clone/archive/${SOURCE_SHA}.zip"
+          unzip -q /tmp/upstream.zip -d /tmp
+          SRC="/tmp/moomoo-clone-${SOURCE_SHA}"
+          test -f "$SRC/LICENSE"
+          test -f "$SRC/server/src/index.js"
+          test -f "$SRC/shared/config.js"
+          mkdir -p server shared licenses
+          # NO client/, client-official/, dist/, images, or accounts are imported.
+          cp -a "$SRC/server/src" server/
+          cp "$SRC/server/package.json" server/package.json
+          cp -a "$SRC/shared/." shared/
+          cp "$SRC/LICENSE" licenses/upstream-server-APACHE-2.0.txt
+          cp support/local-anticheat-config.js server/src/anticheat/config.js
+      - name: Document our limited gameplay changes and create root package manifest
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const p="shared/config.js";
+          let c=fs.readFileSync(p,"utf8");
+          if(!c.includes("inSandbox: true,")||!c.includes("unlimitedResources: true,"))
+            throw Error("Upstream resource flags differ from pinned version");
+          c=c.replace("var config = {",
+            "// Moo-Quest CHANGED from upstream 2026-10-21: normal resources, not sandbox.\nvar config = {")
+            .replace("inSandbox: true,","inSandbox: false,")
+            .replace("unlimitedResources: true,","unlimitedResources: false,");
+          fs.writeFileSync(p,c);
+          const pkg={
+            name:"moo-quest-native-client-and-node-server",
+            private:true,
+            version:"0.1.0",
+            workspaces:["server"],
+            scripts:{
+              "start:server":"node server/src/index.js",
+              "test:node":"node --test server/src/network/packetUtils.test.js"
+            }
+          };
+          fs.writeFileSync("package.json",JSON.stringify(pkg,null,2)+"\n");
+          NODE
+          cat > SERVER-ORIGIN.md <<'DOC'
+          # Reconstructed Node server source bundled with Moo-Quest
+
+          Source: https://github.com/al007ex/moomoo-clone
+          Frozen upstream commit: 06f7c1ca965a7628671676c8d9a7efd3997bb5e7
+          License: root LICENSE (Apache-2.0) copied to
+          licenses/upstream-server-APACHE-2.0.txt. Original server/package.json
+          and attribution information are also preserved.
+
+          Imported only server/src, server/package.json, and shared.
+          No official client code, its downloaded proprietary assets, local
+          accounts, generated protocol-build.json, or binary data were copied.
+
+          Moo-Quest changes: server/src/anticheat/config.js is our LOCAL-ONLY
+          substitute for the unpublished upstream file; shared/config.js changes
+          inSandbox true -> false and unlimitedResources true -> false. These
+          restore normal resource gathering from zero, rather than giving each
+          player 1,000,000 on spawn. All other reconstructed server gameplay code
+          is unchanged at import time.
+
+          Install: npm install --omit=dev
+          Run: npm run start:server
+          Account and build state are saved under server/data/ (gitignored).
+          Authentication API is an insecure LOCAL TEST emulator; never publish
+          this server on the public Internet without replacing that subsystem.
+          DOC
+          cat >> .gitignore <<'EOF'
+          # Vendored Node runtime deps and private/generated server state
+          node_modules/
+          server/node_modules/
+          server/data/
+          assets/custom/
+          ARTES-PENDENTES.txt
+          EOF
+          git diff --check
+      - name: Commit ONLY reconstructed server source under Apache license
+        run: |
+          set -euo pipefail
+          git config user.name "Moo-Quest CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add server/src server/package.json shared package.json \
+                  licenses/upstream-server-APACHE-2.0.txt SERVER-ORIGIN.md .gitignore
+          if git diff --cached --quiet; then
+            echo "Server source already present; no import necessary."
+            exit 0
+          fi
+          git commit -m "feat(server): vendor Apache reconstructed Node and restore normal resource gathering"
+          git push origin HEAD:main
