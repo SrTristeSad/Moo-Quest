@@ -14,6 +14,7 @@ local Camera=require("src.camera")
 local Input=require("src.input")
 local Pack=require("src.protocol.msgpack")
 local client=nil
+local integration=nil
 local world=World.new()
 local camera=nil
 local menuCamera=nil
@@ -70,6 +71,11 @@ function love.load()
   camera=Camera.new()
   menuCamera=Camera.new()
   menuCamera:follow(Config.mapScale/2,Config.mapScale/2)
+  local integrationMode=os.getenv("MOOQUEST_INTEGRATION")
+  if integrationMode and #integrationMode>0 then
+    integration=require("src.test_integration").new(integrationMode)
+    return
+  end
   if os.getenv("MOOQUEST_TESTS")=="1" then
     diagnostic=require("src.test_runner").run()
     -- Automated Windows batch tests must fail with an OS error code, not
@@ -100,6 +106,7 @@ end
 
 function love.update(dt)
   frameDelta=dt
+  if integration then integration:update(dt);return end
   if diagnostic or not client then return end
   client:update()
   for _,evt in ipairs(client:drain()) do
@@ -191,6 +198,11 @@ end
 
 function love.draw()
   love.graphics.clear(0.075,0.11,0.10)
+  if integration then
+    love.graphics.print("Real Node integration: "..integration.mode,30,30)
+    love.graphics.print("State: "..tostring(integration.client.state),30,60)
+    return
+  end
   if diagnostic then
     line(28,"MOO-QUEST | TESTES DO CLIENTE LUA")
     line(66,string.format("Aprovados: %d   Falhas: %d",diagnostic.passed,diagnostic.failed))
