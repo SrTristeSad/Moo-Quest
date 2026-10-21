@@ -3,6 +3,15 @@ local C=require("src.game.catalog")
 local Objects=require("src.game.reference_objects")
 local View=require("src.game.reference_view")
 assert(View.playerDrawAngle({dir=1})==1)
+-- Local avatar aims at the cursor without inventing a server direction.
+-- Remote avatars MUST keep their own authoritative server direction.
+assert(View.playerDrawAngle({dir=1.25,dirPlus=0.1})==1.35)
+assert(View.playerDrawAngle({dir=1.25,dirPlus=0.1},0)==0.1,
+  "zero-degree local cursor aim must not fall back to server direction")
+assert(math.abs(View.playerDrawAngle({dir=1.25,dirPlus=-0.25},2)-1.75)<0.000001,
+  "local aiming retains only the original attack swing offset")
+assert(View.playerDrawAngle({dir=1.25,dirPlus=0.1},"invalid")==1.35,
+  "invalid external direction must not change remote/player fallback")
 local World=require("src.game.world_state")
 local worldLabels=World.new()
 worldLabels.sid=5
