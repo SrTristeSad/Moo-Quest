@@ -31,4 +31,24 @@ assert(world:apply("C",{22}) and world.spawned and not world.dead)
 assert(world:localPlayer()==nil)
 assert(world:apply("D",{{"native",22,"Lua",920,840,0,100,100,35,0}}))
 assert(world:localPlayer().x==920 and world.lastDeath.x==700)
+-- The native client must reuse the ORIGINAL M packet on the same
+-- still-open authenticated WebSocket after P; never fabricate a new entity.
+local Original=require("src.net.original_client")
+local simulated=Original.new({http={},name="Lua"})
+simulated.session={}
+simulated.websocket={state="open"}
+simulated.state="spawn_confirmed"
+simulated.spawnSent=true
+local sent=false
+function simulated:send(op,args)
+  assert(op=="M" and #args==1 and type(args[1])=="table")
+  sent=true
+  return true
+end
+assert(simulated:spawn({name="Lua",skin=2}))
+assert(sent and simulated.state=="joining" and simulated.spawnSent)
+local Menu=require("src.game.reference_menu")
+local menu=Menu.new()
+menu.connectionState="spawn_confirmed"
+assert(menu:canPlay(),"Play must remain available for actual respawn after P")
 print("reference YOU DIED 3s animation, authoritative death and respawn state passed")
