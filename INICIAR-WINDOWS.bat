@@ -3,9 +3,16 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 title Moo-Quest - Cliente Lua / Servidor original
 set "GAME_DIR=%~dp0."
-rem Resolve server root even if another Node process is already listening.
-set "SERVER_ROOT=%~dp0node-runtime"
+rem The reconstructed Node server is NOW versioned in our own GitHub repo.
+rem Do not silently use the downloaded old sandbox server with 1,000,000 funds.
+set "SERVER_ROOT=%~dp0."
 if defined MOOQUEST_SERVER_DIR set "SERVER_ROOT=%MOOQUEST_SERVER_DIR%"
+if not exist "!SERVER_ROOT!\server\src\index.js" (
+  echo [ERRO] Servidor proprio nao encontrado. Use o ZIP mais recente.
+  pause
+  exit /b 1
+)
+set "MOOQUEST_SERVER_DIR=!SERVER_ROOT!"
 set "LOVEEXE="
 if exist "%~dp0love.exe" set "LOVEEXE=%~dp0love.exe"
 if not defined LOVEEXE if exist "%ProgramFiles%\LOVE\love.exe" set "LOVEEXE=%ProgramFiles%\LOVE\love.exe"
@@ -19,6 +26,16 @@ if not defined LOVEEXE (
 set "SERVER_RUNNING=0"
 powershell.exe -NoProfile -Command "try { $r=Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8080/ping' -TimeoutSec 2; if($r.StatusCode -eq 200){exit 0}else{exit 1} } catch { exit 1 }"
 if not errorlevel 1 set "SERVER_RUNNING=1"
+if "%SERVER_RUNNING%"=="1" (
+  powershell.exe -NoProfile -Command "try { $s=Invoke-RestMethod 'http://127.0.0.1:8080/mooquest/status' -TimeoutSec 2; if($s.project -eq 'Moo-Quest' -and $s.economy -eq 'gather'){exit 0}else{exit 1} } catch { exit 1 }"
+  if errorlevel 1 (
+    echo [ERRO] A porta 8080 esta ocupada por um servidor ANTIGO ou incorreto.
+    echo Feche a janela antiga do Node. O Moo-Quest agora possui servidor proprio
+    echo e comeca com 0 recursos para coletar de verdade.
+    pause
+    exit /b 1
+  )
+)
 if "%SERVER_RUNNING%"=="0" (
   where node.exe >nul 2>&1
   if errorlevel 1 (
@@ -53,8 +70,33 @@ if "%SERVER_RUNNING%"=="0" (
     echo [AVISO] Configuracao anticheat de compatibilidade SOMENTE LOCAL.
     echo O servidor ainda usa integralmente o motor de jogo Node.js original.
   )
-  echo Iniciando motor Node original em localhost...
-  start "Moo-Quest - Servidor ORIGINAL" /D "!SERVER_ROOT!" cmd /K "set HOST=127.0.0.1&& node server\src\index.js"
+  rem Preserve account state locally; never upload it into public GitHub.
+  node "%~dp0tools\migrate-local-server-data.mjs"
+  if errorlevel 1 (
+    echo [ERRO] Falha na migracao local. Seus dados originais nao foram apagados.
+    pause
+    exit /b 1
+  )
+  if not exist "!SERVER_ROOT!\node_modules\ws\package.json" (
+    where npm.cmd >nul 2>&1
+    if errorlevel 1 (
+      echo [ERRO] NPM ausente. Reinstale Node.js LTS.
+      pause
+      exit /b 1
+    )
+    echo Instalando dependencias do nosso servidor Node pela primeira vez...
+    pushd "!SERVER_ROOT!"
+    call npm.cmd install --omit=dev --no-audit --no-fund
+    set "INSTALL_CODE=!ERRORLEVEL!"
+    popd
+    if not "!INSTALL_CODE!"=="0" (
+      echo [ERRO] NPM nao preparou o servidor proprio.
+      pause
+      exit /b 1
+    )
+  )
+  echo Iniciando servidor Node do Moo-Quest com coleta normal...
+  start "Moo-Quest - Servidor PROPRIO" /D "!SERVER_ROOT!" cmd /K "set HOST=127.0.0.1&& node server\src\index.js"
 ) else (
   echo Servidor original ja detectado em 127.0.0.1:8080. Nao vou reinicia-lo.
 )
@@ -67,7 +109,15 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+powershell.exe -NoProfile -Command "try { $s=Invoke-RestMethod 'http://127.0.0.1:8080/mooquest/status' -TimeoutSec 2; if($s.project -eq 'Moo-Quest' -and $s.economy -eq 'gather'){exit 0}else{exit 1} } catch { exit 1 }"
+if errorlevel 1 (
+  echo [ERRO] O Node em execucao NAO e o nosso servidor de coleta normal.
+  echo Feche servidores antigos e tente novamente.
+  pause
+  exit /b 1
+)
 echo [OK] Node.js respondeu /ping.
+echo [OK] Servidor proprio identificado; recursos inicializados em ZERO.
 rem The client cannot render its original hammer, cows or gear if any PNG
 rem is missing. Re-sync original local sprites on EVERY launch.
 where node.exe >nul 2>&1
@@ -76,11 +126,14 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo Verificando os 180 sprites originais em assets\reference\img...
+echo Validando imagens originais e preservando artes que voce fornecer...
+echo [INFO] Os arquivos PNG corrompidos do upstream NAO sao copiados.
 node "%~dp0tools\sync-reference-art.mjs"
 if errorlevel 1 (
-  echo [ERRO] Nao foi possivel carregar as artes do cliente original.
-  echo O arquivo de imagem ausente deve ser corrigido na origem.
+  echo [ARTE] O upstream contem PNGs CORROMPIDOS, inclusive a arma inicial.
+  echo Consulte ARTES-PENDENTES.txt e coloque um PNG valido em:
+  echo assets\custom\img\weapons\hammer_1.png
+  echo Nenhuma arte sera inventada nem substituida por um bloco generico.
   pause
   exit /b 1
 )
