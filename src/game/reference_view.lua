@@ -384,7 +384,8 @@ local function labelHealth(health,maxHealth,friendly,entityScale)
 end
 local function labels(world,camera,w,h)
   local previous=love.graphics.getFont()
-  for _,p in pairs(world.players) do
+  -- Original Canvas lists all players before animals, in creation order.
+  for _,p in ipairs(world:orderedPlayers()) do
     if p.x and p.y and p.invisible~=1 and see(p,camera,w,h) then
       if View.playerNameVisible(world,p) then
         local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
@@ -410,7 +411,7 @@ local function labels(world,camera,w,h)
       end
     end
   end
-  for _,a in pairs(world.animals) do
+  for _,a in ipairs(world:orderedAnimals()) do
     if a.x and a.y and see(a,camera,w,h) then
       local kind=world and world:animalKind(a.index) or Animals.byId(a.index)
       if kind then
@@ -429,7 +430,7 @@ local function labels(world,camera,w,h)
   -- before chat speech bubbles. The lifetime advances in World:update.
   CombatText.draw(world.combatText,camera)
   -- In client/src/index.js speech bubbles come after all world name/HP labels.
-  for _,p in pairs(world.players) do
+  for _,p in ipairs(world:orderedPlayers()) do
     if p.x and p.y and p.invisible~=1 and see(p,camera,w,h) then
       local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
       drawChatBubble(p,x,y,(p.scale or C.playerScale)*camera.zoom)
@@ -452,21 +453,25 @@ function View.draw(world,camera,dt,options)
   -- Show server-defined attack areas on the ground, below animals/players.
   -- This makes the imminent boss hit visible without changing collisions.
   BossEffects.draw(world.bossEffects,camera)
-  local objects=world.orderedObjects and world:orderedObjects() or {}
+  local objects=world:orderedObjects()
+  -- The JS engine iterates the same players[] and ais[] arrays for each
+  -- rendering pass, preserving overlap and zIndex across frames.
+  local players=world:orderedPlayers()
+  local animals=world:orderedAnimals()
   drawObjectLayer(objects,camera,w,h,-1)
   drawProjectiles(world,camera,w,h,0)
-  for _,p in pairs(world.players) do
+  for _,p in ipairs(players) do
     if (p.zIndex or 0)==0 and p.x and p.y and p.invisible~=1
       and see(p,camera,w,h) then drawPlayer(p,camera,dt or 0,aimFor(p)) end
   end
-  for _,a in pairs(world.animals) do
+  for _,a in ipairs(animals) do
     local kind=world and world:animalKind(a.index) or Animals.byId(a.index)
     if kind and see(a,camera,w,h,kind.scale*2.4) then renderAnimal(a,camera,world) end
   end
   drawObjectLayer(objects,camera,w,h,0)
   drawProjectiles(world,camera,w,h,1)
   drawObjectLayer(objects,camera,w,h,1)
-  for _,p in pairs(world.players) do
+  for _,p in ipairs(players) do
     if (p.zIndex or 0)==1 and p.x and p.y and p.invisible~=1
       and see(p,camera,w,h) then drawPlayer(p,camera,dt or 0,aimFor(p)) end
   end
