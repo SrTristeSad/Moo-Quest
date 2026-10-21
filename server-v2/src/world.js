@@ -142,13 +142,13 @@ export class World {
         nameIndex:0,state:0});
     }
   }
-  join(socket,name,profile=null){
+  join(socket,name,profile=null,accountId=null){
     if(this.players.size>=this.maxPlayers)throw new Error('server_full');
     const used=new Set([...this.players.values()].map(p=>p.sid));
     let sid=0;while(used.has(sid))sid++;
     const p={id:randomUUID(),sid,name:boundedName(name),
       x:randomInt(180,this.size-180),y:randomInt(180,this.size-180),
-      hp:100,maxHp:100,vx:0,vy:0,angle:0,skinColor:0,
+      hp:100,maxHp:100,vx:0,vy:0,angle:0,skinColor:0,accountId,
       lastAttack:0,deadUntil:0,socket,ipHash:null,
       xp:0,age:1,upgradePoints:0,upgradeAge:2,maxXp:LEVEL_XP(1),
       native:false,team:null,hat:0,tail:0,
@@ -170,7 +170,11 @@ export class World {
       resources:{...p.resources},score:p.score,
       inventory:{weapons:[...p.inventory.weapons],items:[...p.inventory.items]},
       ownedHats:[...p.ownedHats],ownedAccessories:[...p.ownedAccessories],
-      hat:p.hat,tail:p.tail,weaponIndex:p.weaponIndex,skinColor:p.skinColor};
+      hat:p.hat,tail:p.tail,weaponIndex:p.weaponIndex,skinColor:p.skinColor,
+      // Structures are saved only for an authenticated account; disconnected
+      // structures disappear from the live world, then restore on login.
+      structures:[...this.structures.values()].filter(o=>o.owner===p.sid)
+        .slice(0,150).map(o=>({id:o.id,x:o.x,y:o.y,hp:o.hp}))};
   }
   restoreProfile(p,data){
     if(!data||data.version!==1||typeof data!=='object')return;
@@ -204,12 +208,38 @@ export class World {
     p.weaponIndex=p.inventory.weapons.includes(data.weaponIndex)?data.weaponIndex:0;
     const x=data.x,y=data.y;
     if(this.landingClear(x,y,p.sid)){p.x=x;p.y=y;}
+    // All values below are server-generated snapshots, but still validate
+    // them as potentially corrupted data before reintroducing collision.
+    if(p.accountId&&Array.isArray(data.structures)){
+      for(const saved of data.structures.slice(0,150)){
+        const recipe=RECIPES[saved?.id];
+        if(!recipe||!Number.isFinite(saved.x)||!Number.isFinite(saved.y)||
+          !Number.isSafeInteger(saved.hp)||saved.hp<1||saved.hp>recipe.hp)continue;
+        const {x,y}=saved,scale=recipe.scale;
+        if(x<scale||x>this.size-scale||y<scale||y>this.size-scale||
+          Math.abs(y-this.size/2)<470)continue;
+        if([...this.structures.values(),...this.resources.values()].some(o=>
+          Math.hypot(x-o.x,y-o.y)<scale+(o.scale||50)*0.7))continue;
+        if([...this.players.values()].some(other=>other!==p&&other.hp>0&&
+          Math.hypot(x-other.x,y-other.y)<scale+30))continue;
+        const count=[...this.structures.values()].filter(o=>o.owner===p.sid&&
+          RECIPES[o.id]?.group===recipe.group).length;
+        if(count>=recipe.limit)continue;
+        const sid=this.nextObjectSid++;
+        this.structures.set(sid,{sid,x,y,scale,type:4,id:saved.id,
+          owner:p.sid,ownerAccountId:p.accountId,
+          hp:saved.hp,maxHp:recipe.hp,createdAt:this.now(),nextFire:0});
+      }
+    }
   }
   leave(id){
     const p=this.players.get(id);if(!p)return;
     this.players.delete(id);
     if(p.team){const tribe=this.tribes.get(p.team);if(tribe){tribe.members.delete(id);if(!tribe.members.size)this.tribes.delete(p.team);else if(tribe.owner===id)tribe.owner=tribe.members.values().next().value;}}
-    for(const [key,o] of this.structures)if(o.owner===p.sid)this.structures.delete(key);
+    for(const [key,o] of this.structures)if(o.owner===p.sid){
+      this.structures.delete(key);
+      this.events.push({kind:'destroy',sid:o.sid,owner:o.owner,id:o.id});
+    }
     this.events.push({kind:'leave',id:p.id,sid:p.sid});
   }
   input(id,value){
@@ -307,6 +337,7 @@ export class World {
     for(const [k,n] of Object.entries(recipe.cost))p.resources[k]-=n;
     const sid=this.nextObjectSid++;
     this.structures.set(sid,{sid,x,y,scale,type:4,id:itemId,owner:p.sid,
+      ownerAccountId:p.accountId||null,
       hp:recipe.hp,maxHp:recipe.hp,createdAt:this.now(),nextFire:0});
     this.events.push({kind:'build',sid,owner:p.sid,id:itemId,x,y});return true;
   }
