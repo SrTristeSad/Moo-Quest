@@ -229,6 +229,10 @@ function Menu:textinput(chars)
   self.name=name
 end
 function Menu:draw(connectionState,status)
+  -- All labels are bounded within the original 396px right card.
+  -- Store actual transport state for button hit-testing and keyboard Play.
+  local connectionLabel,connectionNote,connectionType=
+    self:connectionInfo(connectionState,status)
   local w,h=love.graphics.getDimensions()
   local scale,offX,offY=self:geometry(w,h)
   local previous=love.graphics.getFont()
@@ -270,8 +274,16 @@ function Menu:draw(connectionState,status)
     Shapes.circle(20*math.cos(-math.pi/4),20*math.sin(-math.pi/4),7,color,"#525252",2)
     Shapes.circle(0,0,21,color,"#525252",2)
     love.graphics.pop()
-    rect(396,469,112,48,0.49,0.90,0.35,1,6)
-    center("Play",396,482,112,23,{0.1,0.22,0.11})
+    local enabled=self:canPlay()
+    local waiting=self.connectionState=="joining"
+    rect(396,469,112,48,enabled and 0.49 or 0.80,
+      enabled and 0.90 or 0.80,enabled and 0.35 or 0.80,1,6)
+    center(enabled and "Play" or (waiting and "Entrando..." or "Indisponivel"),
+      396,enabled and 482 or 487,112,enabled and 23 or 15,
+      enabled and {0.1,0.22,0.11} or {0.4,0.4,0.4})
+    if not enabled and not waiting then
+      center("Aguardando servidor",396,521,112,11,{0.4,0.4,0.4})
+    end
     text("SKIN COLOR",530,383,14)
     for i=0,9 do
       local col,row=i%5,math.floor(i/5)
@@ -296,54 +308,86 @@ function Menu:draw(connectionState,status)
     text("Show Grid",416,318,17)
     text(self.grid and "ON" or "OFF",692,318,17)
   end
+  -- Server panel: short operational status above a separately aligned
+  -- account section. Technical errors never print over clickable buttons.
   text("LOCAL SERVER",839,229,19)
-  text("LC  -  127.0.0.1:8080",839,281,18)
-  local ready=connectionState=="keyed_transport" or
-    connectionState=="spawn_confirmed"
-  local state=ready and "Ready" or (connectionState or "Connecting")
-  text("Connection: "..state,839,333,16,
-    ready and {0.2,0.55,0.2} or {0.46,0.36,0.2})
+  love.graphics.setColor(0.87,0.87,0.87,1)
+  love.graphics.rectangle("fill",839,263,344,1)
+  text("LC  -  127.0.0.1:8080",839,274,16,{0.27,0.28,0.29})
+  local statusColors={
+    ready={0.16,0.47,0.24},
+    working={0.61,0.40,0.11},
+    error={0.69,0.24,0.22}
+  }
+  local ink=statusColors[connectionType] or statusColors.working
+  local tint={
+    ready={0.87,0.95,0.88}, working={0.97,0.93,0.84},
+    error={0.98,0.89,0.88}
+  }
+  local bg=tint[connectionType] or tint.working
+  rect(839,307,148,30,bg[1],bg[2],bg[3],1,6)
+  center(connectionLabel,839,314,148,14,ink)
+  rect(1066,307,117,30,0.93,0.93,0.93,1,6)
+  center(self.showTechnical and "Fechar" or "Detalhes",1066,315,117,13,
+    {0.32,0.32,0.32})
   font(13)
-  love.graphics.setColor(0.3,0.3,0.3)
-  love.graphics.printf(status or self.status or "",839,376,340,"left")
+  love.graphics.setColor(0.36,0.37,0.38)
+  love.graphics.printf(connectionNote,839,349,344,"left")
+  love.graphics.setColor(0.86,0.86,0.86,1)
+  love.graphics.rectangle("fill",839,387,344,1)
+
+  -- Account section always starts at the same vertical position, regardless
+  -- of how long the Node error/path is. Login and registration remain visible.
   if self.authMode then
-    local heading=self.authMode=="register" and "Cadastrar conta local" or
-      "Entrar na conta local"
-    text(heading,840,402-38,17)
-    rect(844,399,338,48,0.94,0.94,0.94,1,5)
+    text(self.authMode=="register" and "CADASTRAR  (LOCAL)" or
+      "ENTRAR  (LOCAL)",839,396,17,{0.19,0.20,0.21})
+    rect(839,423,344,41,0.94,0.94,0.94,1,5)
     if self.authStep=="email" then
-      text("Email: "..self.authEmail..(self.authFocus=="email" and "|" or ""),
-        853,411,15)
+      local value=self.authEmail
+      if #value>31 then value="..."..value:sub(-28) end
+      text((value~="" and value or "Email")..
+        (self.authFocus=="email" and "|" or ""),850,432,15,
+        value~="" and {0.17,0.17,0.17} or {0.59,0.59,0.59})
     else
-      text("Codigo (6 digitos): "..self.authCode.."|",853,411,15)
+      text("Codigo: "..self.authCode.."|",850,432,15)
     end
-    rect(846,474,163,44,0.49,0.9,0.35,1,5)
+    rect(839,472,161,40,0.49,0.90,0.35,1,5)
     center(self.authStep=="email" and "Continuar" or "Confirmar",
-      846,485,163,16,{0.1,0.2,0.1})
-    rect(1020,474,163,44,0.87,0.87,0.87,1,5)
-    center("Voltar",1020,485,163,16)
-    font(13);love.graphics.setColor(0.5,0.22,0.18)
-    love.graphics.printf(self.authMessage~="" and self.authMessage or
-      "Teste local: o Node aceita qualquer codigo de 6 digitos.",
-      841,531,343,"left")
-    font(12);love.graphics.setColor(0.4,0.4,0.4)
-    love.graphics.printf("Sem verificacao real de email. Nao use para contas publicas.",
-      841,587,338,"left")
+      839,482,161,15,{0.12,0.23,0.12})
+    rect(1011,472,172,40,0.88,0.88,0.88,1,5)
+    center("Cancelar",1011,482,172,15,{0.25,0.25,0.25})
+    local helper=self.authMessage~="" and self.authMessage or
+      "Teste local: qualquer codigo de 6 digitos e aceito."
+    font(11);love.graphics.setColor(0.44,0.36,0.34)
+    love.graphics.printf(helper,839,516,344,"left")
   elseif self.accountEmail then
-    text("Conta local conectada",842,418,15,{0.19,0.5,0.23})
-    font(14);love.graphics.setColor(0.2,0.2,0.2)
-    love.graphics.printf(self.accountEmail,843,403,339,"left")
-    rect(845,440,338,45,0.92,0.92,0.92,1,5)
-    center("Sair da conta",845,452,338,16)
+    text("CONTA LOCAL CONECTADA",839,401,16,{0.16,0.47,0.24})
+    local email=self.accountEmail
+    if #email>38 then email=email:sub(1,35).."..." end
+    text(email,839,435,14,{0.31,0.31,0.31})
+    rect(839,472,344,40,0.92,0.92,0.92,1,5)
+    center("Sair da conta",839,482,344,15)
   else
-    text("CONTA (TESTE LOCAL)",841,410,17)
-    rect(845,440,161,45,0.85,0.9,0.85,1,5)
-    center("Entrar",845,452,161,16)
-    rect(1020,440,163,45,0.87,0.87,0.87,1,5)
-    center("Cadastrar",1020,452,163,16)
-    font(13);love.graphics.setColor(0.35,0.35,0.35)
-    love.graphics.printf("Ou jogue como convidado usando Play. Contas locais ainda nao possuem verificacao real.",
-      841,499,341,"left")
+    text("CONTA LOCAL",839,402,17,{0.22,0.22,0.22})
+    rect(839,444,161,42,0.49,0.90,0.35,1,6)
+    center("Entrar",839,456,161,16,{0.12,0.25,0.11})
+    rect(1011,444,172,42,0.88,0.88,0.88,1,6)
+    center("Cadastrar",1011,456,172,16,{0.25,0.25,0.25})
+    font(12);love.graphics.setColor(0.42,0.42,0.42)
+    love.graphics.printf("Ou jogue como convidado usando Play. Contas apenas para testes locais.",
+      839,498,344,"left")
+  end
+  -- Optional technical details display above the cards instead of covering
+  -- account fields or drowning the right panel in filesystem paths.
+  if self.showTechnical then
+    rect(833,64,367,136,0.12,0.14,0.17,0.97,8)
+    text("DETALHES DA CONEXAO",851,77,16,{1,1,1})
+    font(12);love.graphics.setColor(0.87,0.89,0.92)
+    local detail=self.technicalMessage
+    if detail=="" then detail="Sem erros tecnicos; aguardando servidor." end
+    if #detail>300 then detail=detail:sub(1,297).."..." end
+    love.graphics.printf(detail,851,103,332,"left")
+    text("Clique em Detalhes para fechar.",851,176,11,{0.75,0.8,0.85})
   end
   center("WASD - Movement       Click / Space - Gather / Attack",
     0,635,1280,18,{1,1,1})
