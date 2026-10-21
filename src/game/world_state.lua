@@ -300,6 +300,9 @@ function World:apply(name,args)
       self.lastDeath={x=player.x,y=player.y}
     end
     self.dead=true;self.spawned=false
+    -- The reference stops rendering the defeated player immediately.
+    -- Preserve lastDeath for its minimap marker; do not invent a corpse.
+    if self.sid~=nil then self.players[self.sid]=nil end
     return true
   elseif name=="N" then
     -- Absolute counts are sent with flag 1. Only display "gained" when
