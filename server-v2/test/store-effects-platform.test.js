@@ -103,6 +103,7 @@ test('miner helmet and gathering capes increase real pickups with correct native
   assert.ok(w.takeEvents().some(e=>e.kind==='gather'&&e.sid===tree.sid&&e.amount===3&&e.points===2));
   w.resources.clear();
   advance(501);
+  owner.resources.points=1000;
   equip(w,owner,10,true);
   const rock=resource(99902,'stone');
   owner.resources.stone=0;
@@ -191,9 +192,9 @@ test('the age-seven platform is priced, has a limit and permits only local raise
   for(let i=0;i<8;i++)w.tick(0.1);
   assert.ok(rival.x<wall.x-75,'can walk across nearby wall on platform');
   advance(1500);
-  rival.x=wall.x+90;rival.y=wall.y;rival.vx=-1;rival.vy=0;
+  rival.x=wall.x-90;rival.y=wall.y;rival.vx=1;rival.vy=0;
   w.tick(0.1);
-  assert.equal(rival.x,wall.x+90,'raised state expired away from platform');
+  assert.equal(rival.x,wall.x-90,'raised state expired away from platform');
 });
 
 test('projectile cape mitigates projectile damage but not ordinary melee',()=>{
