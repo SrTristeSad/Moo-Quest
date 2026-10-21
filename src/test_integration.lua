@@ -14,8 +14,15 @@ function I.new(mode)
     error("unknown Node integration mode")
   end
   local token=nil
-  if mode=="account" then
-    local challenge,err=Auth.requestCode("ci-test@localhost.invalid")
+  local suffix=nil
+  if mode=="account" or mode=="persistent_clan" then
+    local email="ci-test@localhost.invalid"
+    if mode=="persistent_clan" then
+      local bytes=SecureRandom.bytes(4)
+      suffix=string.format("%02x%02x%02x%02x",bytes:byte(1,4))
+      email="ci-ui-clan-"..suffix.."@localhost.invalid"
+    end
+    local challenge,err=Auth.requestCode(email)
     if not challenge then error("account /auth/code: "..tostring(err)) end
     local verified,reason=Auth.verifyCode(challenge.flow,"123456")
     if not verified then error("account /auth/verify: "..tostring(reason)) end
@@ -31,7 +38,7 @@ function I.new(mode)
   return setmetatable({
     client=client,world=World.new(),mode=mode,
     elapsed=0,spawned=false,hasC=false,hasD=false,done=false,
-    panels=Panels.new(),stage=nil
+    panels=Panels.new(),clans=Clans.new(),suffix=suffix,stage=nil
   },I)
 end
 function I:stop(ok,reason)
@@ -43,6 +50,7 @@ function I:stop(ok,reason)
 end
 function I:draw()
   if self.mode=="store_tribe" then self.panels:draw(self.world) end
+  if self.mode=="persistent_clan" then self.clans:draw(false) end
 end
 local function testStoreTribe(self)
   local panel=self.panels
