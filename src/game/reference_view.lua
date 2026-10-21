@@ -212,17 +212,20 @@ local function playerBody(p,dt)
   Shapes.circle(0,0,scale,col,Shapes.outline)
   drawHat(p)
 end
-function View.playerDrawAngle(player)
-  return (player.dir or 0)+(player.dirPlus or 0)
+-- The browser uses getAttackDir() for the LOCAL player and the server's
+-- direction for everyone else. Neither choice changes combat authority.
+function View.playerDrawAngle(player,localAim)
+  local direction=type(localAim)=="number" and localAim or (player.dir or 0)
+  return direction+(player.dirPlus or 0)
 end
-local function drawPlayer(p,camera,dt)
+local function drawPlayer(p,camera,dt,localAim)
   local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
   p.skinRot=(p.skinRot or 0)+dt*1000*0.002
   love.graphics.push()
   love.graphics.translate(x,y)
   -- client/src/index.js renderPlayers: player.dir + player.dirPlus.
   -- The previous port updated K attack animation but never drew its swing.
-  love.graphics.rotate(View.playerDrawAngle(p))
+  love.graphics.rotate(View.playerDrawAngle(p,localAim))
   love.graphics.scale(camera.zoom)
   playerBody(p,dt)
   love.graphics.pop()
@@ -357,6 +360,12 @@ local function labels(world,camera,w,h)
 end
 function View.draw(world,camera,dt,options)
   local w,h=love.graphics.getDimensions()
+  -- Aiming is local presentation only. The actual attack and target
+  -- direction are still transmitted via the original D/F Node packets.
+  local function aimFor(player)
+    if player.sid==world.sid and options then return options.localAim end
+    return nil
+  end
   View.advanceWater(dt or 0)
   ground(camera,w,h)
   if not options or options.showGrid~=false then
@@ -366,7 +375,7 @@ function View.draw(world,camera,dt,options)
   drawProjectiles(world,camera,w,h,0)
   for _,p in pairs(world.players) do
     if (p.zIndex or 0)==0 and p.x and p.y and p.invisible~=1
-      and see(p,camera,w,h) then drawPlayer(p,camera,dt or 0) end
+      and see(p,camera,w,h) then drawPlayer(p,camera,dt or 0,aimFor(p)) end
   end
   for _,a in pairs(world.animals) do
     local kind=world and world:animalKind(a.index) or Animals.byId(a.index)
@@ -377,7 +386,7 @@ function View.draw(world,camera,dt,options)
   drawObjectLayer(world,camera,w,h,1)
   for _,p in pairs(world.players) do
     if (p.zIndex or 0)==1 and p.x and p.y and p.invisible~=1
-      and see(p,camera,w,h) then drawPlayer(p,camera,dt or 0) end
+      and see(p,camera,w,h) then drawPlayer(p,camera,dt or 0,aimFor(p)) end
   end
   drawObjectLayer(world,camera,w,h,2)
   drawObjectLayer(world,camera,w,h,3)
