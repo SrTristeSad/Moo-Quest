@@ -1,111 +1,227 @@
-// LOCAL-ONLY artwork sync. NEVER replace a valid user image with broken
-// upstream data. Never invent missing copyrighted sprites.
-// Priority: user-supplied assets/custom/img -> valid existing reference ->
-// valid upstream image. Invalid source files are reported explicitly.
+// Reference artwork importer — local machine ONLY.
+// The archived client contains 174 genuine PNG and SIX lossless WEBP files
+// with ".png" names. LÖVE cannot load those WEBP bytes. Transcode them to
+// actual PNG while preserving original pixels; NEVER redraw/replace an image.
+// If the old node-runtime/client/public/img folder is gone, download the
+// pinned upstream ZIP and extract only the manifest-listed image bytes.
+// Third-party art and all caches remain gitignored, never committed.
 import fs from "node:fs/promises";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
+import sharp from "sharp";
+import AdmZip from "adm-zip";
 import {verifyPNG} from "./inspect-reference-png.mjs";
 
-const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-// Artwork is distinct from the server source. The new repository only
-// vendors Apache-licensed Node code, never the proprietary client images.
-const source=path.resolve(process.env.MOOQUEST_ART_SOURCE_DIR||
-  path.join(project,"node-runtime","client","public","img"));
-const target=path.join(project,"assets","reference","img");
-const userArt=path.join(project,"assets","custom","img");
-// Non-proprietary filename-only manifest from the pinned reference.
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const target=path.join(root,"assets","reference","img");
+const custom=path.join(root,"assets","custom","img");
 const manifest=JSON.parse(await fs.readFile(
-  path.join(project,"support","reference-image-manifest.json"),"utf8"));
-const expected=Object.fromEntries(
-  Object.entries(manifest).map(([category,files])=>[category,files.length]));
-const required=["weapons/hammer_1.png"];
-const pending=[],count={valid:0,imported:0,reused:0,user:0};
+  path.join(root,"support","reference-image-manifest.json"),"utf8"));
+const baseline="06f7c1ca965a7628671676c8d9a7efd3997bb5e7";
+const expectedRoot="moomoo-clone-"+baseline+"/client/public/img/";
+const report=path.join(root,"ARTES-PENDENTES.txt");
+const validKey=/^(animals|weapons|hats|accessories|resources|icons)\/[\w-]+\.png$/;
+const allowlisted=Object.entries(manifest)
+  .flatMap(([category,files])=>files.map(name=>category+"/"+name));
+if(allowlisted.length!==180 || !allowlisted.every(key=>validKey.test(key)))
+  throw Error("Manifesto de 180 nomes de sprites esta invalido.");
 
-async function validPNG(location){
-  try{verifyPNG(await fs.readFile(location));return true;}
-  catch{return false;}
+const sources=[];
+const seen=new Set();
+function addSource(folder){
+  if(!folder)return;
+  const resolved=path.resolve(folder);
+  const canonical=process.platform==="win32"?resolved.toLowerCase():resolved;
+  if(seen.has(canonical))return;
+  seen.add(canonical);sources.push(resolved);
 }
-async function put(from,to){
-  await fs.mkdir(path.dirname(to),{recursive:true});
-  if(path.resolve(from)!==path.resolve(to))await fs.copyFile(from,to);
+addSource(process.env.MOOQUEST_ART_SOURCE_DIR);
+addSource(path.join(root,"node-runtime","client","public","img"));
+addSource(path.join(root,"node-runtime","dist","official","img"));
+addSource(path.join(root,"client","public","img"));
+addSource(path.join(root,"assets","source","img"));
+
+const originalSignature=Buffer.from("89504e470d0a1a0a","hex");
+function isWebP(data){
+  return data.length>=16 &&
+    data.toString("ascii",0,4)==="RIFF" &&
+    data.toString("ascii",8,12)==="WEBP";
 }
-async function synchronize(){
-  let available=0;
-  for(const [category,n] of Object.entries(expected)){
-    let names=[];
+async function decode(data){
+  if(data.subarray(0,8).equals(originalSignature)){
+    // A PNG must be valid, not merely have a PNG-looking filename.
+    verifyPNG(data);
+    return {bytes:data,converted:false};
+  }
+  if(isWebP(data)){
+    // The pinned archive intentionally contains lossless VP8L WebP bytes in
+    // six files named .png. Decode unchanged pixels and retain transparency.
+    const bytes=await sharp(data,{failOn:"error",limitInputPixels:16777216})
+      .png({compressionLevel:9}).toBuffer();
+    verifyPNG(bytes);
+    return {bytes,converted:true};
+  }
+  throw Error("formato desconhecido (nao e PNG nem WebP)");
+}
+async function readSafe(filename){
+  try{return await fs.readFile(filename)}
+  catch(err){
+    if(err.code==="ENOENT"||err.code==="ENOTDIR")return null;
+    throw err;
+  }
+}
+async function store(filename,buffer){
+  await fs.mkdir(path.dirname(filename),{recursive:true});
+  const temp=filename+".tmp-"+process.pid;
+  try{
+    await fs.writeFile(temp,buffer);
+    await fs.rename(temp,filename);
+  }catch(e){await fs.rm(temp,{force:true}).catch(()=>{});throw e}
+}
+function isMissing(e){return e&&["ENOENT","ENOTDIR"].includes(e.code)}
+async function getArchive(){
+  if(process.env.MOOQUEST_ART_OFFLINE==="1"){
+    throw Error("download desativado por MOOQUEST_ART_OFFLINE=1");
+  }
+  const urls=[
+    "https://github.com/al007ex/moomoo-clone/archive/"+baseline+".zip",
+    "https://codeload.github.com/al007ex/moomoo-clone/zip/"+baseline
+  ];
+  let error;
+  for(const url of urls){
     try{
-      names=(await fs.readdir(path.join(source,category),{withFileTypes:true}))
-        .filter(f=>f.isFile()&&f.name.toLowerCase().endsWith(".png"))
-        .map(f=>f.name);
-    }catch{}
-    // The archived source itself may be incomplete, but it must not prevent
-    // using already available / user-supplied valid files.
-    if(names.length!==n && names.length>0){
-      console.warn("[ARTE] "+category+": encontrados "+names.length+
-        " de "+n+" nomes esperados no arquivo de origem.");
-    }
-    const extras=new Set([...(manifest[category]||[]),...names]);
-    // Reuse existing artwork even when the source folder was removed.
-    for(const dir of [path.join(userArt,category),path.join(target,category)]){
-      try{
-        for(const name of await fs.readdir(dir)){
-          if(name.toLowerCase().endsWith(".png"))extras.add(name);
-        }
-      }catch{}
-    }
-    for(const filename of [...extras].sort()){
-      if(!/^[\w-]+\.png$/i.test(filename))continue;
-      const key=category+"/"+filename;
-      const dest=path.join(target,key);
-      const override=path.join(userArt,key);
-      const original=path.join(source,key);
-      if(await validPNG(override)){
-        await put(override,dest);count.user++;
-      }else if(await validPNG(dest)){
-        count.reused++;
-      }else if(await validPNG(original)){
-        await put(original,dest);count.imported++;
-      }else{
-        // If a previously copied source is invalid, remove the broken cache.
-        // LÖVE must never be asked to decode it as if it were valid.
-        await fs.rm(dest,{force:true}).catch(()=>{});
-        pending.push(key);
-        continue;
-      }
-      available++;
-    }
+      console.log("[ARTE] Pasta local incompleta. Baixando referencia congelada do GitHub para uso SOMENTE LOCAL...");
+      const res=await fetch(url,{signal:AbortSignal.timeout(45000)});
+      if(!res.ok)throw Error("HTTP "+res.status);
+      if(Number(res.headers.get("content-length")||0)>40*1024*1024)
+        throw Error("ZIP inesperadamente grande");
+      const zipBytes=Buffer.from(await res.arrayBuffer());
+      if(zipBytes.length>40*1024*1024)throw Error("ZIP maior que 40 MB");
+      if(zipBytes.subarray(0,2).toString("ascii")!=="PK")
+        throw Error("resposta nao e um ZIP");
+      const zip=new AdmZip(zipBytes);
+      if(!zip.getEntry(expectedRoot+"weapons/hammer_1.png"))
+        throw Error("ZIP nao contem a versao fixada do pacote de artes");
+      return zip;
+    }catch(err){error=err}
   }
-  count.valid=available;
-  pending.sort();
-  const report=pending.length ?
-    "Arquivos .png INVALIDOS/AUSENTES no pacote upstream.\n"+
-    "Forneca seus proprios PNGs validos em assets/custom/img/<categoria>/<nome>\n"+
-    "ou em assets/reference/img/<categoria>/<nome>.\n"+
-    "Nao sera gerado nenhum desenho substituto.\n\n"+
-    pending.map(p=>"- "+p).join("\n")+"\n":
-    "Todas as artes encontradas sao PNGs validos.\n";
-  await fs.writeFile(path.join(project,"ARTES-PENDENTES.txt"),report);
-  console.log("[ARTE] "+available+" PNGs validos; "+
-    count.imported+" importados, "+count.reused+" preservados, "+
-    count.user+" personalizados.");
-  if(pending.length){
-    console.warn("[ARTE] "+pending.length+
-      " imagem(ns) do arquivo original nao sao PNGs validos:");
-    for(const p of pending)console.warn("[ARTE]   "+p);
-    console.warn("[ARTE] Lista completa: ARTES-PENDENTES.txt");
-  }
-  const blocked=required.filter(p=>pending.includes(p));
-  if(blocked.length && process.env.MOOQUEST_ART_TEST_ONLY==="1"){
-    console.warn("[ARTE][CI] Teste apenas do fluxo de rede e Canvas. "+
-      "Sem martelo original valido, o resultado NAO prova fidelidade grafica.");
-    return;
-  }
-  if(blocked.length){
-    throw Error("A arma inicial usa "+blocked.join(", ")+
-      ", arquivo invalido no repositorio de referencia. "+
-      "Adicione uma ARTE PNG VERDADEIRA SUA em assets/custom/img/weapons/hammer_1.png; "+
-      "nao vou criar uma imagem falsa ou iniciar o jogo com arma invisivel.");
+  throw Error("GitHub inacessivel: "+String(error?.message||error));
+}
+
+const metrics={existing:0,custom:0,local:0,archive:0,converted:0};
+const reasons=new Map();
+const pending=[];
+const recovered=[];
+async function tryCandidate(key,data,origin,destination){
+  if(!data)return false;
+  try{
+    const result=await decode(data);
+    if(origin!=="existing" || result.converted){
+      await store(destination,result.bytes);
+    }
+    metrics[origin]++;
+    if(result.converted){
+      metrics.converted++;
+      recovered.push(key+" (WebP -> PNG, mesma imagem)");
+    }
+    return true;
+  }catch(err){
+    reasons.set(key,origin+": "+err.message);
+    return false;
   }
 }
-synchronize().catch(e=>{console.error("[ARTE] ERRO: "+e.message);process.exitCode=1;});
+async function sync(){
+  const missing=[];
+  for(const key of allowlisted){
+    const dest=path.join(target,key);
+    let copied=false;
+    copied=await tryCandidate(key,await readSafe(path.join(custom,key)),
+      "custom",dest);
+    if(!copied)
+      copied=await tryCandidate(key,await readSafe(dest),"existing",dest);
+    if(!copied)for(const source of sources){
+      if(await tryCandidate(key,await readSafe(path.join(source,key)),
+        "local",dest)){copied=true;break}
+    }
+    if(!copied)missing.push(key);
+  }
+  let archive=null,archiveError=null;
+  if(missing.length){
+    try{archive=await getArchive()}
+    catch(err){archiveError=String(err.message||err)}
+  }
+  for(const key of missing){
+    const dest=path.join(target,key);
+    let copied=false;
+    if(archive){
+      const entry=archive.getEntry(expectedRoot+key);
+      if(entry&&!entry.isDirectory){
+        copied=await tryCandidate(key,entry.getData(),"archive",dest);
+      }else{
+        reasons.set(key,"ausente no ZIP de referencia fixada");
+      }
+    }
+    if(!copied)pending.push(key);
+  }
+  const notes=[];
+  notes.push("Moo-Quest - Relatorio de artes locais");
+  notes.push("Esta lista diferencia arquivo AUSENTE de formato de imagem invalido.");
+  notes.push("Os arquivos .png da origem podem conter dados WebP. A conversao e automatica.");
+  notes.push("Origem principal: "+sources.join(" | "));
+  notes.push("Total esperado: "+allowlisted.length);
+  notes.push("Prontos: "+(allowlisted.length-pending.length));
+  notes.push("WebP convertidos para PNG: "+metrics.converted);
+  if(recovered.length){
+    notes.push("");
+    notes.push("WEBP CONVERTIDOS (nao estavam corrompidos):");
+    for(const name of recovered)notes.push("- "+name);
+  }
+  if(pending.length){
+    notes.push("");
+    notes.push("ARQUIVOS REALMENTE NAO DISPONIVEIS ("+pending.length+"):");
+    for(const key of pending){
+      notes.push("- "+key+": "+(reasons.get(key)||"nao encontrado"));
+    }
+  }
+  if(archiveError){
+    notes.push("");
+    notes.push("Falha ao tentar baixar arquivos que faltavam: "+archiveError);
+    notes.push("Para usar sem internet, restaure node-runtime/client/public/img");
+    notes.push("ou informe MOOQUEST_ART_SOURCE_DIR com a pasta das imagens.");
+  }
+  notes.push("");
+  notes.push("Arquivos de terceiros ficam apenas na instalacao local e nao vao para o Git.");
+  await fs.writeFile(report,notes.join("\n")+"\n","utf8");
+  const ready=allowlisted.length-pending.length;
+  console.log("[ARTE] "+ready+"/"+allowlisted.length+
+    " imagens prontas; WebP convertidos="+metrics.converted+
+    "; copiados de origem="+metrics.local+
+    "; baixados do ZIP="+metrics.archive+
+    "; artes suas="+metrics.custom+".");
+  if(recovered.length){
+    console.log("[ARTE] Arquivos .png que na verdade continham WebP foram convertidos sem alterar o desenho.");
+  }
+  if(pending.length){
+    const byFolder={};
+    for(const key of pending){
+      const folder=key.split("/")[0];
+      byFolder[folder]=(byFolder[folder]||0)+1;
+    }
+    const groups=Object.entries(byFolder).map(([cat,n])=>cat+"="+n).join(", ");
+    console.warn("[ARTE] "+pending.length+" imagem(ns) ausente(s) apos procura/download: "+groups);
+    console.warn("[ARTE] Veja ARTES-PENDENTES.txt para os motivos reais.");
+    if(archiveError)console.warn("[ARTE] "+archiveError);
+  }
+  if(pending.includes("weapons/hammer_1.png")){
+    throw Error("A imagem inicial hammer_1.png continua AUSENTE. "+
+      "Nao e uma arte corrompida: verifique o download ou a pasta antiga. "+
+      "Consulte ARTES-PENDENTES.txt.");
+  }
+  if(pending.length){
+    console.warn("[ARTE] Outros sprites ainda faltam, mas a arma inicial esta pronta.");
+  }
+}
+await sync().catch(err=>{
+  console.error("[ARTE] ERRO: "+String(err.message||err));
+  process.exitCode=1;
+});
