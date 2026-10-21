@@ -56,16 +56,26 @@ nomes reservados, propriedade da tribo e espera de 200 ms entre
 comandos. Teste integrado em LÖVE cria e deixa uma tribo diretamente
 no Node, recebendo as confirmacoes.
 
-**Diferenca importante:** a Tribo do jogo (referencia `Tribe` /
-`Alliance`) e uma alianca temporaria da partida. O servidor tambem
-possui clãs permanentes ligados a conta, pela API `/api/clan`,
-mas sua interface completa de administracao permanente ainda nao
-foi portada. Nao confunda os dois sistemas.
+**Clãs permanentes de conta (NOVO):** alem da Tribe, contas
+registradas agora possuem a tela **Meu cla** no menu inicial e o
+botao **Clan** na partida. A interface Lua chama diretamente a API
+`/api/name` e `/api/clan/:action` do Node; permite registrar
+nome permanente, criar cla, solicitar entrada, aceitar convites,
+consultar membros, gerir solicitacoes, convidar, promover e expulsar
+membros, transferir lideranca, sair e dissolver o cla com confirmacao
+dupla. O Node valida permissoes e guarda os dados em
+`server/data/accounts.json`. A nova tag do jogador aparece ao
+**entrar novamente** na partida. O teste integrado LÖVE/Node criou
+e dissolveu um cla usando a interface Lua; o teste Node valida tambem
+convites, cargos e persistencia em disco.
+
+Veja [docs/CLAS-PERMANENTES.md](docs/CLAS-PERMANENTES.md) para uso,
+limites e seguranca.
 
 ## Status real
 
-- **Implementado em codigo:** cliente LÖVE, MessagePack, WebSocket RFC6455, consulta `GET /ping`, **POST /api/join (ticket guest valido emitido pelo proprio Node local)**, conexao direta com `?b=<build>&token=tk:<ticket>`, leitura do `io-init`, chave/tabelas autenticadas e envio do pacote original `M` (spawn). Eventos `C` e `a` sao processados para exibir ID e coordenadas autoritativas; WASD, mira e clique enviam comandos reais. **Esta integracao ainda nao foi validada de ponta a ponta no Windows.**
-- **Ainda nao implementado ou validado por completo:** interface de clãs permanentes, selo do bundle oficial quando exigido (seal 2), probes/telemetria completos, menus sociais, cenas especiais e verificacao visual pixel a pixel. **Ja existem** porte de swings/ataques de jogadores e animais (pacotes K/J), chat Enter/6, inventario inicial, opcoes de evolucao por idade e renderizacao basica da interface, mas **ainda nao sao uma versao 1:1 comprovada**. A requisicao guest usa **o stand-in de captcha da propria API local**, apropriado somente para testes locais.
+- **Implementado em codigo:** cliente LÖVE, MessagePack, WebSocket RFC6455, consulta `GET /ping`, **POST /api/join (ticket guest valido emitido pelo proprio Node local)**, conexao direta com `?b=<build>&token=tk:<ticket>`, leitura do `io-init`, chave/tabelas autenticadas e envio do pacote original `M` (spawn). Eventos `C` e `a` sao processados para exibir ID e coordenadas autoritativas; WASD, mira e clique enviam comandos reais. **O Windows foi validado para o servidor Node e o cliente Lua foi testado no runner Linux com LÖVE; a interface grafica completa ainda exige teste manual no Windows.**
+- **Ainda nao implementado ou validado por completo:** fidelidade pixel a pixel do visual de clãs/conta, selo do bundle oficial quando exigido (seal 2), probes/telemetria completos, menus sociais, cenas especiais e verificacao visual pixel a pixel. **Ja existem** porte de swings/ataques de jogadores e animais (pacotes K/J), chat Enter/6, inventario inicial, opcoes de evolucao por idade e renderizacao basica da interface, mas **ainda nao sao uma versao 1:1 comprovada**. A requisicao guest usa **o stand-in de captcha da propria API local**, apropriado somente para testes locais.
 - **Porte grafico do codigo-fonte:** `reference_primitives.lua` e `reference_objects.lua` convertem as rotinas Canvas originais de arvores, arbustos, pedras e **23 itens**; `reference_assets.lua` carrega PNGs reais do cliente JS, copiados apenas na instalacao local; `reference_view.lua` segue camadas, personagem, equipamentos, animais e terrenos de referencia; `reference_hud.lua` segue as posicoes do CSS original. Os dados de entidades continuam vindo do Node por pacotes; a tela de mundo so aparece depois de `C` e posicao autentica. Ainda **sem prova de execucao completa no Windows**.
 
 ### Bloqueio encontrado na propria referencia
