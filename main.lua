@@ -253,7 +253,7 @@ function love.update(dt)
         client:send("9",{move==false and Pack.null or move})
         lastMove=move
       end
-      local aim=lockDir and (lastAim or 0) or currentAttackDir()
+      local aim=View.localAim(lockDir,currentAttackDir(),lastAim)
       if not lastAim or math.abs(aim-lastAim)>0.02 then
         client:send("D",{aim})
         lastAim=aim
@@ -325,7 +325,8 @@ function love.draw()
     -- Match browser renderPlayers(): the local avatar aims at the cursor
     -- immediately, while the Node remains authoritative for D/F combat.
     View.draw(world,camera,frameDelta,
-      {showGrid=menu.grid,localAim=currentAttackDir()})
+      {showGrid=menu.grid,
+       localAim=View.localAim(lockDir,currentAttackDir(),lastAim)})
     Hud.draw(world,chatOpen,chatDraft,
       chatOpen or panels:isOpen() or clans:isOpen())
     panels:draw(world)
@@ -527,7 +528,12 @@ function love.keypressed(key)
     chatOpen=true;chatDraft=""
     input.keys={}
     lastMove=false
+    -- A player can open chat while holding mouse/Space. Stop the ongoing
+    -- attack on the real Node server before giving keyboard focus to chat,
+    -- exactly as store/tribe and window focus loss already do.
+    mouseAttack=false;spaceAttack=false
     client:send("e",{})
+    client:send("F",{0,Pack.null})
     return
   end
   if panels:isOpen() then

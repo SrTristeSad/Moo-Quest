@@ -1,5 +1,7 @@
 # Matriz de paridade — Cliente Lua / servidor Node reconstruído
 
+> **Documento histórico:** esta tabela corresponde a uma etapa anterior do porte e contém status que ficaram desatualizados após os PRs #2–#9. Consulte [Auditoria de 21/10/2026](AUDITORIA-PARIDADE-2026-10-21.md) para o inventário atual de 42 pacotes, defeitos comprovados, evidências de CI e prioridades. Não interpretar os rótulos abaixo como o estado atual da `main`.
+
 **Baseline:** [al007ex/moomoo-clone@06f7c1ca965a7628671676c8d9a7efd3997bb5e7](https://github.com/al007ex/moomoo-clone/tree/06f7c1ca965a7628671676c8d9a7efd3997bb5e7).
 
 **Nova regra:** o servidor Node.js **já contém** a simulação das mecânicas da referência. O trabalho do Moo-Quest agora se concentra na **conexão, renderização e controles do cliente Lua**. Não é necessário portar o Game/Player/AI do servidor para Lua. Os antigos módulos `src/server/` foram removidos da árvore atual; seu histórico permanece no GitHub. **O único servidor em uso é Node.js.**

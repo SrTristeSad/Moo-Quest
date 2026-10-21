@@ -3,6 +3,19 @@ local C=require("src.game.catalog")
 local Objects=require("src.game.reference_objects")
 local View=require("src.game.reference_view")
 assert(View.playerDrawAngle({dir=1})==1)
+-- The server's K(0) rotation lock and the visual local aim now share
+-- the same deterministic rule: no phantom mouse tracking during lock.
+assert(View.localAim(false,2.4,1.1)==2.4)
+assert(View.localAim(true,2.4,1.1)==1.1)
+assert(View.localAim(true,2.4,0)==0,
+  "zero-radian locked direction must not be replaced by cursor")
+assert(View.localAim(true,2.4,nil)==0,
+  "a newly locked direction defaults to the same initial Node aim")
+assert(View.localAim(false,0,2.4)==0,
+  "an unlocked player must immediately follow the current pointer")
+assert(math.abs(View.playerDrawAngle({dir=0,dirPlus=-0.4},
+  View.localAim(true,2.4,1.1))-0.7)<0.000001,
+  "locked direction must still animate the actual attack swing")
 -- Local avatar aims at the cursor without inventing a server direction.
 -- Remote avatars MUST keep their own authoritative server direction.
 assert(View.playerDrawAngle({dir=1.25,dirPlus=0.1})==1.35)
