@@ -39,6 +39,49 @@ function I:stop(ok,reason)
   self.client:close()
   love.event.quit(ok and 0 or 1)
 end
+function I:draw()
+  if self.mode=="store_tribe" then self.panels:draw(self.world) end
+end
+local function testStoreTribe(self)
+  local panel=self.panels
+  local w,h=1280,720
+  if not self.stage then
+    local sx,_,top=panel:buttons(w)
+    panel:click(self.world,sx+10,top+10,w,h)
+    local left,y=panel:position(w,h)
+    local cmd=panel:click(self.world,left+350,y+124,w,h)
+    if not cmd or cmd.packet~="c" or cmd.args[2]~=51 then
+      return self:stop(false,"shop Equip button did not select Moo Cap")
+    end
+    local ok,err=self.client:send(cmd.packet,cmd.args)
+    if not ok then return self:stop(false,tostring(err)) end
+    self.stage="hat"
+  elseif self.stage=="hat" and self.world.store.hatIndex==51 then
+    local _,tx,top=panel:buttons(w)
+    panel:click(self.world,tx+10,top+10,w,h)
+    local left,y,_,height=panel:position(w,h)
+    panel:click(self.world,left+40,y+height-50,w,h)
+    panel:textinput("CITest")
+    local cmd=panel:click(self.world,left+300,y+height-50,w,h)
+    if not cmd or cmd.packet~="L" or cmd.args[1]~="CITest" then
+      return self:stop(false,"tribe Create button invalid")
+    end
+    local ok,err=self.client:send(cmd.packet,cmd.args)
+    if not ok then return self:stop(false,tostring(err)) end
+    self.stage="tribe"
+  elseif self.stage=="tribe" and self.world.tribe=="CITest" then
+    local left,y,_,height=panel:position(w,h)
+    local cmd=panel:click(self.world,left+40,y+height-50,w,h)
+    if not cmd or cmd.packet~="N" then
+      return self:stop(false,"tribe Leave button invalid")
+    end
+    local ok,err=self.client:send(cmd.packet,cmd.args)
+    if not ok then return self:stop(false,tostring(err)) end
+    self.stage="leave"
+  elseif self.stage=="leave" and self.world.tribe==nil then
+    return self:stop(true,"store equipped by server, tribe created and left through Node")
+  end
+end
 function I:update(dt)
   if self.done then return end
   self.elapsed=self.elapsed+dt
