@@ -550,7 +550,10 @@ export class World {
         const amount=recipe.spikeDamage??(trap.id===7?15:10);
         p.hp=Math.max(0,p.hp-amount);
         if(p.hp>0&&recipe.poison){
-          p.poison={until:at+recipe.poison.seconds*1000,nextAt:at+1000,
+          // Re-entering a poison spike refreshes its expiry but cannot
+          // postpone a pending tick indefinitely.
+          p.poison={until:at+recipe.poison.seconds*1000,
+            nextAt:p.poison?.nextAt??at+1000,
             damage:recipe.poison.damage,from:owner?.id||null};
         }
         this.events.push({kind:'hit',from:owner?.id||null,to:p.id,
