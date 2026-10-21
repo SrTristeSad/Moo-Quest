@@ -50,9 +50,14 @@ function sanitizeSettings(existing, patch) {
     if (typeof patch.maintenance !== 'boolean') throw new Error('Invalid maintenance mode');
     next.maintenance = patch.maintenance;
   }
+  if ('publicRegistration' in patch) {
+    if (typeof patch.publicRegistration !== 'boolean') throw new Error('Invalid publicRegistration');
+    next.publicRegistration = patch.publicRegistration;
+  }
   return next;
 }
-export function createHTTP({ root, storage, auth, updates, game = null, stopStatus = () => false,
+export function createHTTP({ root, storage, auth, updates, game = null,
+  accounts=null,playerTokens=null,stopStatus = () => false,
   httpsCookies = process.env.MOO_PUBLIC_HTTPS === '1' }) {
   const publicDir = path.join(root, 'public');
   const rateKey = req => req.socket.remoteAddress || 'unknown';
@@ -75,8 +80,50 @@ export function createHTTP({ root, storage, auth, updates, game = null, stopStat
       if(req.method==='POST' && pathname==='/api/join'){
         if(!installed || !gameRef)return respond(res,503,{error:'not_installed'});
         const body=await readBody(req);
-        const token=await gameRef.issueTicket(req,body);
+        const authorization=req.headers.authorization;
+        let accountId=null;
+        if(authorization!==undefined){
+          const match=/^Bearer ([a-f0-9]{64})$/.exec(authorization);
+          accountId=match&&playerTokens?await playerTokens.get(match[1]):null;
+          if(!accountId)return respond(res,401,{error:'invalid_player_token'});
+        }
+        const token=await gameRef.issueTicket(req,body,accountId);
         return token?respond(res,200,token):respond(res,429,{error:'join_rejected'});
+      }
+      if(pathname.startsWith('/api/account/')){
+        if(!installed||!accounts||!playerTokens)return respond(res,503,{error:'accounts_unavailable'});
+        if(req.method==='POST'&&pathname==='/api/account/register'){
+          if(!storage.data.settings.publicRegistration)return respond(res,403,{error:'registration_disabled'});
+          const body=await readBody(req);
+          const result=await accounts.register(body.username,body.password);
+          return respond(res,201,{id:result.id,username:result.username});
+        }
+        if(req.method==='POST'&&pathname==='/api/account/login'){
+          const key='account:'+rateKey(req);
+          if(await auth.loginBlocked(key))return respond(res,429,{error:'too_many_attempts'});
+          const body=await readBody(req);
+          const result=await accounts.authenticate(body.username,body.password);
+          if(!result){
+            await auth.recordFailure(key);
+            return respond(res,401,{error:'invalid_credentials'});
+          }
+          await auth.clearFailure(key);
+          const session=await playerTokens.issue(result.id);
+          return respond(res,200,{...session,id:result.id,username:result.username});
+        }
+        const bearer=/^Bearer ([a-f0-9]{64})$/.exec(req.headers.authorization||'');
+        const token=bearer?.[1],accountId=token?await playerTokens.get(token):null;
+        if(!accountId)return respond(res,401,{error:'invalid_player_token'});
+        if(req.method==='GET'&&pathname==='/api/account/me'){
+          const user=await accounts.load(accountId);
+          return user?respond(res,200,{id:user.id,username:user.username}):
+            respond(res,401,{error:'invalid_player_token'});
+        }
+        if(req.method==='POST'&&pathname==='/api/account/logout'){
+          await playerTokens.revoke(token);
+          return respond(res,200,{ok:true});
+        }
+        return respond(res,404,{error:'not_found'});
       }
       if (req.method === 'GET' && pathname === '/health') return respond(res, 200,
         { status: 'ok', version: '0.1.0', project: 'MooQuest-Own-Server' });
