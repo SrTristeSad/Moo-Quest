@@ -7,6 +7,7 @@ local Animals=require("src.game.animals")
 local Shapes=require("src.game.reference_primitives")
 local Objects=require("src.game.reference_objects")
 local Assets=require("src.game.reference_assets")
+local CombatText=require("src.game.reference_combat_text")
 local View={}
 -- client/src/index.js updateGame waterMult / waterPlus (Canvas only).
 local waterMult=1
@@ -350,6 +351,9 @@ local function labels(world,camera,w,h)
     end
   end
   love.graphics.setFont(previous)
+  -- Original updateGame calls textManager.update after all labels and
+  -- before chat speech bubbles. The lifetime advances in World:update.
+  CombatText.draw(world.combatText,camera)
   -- In client/src/index.js speech bubbles come after all world name/HP labels.
   for _,p in pairs(world.players) do
     if p.x and p.y and p.invisible~=1 and see(p,camera,w,h) then
