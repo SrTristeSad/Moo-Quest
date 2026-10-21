@@ -38,6 +38,7 @@ function World.new()
     sid=nil,spawned=false,dead=false,players={},objects={},animals={},projectiles={},
     resources={},resourceGain={},itemCounts={},inventory={weapons={},items={}},leaderboard={},
     combatText={},bossEffects={},
+    updateSeconds=nil,restartSeconds=nil,pongCount=0,
     xp=0,maxXP=0,age=1,upgradePoints=0,upgradeAge=0,
     minimapData={},mapPings={},mapMarker=nil,lastDeath=nil,
     serverAnimals={},teams={},tribe=nil,tribeOwner=false,tribeMembers={},joinRequests={},
@@ -162,7 +163,10 @@ function World:apply(name,args)
     p.maxHealth=number(d[8]) and d[8] or 100
     p.scale=number(d[9]) and d[9] or 35
     p.skinColor=d[10] or 0;p.clan=type(d[13])=="string" and d[13] or nil
-    p.morph=d[14];p.dive=d[15];p.invisible=d[16];p.disguised=d[17]
+    p.morph=d[14]
+    -- Player dive state is sent both on initial D and on later m events.
+    p.dive=(validId(d[15]) and d[15]<=3) and d[15] or 0
+    p.invisible=d[16];p.disguised=d[17]
     self.players[id]=p
     return true
   elseif name=="a" then
@@ -242,6 +246,39 @@ function World:apply(name,args)
       p.chatMessage=args[2]
       p.chatCountdown=3000
     end
+    return true
+  elseif name=="m" then
+    -- Node Game.setDive(player,state,ms): sid, 0..3, transition duration.
+    -- Never create a player locally on a state-only packet.
+    local sid,state,duration=args[1],args[2],args[3]
+    if not validId(sid) or not validId(state) or state>3
+      or (duration~=nil and (not number(duration) or duration<0)) then
+      return false
+    end
+    local p=self.players[sid]
+    if not p then return true end
+    p.dive=state
+    p.diveDuration=duration or 0
+    return true
+  elseif name=="r" then
+    -- Announcement: 0 means reload AFTER this life, not a zero-second timer.
+    local seconds=args[1]
+    if not number(seconds) or seconds<0 then return false end
+    self.updateSeconds=seconds
+    return true
+  elseif name=="Z" then
+    -- Shutdown: -1 cancels, otherwise count down from server seconds.
+    local seconds=args[1]
+    if not number(seconds) or seconds< -1 then return false end
+    if seconds==-1 then
+      self.restartSeconds=nil
+    else
+      self.restartSeconds=seconds
+    end
+    return true
+  elseif name=="0" then
+    -- Pong is sent only by the Node server in reply to client ping.
+    self.pongCount=self.pongCount+1
     return true
   elseif name=="W" then
     -- Crab King danger areas emitted by Node ai.js::telegraph().
@@ -370,6 +407,14 @@ function World:apply(name,args)
 end
 function World:update(dt)
   if type(dt)~="number" or dt<=0 then return end
+  -- Advance the server-issued countdowns only. Stage 0 on r is a
+  -- semantic "after this life" message, so it remains at zero.
+  if self.updateSeconds and self.updateSeconds>0 then
+    self.updateSeconds=math.max(0,self.updateSeconds-dt)
+  end
+  if self.restartSeconds and self.restartSeconds>0 then
+    self.restartSeconds=math.max(0,self.restartSeconds-dt)
+  end
   CombatText.update(self.combatText,dt)
   BossEffects.update(self.bossEffects,dt)
   for key,gain in pairs(self.resourceGain) do
