@@ -15,6 +15,8 @@ export class GameServer {
     this.accounts=accounts;
     this.activeAccounts=new Set();
     this.profileWrites=new Set();
+    this.unsavedProfiles=new Map();
+    this.profileRecoveries=new Map();
     this.storage = storage;
     const keyFile = path.join(storage.dir, 'mod-secret.key');
     if (!fs.existsSync(keyFile)) fs.writeFileSync(keyFile, randomBytes(32), { mode: 0o600, flag: 'wx' });
@@ -125,6 +127,18 @@ export class GameServer {
           try{
             let saved=null;
             if(accountId){
+              // Recover the latest authoritative snapshot before allowing
+              // login after a previous database write failure.
+              if(this.unsavedProfiles.has(accountId)){
+                let retry=this.profileRecoveries.get(accountId);
+                if(!retry){
+                  retry=this.accounts.save(accountId,this.unsavedProfiles.get(accountId))
+                    .then(()=>{this.unsavedProfiles.delete(accountId);this.activeAccounts.delete(accountId);})
+                    .finally(()=>this.profileRecoveries.delete(accountId));
+                  this.profileRecoveries.set(accountId,retry);
+                }
+                await retry;
+              }
               if(!this.accounts||this.activeAccounts.has(accountId)){
                 ws.close(1008,'account_in_use');return;
               }
@@ -261,7 +275,10 @@ export class GameServer {
         this.online.delete(state.p.id);this.room.leave(state.p.id);
         this._nativeBroadcast('E',[state.p.id]);this._nativeBroadcast('R',[state.p.sid]);this._syncTribes();
         if(state.accountId){
-          if(save)void save.finally(()=>this.activeAccounts.delete(state.accountId));
+          if(save)void save.then(ok=>{
+            if(ok)this.activeAccounts.delete(state.accountId);
+            else console.error('[MooQuest] Account remains locked until PostgreSQL recovery');
+          });
           else this.activeAccounts.delete(state.accountId);
         }
       }
@@ -270,10 +287,17 @@ export class GameServer {
   }
   persistPlayer(p){
     if(!this.accounts||!p.accountId)return null;
+    const snapshot=this.room.persistentProfile(p);
     let task;
-    task=this.accounts.save(p.accountId,this.room.persistentProfile(p))
-      .catch(error=>console.error('[MooQuest] player save failed:',error.message))
-      .finally(()=>this.profileWrites.delete(task));
+    task=this.accounts.save(p.accountId,snapshot)
+      .then(()=>{
+        this.unsavedProfiles.delete(p.accountId);
+        return true;
+      },error=>{
+        this.unsavedProfiles.set(p.accountId,snapshot);
+        console.error('[MooQuest] player save failed:',error.message);
+        return false;
+      }).finally(()=>this.profileWrites.delete(task));
     this.profileWrites.add(task);
     return task;
   }
@@ -478,5 +502,8 @@ export class GameServer {
       await new Promise(resolve=>server.close(()=>resolve()));
     }
     await Promise.all([...this.profileWrites]);
+    if(this.unsavedProfiles.size)throw new Error(
+      'Unpersisted player profiles: '+this.unsavedProfiles.size+
+      '. Do not treat this shutdown as clean.');
   }
 }
