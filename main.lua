@@ -208,14 +208,14 @@ function love.draw()
   local w,h=love.graphics.getDimensions()
   local p=world:localPlayer()
   if phase=="menu" then
-    View.draw(menu.world,menuCamera,frameDelta)
+    View.draw(menu.world,menuCamera,frameDelta,{showGrid=menu.grid})
     menu:draw(client and client.state,
       (client and (client.error or client.status)) or startupError or menu.status)
     return
   end
   if client and client.state=="spawn_confirmed" and not died
     and p and p.x and p.y then
-    View.draw(world,camera,frameDelta)
+    View.draw(world,camera,frameDelta,{showGrid=menu.grid})
     Hud.draw(world,chatOpen,chatDraft)
     -- When a reference PNG is absent, report the missing local source.
     -- Never substitute a generated image or fabricated gameplay entity.
