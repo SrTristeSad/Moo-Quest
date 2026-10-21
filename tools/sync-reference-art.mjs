@@ -33,6 +33,11 @@ async function main(){
     if(sprites.length!==expected[category])
       throw Error("Pacote original incompleto em "+category+": "+sprites.length+
         " PNGs encontrados; esperado "+expected[category]+". Nao criar substitutos.");
+    const names=new Set(sprites.map(item=>item.name));
+    for(const name of required[category]||[]){
+      if(!names.has(name))
+        throw Error("Falta o sprite original: "+category+"/"+name);
+    }
     await fs.mkdir(path.join(target,category),{recursive:true});
     for(const item of sprites){
       const from=path.join(input,item.name);
