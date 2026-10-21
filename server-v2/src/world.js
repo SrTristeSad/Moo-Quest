@@ -14,11 +14,16 @@ const RECIPES={
   10:{cost:{wood:50,stone:10},scale:45,hp:350,group:3,limit:20,pps:1},
   11:{cost:{wood:60,stone:20},scale:47,hp:450,group:3,limit:20,pps:1.5},
   12:{cost:{wood:100,stone:50},scale:47,hp:750,group:3,limit:20,pps:2},
+  // Server-controlled placed farming nodes: only an actual hit yields wood/stone.
+  13:{cost:{wood:20,stone:100},scale:65,hp:350,group:4,limit:1,harvest:'stone'},
+  14:{cost:{wood:150},scale:110,hp:350,group:11,limit:2,harvest:'wood'},
   // No map editing or NPC support: these exist only when players construct.
   15:{cost:{wood:30,stone:30},scale:50,hp:500,group:5,limit:5,pit:true},
   16:{cost:{stone:20,wood:5},scale:45,hp:150,group:6,limit:12,boost:1.5},
   19:{cost:{wood:30,food:10},scale:45,hp:400,group:9,limit:4,heal:10},
   21:{cost:{wood:30,stone:25},scale:45,hp:400,group:12,limit:3,blocker:300},
+  20:{cost:{wood:100,stone:100},scale:45,hp:400,group:10,limit:1,spawnPoint:true},
+  22:{cost:{wood:60,stone:60},scale:45,hp:200,group:13,limit:2,teleport:true},
   // Player-built automatic defense. Static only: no NPC or editable map.
   17:{cost:{wood:200,stone:150},scale:43,hp:800,group:7,limit:2,turret:true}
 };
@@ -45,14 +50,16 @@ const UPGRADES=new Map([
   [17,{kind:'item',id:1,age:3}], [20,{kind:'item',id:4,age:3}],
   [31,{kind:'item',id:15,age:4}], [32,{kind:'item',id:16,age:4}],
   [23,{kind:'item',id:7,age:5}], [27,{kind:'item',id:11,age:5}],
+  [29,{kind:'item',id:13,age:5}], [30,{kind:'item',id:14,age:5}],
   [9,{kind:'weapon',id:9,age:6}], [10,{kind:'weapon',id:10,age:6}],
   [11,{kind:'weapon',id:11,age:6}], [14,{kind:'weapon',id:14,age:6}],
   [2,{kind:'weapon',id:2,age:8,pre:1}], [4,{kind:'weapon',id:4,age:8,pre:3}],
   [12,{kind:'weapon',id:12,age:8,pre:9}],
   // Index for the Lua item upgrade = number of weapon IDs (16) + item ID.
   [33,{kind:'item',id:17,age:7}], [35,{kind:'item',id:19,age:7}],
-  [37,{kind:'item',id:21,age:7}],
+  [37,{kind:'item',id:21,age:7}], [38,{kind:'item',id:22,age:7}],
   [28,{kind:'item',id:12,age:8,pre:11}],
+  [36,{kind:'item',id:20,age:9}],
   [13,{kind:'weapon',id:13,age:9,pre:12}],
   [15,{kind:'weapon',id:15,age:9,pre:12}]
 ]);
@@ -137,7 +144,8 @@ export class World {
       ownedHats:new Set([0,51]),ownedAccessories:new Set([0]),
       resources:{wood:0,stone:0,food:0,points:0,kills:0},
       inventory:{weapons:[0],items:[0,3,6,10]},weaponIndex:0,buildIndex:-1,score:0,
-      rootedUntil:0,nextHealAt:0,lastGeneratorAt:this.now(),generatorRemainder:0};
+      rootedUntil:0,nextHealAt:0,nextTeleportAt:0,
+       lastGeneratorAt:this.now(),generatorRemainder:0};
     this.players.set(p.id,p);
     this.events.push({kind:'join',id:p.id,sid:p.sid,name:p.name});return p;
   }
@@ -229,8 +237,11 @@ export class World {
       if(Math.hypot(x-o.x,y-o.y)<scale+(o.scale||50)*0.7)return false;
     }
     // Placement cannot trap a player or bypass a rival's building blocker.
+    // The sapling has a large visual canopy but a narrow trunk collision.
+    // Using its entire sprite radius made placement impossible at 95 units.
+    const footprint=itemId===14?scale*0.5:scale;
     if([...this.players.values()].some(other=>other.hp>0&&
-      Math.hypot(x-other.x,y-other.y)<scale+30))return false;
+      Math.hypot(x-other.x,y-other.y)<footprint+30))return false;
     if([...this.structures.values()].some(block=>{
       const owner=[...this.players.values()].find(other=>other.sid===block.owner);
       return RECIPES[block.id]?.blocker &&
@@ -352,6 +363,23 @@ export class World {
       }
       return true;
     }
+    // Planted mine and sapling yields come from real forward-arc attacks.
+    let farm=null,farmDistance=205;
+    for(const obj of this.structures.values()){
+      if(!RECIPES[obj.id]?.harvest)continue;
+      const d=Math.hypot(obj.x-p.x,obj.y-p.y);
+      if(d>=farmDistance)continue;
+      const direction=Math.atan2(obj.y-p.y,obj.x-p.x);
+      if(Math.cos(direction-p.angle)<0.25)continue;
+      farm=obj;farmDistance=d;
+    }
+    if(farm){
+      const key=RECIPES[farm.id].harvest;
+      p.resources[key]+=2;p.resources.points++;p.score++;
+      this.events.push({kind:'gather',sid:farm.sid,player:p.id,key,amount:2,points:1});
+      this.awardXp(p.id,8);
+      return true;
+    }
     // Buildings belong to the world, not the request. Friendly players never
     // strike structures built by their own tribe; the server measures both
     // collision and damage and broadcasts destruction to every client.
@@ -371,7 +399,8 @@ export class World {
         x:targetStructure.x,y:targetStructure.y,damage:weapon.damage});
       if(targetStructure.hp===0){
         this.structures.delete(targetStructure.sid);
-        this.events.push({kind:'destroy',sid:targetStructure.sid});
+        this.events.push({kind:'destroy',sid:targetStructure.sid,
+          owner:targetStructure.owner,id:targetStructure.id});
       }
       return true;
     }
@@ -400,14 +429,47 @@ export class World {
     }
     return true;
   }
+  // Never land inside solid geometry, other players, or the central river.
+  landingClear(x,y,playerSid){
+    if(!finite(x)||!finite(y)||x<80||x>this.size-80||
+      y<80||y>this.size-80||Math.abs(y-this.size/2)<470)return false;
+    for(const p of this.players.values()){
+      if(p.hp>0&&p.sid!==playerSid&&Math.hypot(p.x-x,p.y-y)<80)return false;
+    }
+    for(const o of this.resources.values()){
+      if(Math.hypot(o.x-x,o.y-y)<o.scale+35)return false;
+    }
+    for(const o of this.structures.values()){
+      if([16,18,19,20,21,22].includes(o.id))continue;
+      if(Math.hypot(o.x-x,o.y-y)<o.scale+35)return false;
+    }
+    return true;
+  }
+  randomLanding(playerSid){
+    for(let i=0;i<128;i++){
+      const x=randomInt(180,this.size-180),y=randomInt(180,this.size-180);
+      if(this.landingClear(x,y,playerSid))return {x,y};
+    }
+    return null;
+  }
   respawn(id){
     const p=this.players.get(id);if(!p||p.hp!==0||this.now()<p.deadUntil)return false;
     p.hp=p.maxHp;p.deadUntil=0;
-    p.x=randomInt(180,this.size-180);p.y=randomInt(180,this.size-180);
+    const pad=[...this.structures.values()].find(o=>o.owner===p.sid&&o.id===20);
+    const atPad=pad&&this.landingClear(pad.x,pad.y,p.sid)?
+      {x:pad.x,y:pad.y}:null;
+    const destination=atPad||this.randomLanding(p.sid);
+    p.x=destination?.x??randomInt(180,this.size-180);
+    p.y=destination?.y??randomInt(180,this.size-180);
+    if(atPad){
+      this.structures.delete(pad.sid);
+      this.events.push({kind:'destroy',sid:pad.sid,owner:pad.owner,id:pad.id});
+    }
     p.resources={wood:0,stone:0,food:0,points:0,kills:0};p.score=0;p.buildIndex=-1;p.weaponIndex=0;
     p.inventory={weapons:[0],items:[0,3,6,10]};p.xp=0;p.age=1;
     p.maxXp=LEVEL_XP(1);p.upgradePoints=0;p.upgradeAge=2;
     p.vx=0;p.vy=0;p.lastAttack=0;p.rootedUntil=0;p.nextHealAt=0;
+    p.nextTeleportAt=this.now()+3000;
     p.lastGeneratorAt=this.now();p.generatorRemainder=0;
     this.events.push({kind:'respawn',id:p.id,sid:p.sid,x:p.x,y:p.y});return true;
   }
@@ -497,6 +559,19 @@ export class World {
           const amount=Math.min(spec.heal,p.maxHp-p.hp);
           p.hp+=amount;p.nextHealAt=at+1000;
           this.events.push({kind:'heal',player:p.id,sid:p.sid,amount,hp:p.hp,x:p.x,y:p.y});
+        }
+      }
+      // The Node server decides destination; cooldown prevents portal loops.
+      if(at>=p.nextTeleportAt){
+        const portal=[...this.structures.values()].find(o=>o.id===22&&
+          Math.hypot(p.x-o.x,p.y-o.y)<o.scale+24);
+        if(portal){
+          const destination=this.randomLanding(p.sid);
+          if(destination){
+            p.x=destination.x;p.y=destination.y;p.vx=0;p.vy=0;
+            p.nextTeleportAt=at+4000;
+            this.events.push({kind:'teleport',player:p.id,sid:p.sid,x:p.x,y:p.y});
+          }
         }
       }
       // Resource generators use elapsed wall-clock time, not the number of
@@ -613,7 +688,8 @@ export class World {
               x:target.x,y:target.y,damage:arrow.damage});
             if(target.hp===0){
               this.structures.delete(target.sid);
-              this.events.push({kind:'destroy',sid:target.sid});
+              this.events.push({kind:'destroy',sid:target.sid,
+                owner:target.owner,id:target.id});
             }
           }
         }
