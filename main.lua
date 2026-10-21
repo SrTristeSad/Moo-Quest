@@ -9,6 +9,7 @@ local Auth=require("src.net.local_auth")
 local Config=require("src.game.config")
 local Hud=require("src.game.reference_hud")
 local Panels=require("src.game.reference_panels")
+local Clans=require("src.game.account_clans")
 local Upgrades=require("src.game.reference_upgrades")
 local Assets=require("src.game.reference_assets")
 local Camera=require("src.camera")
@@ -27,6 +28,7 @@ local camera=nil
 local menuCamera=nil
 local menu=Menu.new()
 local panels=Panels.new()
+local clans=Clans.new()
 local phase="menu"
 local diagnostic=nil
 local reconnectSeconds=0
@@ -138,6 +140,7 @@ function love.update(dt)
       serverPackets=serverPackets+1
       if packet.name=="C" then
         panels:reset()
+        clans:close()
         phase="playing"
         menu.status=""
         latestEvent="SPAWN CONFIRMADO pelo Node original. SID "..tostring(client.sid)
@@ -164,6 +167,7 @@ function love.update(dt)
         end
       elseif packet.name=="P" then
         panels:reset()
+        clans:close()
         chatOpen=false;chatDraft=""
         died=true
         phase="menu"
@@ -221,7 +225,7 @@ function love.update(dt)
       localPlayer.visualY or localPlayer.y,dt)
   end
   if client.state=="spawn_confirmed" and not died then
-    if panels:isOpen() then input.keys={} end
+    if panels:isOpen() or clans:isOpen() then input.keys={} end
     heartbeatClock=heartbeatClock+dt
     if heartbeatClock>=15 then
       heartbeatClock=0
@@ -294,6 +298,7 @@ function love.draw()
         (client and (client.error or client.status)) or startupError
     end
     menu:draw(state,status)
+    clans:draw(false)
     return
   end
   if client and client.state=="spawn_confirmed" and not died
@@ -301,6 +306,7 @@ function love.draw()
     View.draw(world,camera,frameDelta,{showGrid=menu.grid})
     Hud.draw(world,chatOpen,chatDraft)
     panels:draw(world)
+    clans:draw(true)
     if uiSmoke and uiSmokeClicked and not uiSmokeDrawn then
       uiSmokeDrawn=true
       print("UI E2E PASS: Play click -> original C/D -> graphical View + HUD rendered")
@@ -399,6 +405,7 @@ local function accountAction(action)
     if not account then menu.authMessage=err;return end
     if not client then menu.authMessage="Cliente Node indisponivel";return end
     client.authToken=account.token
+    clans:reset()
     menu.accountEmail=menu.authEmail
     menu.authMode=nil
     menu.authFlow=nil
@@ -414,6 +421,7 @@ local function accountAction(action)
   elseif action=="auth_logout" then
     if not client then return end
     client.authToken=nil
+    clans:reset()
     menu.accountEmail=nil
     menu.status="Conta local desconectada. Reabrindo como convidado..."
     world=World.new()
@@ -432,6 +440,10 @@ menuAction=function(action)
     accountAction(action)
     return true
   end
+  if action=="clan_open" then
+    clans:toggle(client and client.authToken)
+    return true
+  end
   if action=="auth_open" or action=="auth_back" then
     menu.status=""
   end
@@ -439,6 +451,10 @@ menuAction=function(action)
 end
 
 function love.keypressed(key)
+  if clans:isOpen() then
+    clans:keypressed(key)
+    return
+  end
   if key=="escape" and phase=="playing" and panels:isOpen() then
     panels:keypressed(key,world)
     return
@@ -553,6 +569,7 @@ function love.keypressed(key)
   end
 end
 function love.textinput(text)
+  if clans:isOpen() then clans:textinput(text);return end
   if phase=="menu" then menu:textinput(text);return end
   if panels:isOpen() then panels:textinput(text);return end
   if chatOpen and type(text)=="string" then
@@ -582,6 +599,7 @@ function love.mousepressed(x,y,button)
   if phase=="menu" then
     if button==1 then
       local width,height=love.graphics.getDimensions()
+      if clans:isOpen() and clans:click(x,y,width,height,false,client and client.authToken) then return end
       menu.connectionState=client and client.state or "failed"
       local action=menu:click(x,y,width,height)
       menuAction(action)
@@ -591,6 +609,15 @@ function love.mousepressed(x,y,button)
   if not client or client.state~="spawn_confirmed" or died then return end
   if button==1 then
     local w,h=love.graphics.getDimensions()
+    if clans:click(x,y,w,h,true,client and client.authToken) then
+      -- The account overlay must not cause attacks or movement while typing.
+      input.keys={};lastMove=false
+      chatOpen=false;chatDraft=""
+      mouseAttack=false;spaceAttack=false
+      client:send("e",{})
+      client:send("F",{0,Pack.null})
+      return
+    end
     local action=panels:click(world,x,y,w,h)
     if action then
       if action.packet then
@@ -639,6 +666,7 @@ function love.mousepressed(x,y,button)
   end
 end
 function love.wheelmoved(dx,dy)
+  if clans:isOpen() then clans:wheelmoved(dx,dy);return end
   if phase=="playing" then panels:wheelmoved(dx,dy,world) end
 end
 function love.mousereleased(_,_,button)
