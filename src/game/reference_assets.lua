@@ -27,6 +27,27 @@ function A.get(category,filename)
   cache[path]=result
   return result
 end
+-- The pinned source is missing bow_1_d.png (diamond bow), despite
+-- containing all the other 16 x 5 weapon variants. Never synthesize
+-- proprietary art: prefer that weapon's ORIGINAL base image rather than
+-- making an upgraded weapon disappear. If the user adds bow_1_d.png later,
+-- it will be used automatically with no additional code changes.
+function A.weaponFilename(source,suffix,exists)
+  if type(source)~="string" or
+    not source:match("^[%w_%-]+$") then return nil,false end
+  suffix=suffix or ""
+  if type(suffix)~="string" or
+    (suffix~="" and suffix~="_g" and suffix~="_d" and
+      suffix~="_r" and suffix~="_e") then return nil,false end
+  local desired=source..suffix..".png"
+  if suffix=="" then return desired,false end
+  local check=exists or function(file)
+    return love.filesystem.getInfo(
+      "assets/reference/img/weapons/"..file,"file")~=nil
+  end
+  if check(desired) then return desired,false end
+  return source..".png",true
+end
 function A.draw(category,filename,x,y,w,h,angle)
   local image=A.get(category,filename)
   if not image then return false end
