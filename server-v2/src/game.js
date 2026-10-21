@@ -21,7 +21,7 @@ function requestIdentity(req){
 }
 
 export class GameServer {
-  constructor(httpServer, storage, ticketStore=null, {accounts=null}={}) {
+  constructor(httpServer, storage, ticketStore=null, {accounts=null,reservedClanTags=[]}={}) {
     this.ticketStore=ticketStore;
     this.accounts=accounts;
     this.activeAccounts=new Set();
@@ -31,6 +31,7 @@ export class GameServer {
     if (!fs.existsSync(keyFile)) fs.writeFileSync(keyFile, randomBytes(32), { mode: 0o600, flag: 'wx' });
     this.banKey = fs.readFileSync(keyFile);
     this.room = new World({ maxPlayers: storage.data.settings.maxPlayers });
+    this.room.reservedTribeTags=new Set(reservedClanTags);
     this.wss = new WebSocketServer({ noServer: true, maxPayload: 2048, perMessageDeflate: false });
     this.nativeWss = new WebSocketServer({ noServer: true, maxPayload: 2048, perMessageDeflate: false });
     this.nativeClients = new Map();
@@ -109,7 +110,7 @@ export class GameServer {
   }
   connectNative(ws,ipHash,trustedOrigin,accountId=null) {
     const session=new NativeSession();
-    const state={ws,session,p:null,held:false,lastSnapshotAt:0,spawning:false,accountId:null};
+    const state={ws,session,p:null,held:false,lastSnapshotAt:0,spawning:false,accountId:null,clanBusy:false};
     this.nativeClients.set(ws,state);
     ws.send(session.handshake());
     const send=(name,args=[])=>{
@@ -143,8 +144,10 @@ export class GameServer {
               if(!saved){ws.close(1008,'unknown_account');return;}
             }
             if(ws.readyState!==ws.OPEN)return;
-            state.p=this.room.join(ws,saved?.username||profile.name,saved?.profile);
-            state.p.accountId=state.accountId;
+            state.p=this.room.join(ws,saved?.username||profile.name,saved?.profile,state.accountId);
+            if(saved?.clan&&!this.room.restoreClan(state.p,saved.clan)){
+              throw new Error('Persisted clan conflicts with existing online clan tag');
+            }
             state.p.native=true;
             if(!saved)state.p.skinColor=Number.isInteger(profile.skin)?
               Math.max(0,Math.min(9,profile.skin)):0;
@@ -171,8 +174,14 @@ export class GameServer {
           if(state.p.tail)send('5',[1,state.p.tail,1]);
         }
         for(const other of this.nativeClients.values()) {
-          if(other!==state&&other.p)other.send('D',[this.room.playerData(state.p),false]);
+          if(other!==state&&other.p){
+            other.send('D',[this.room.playerData(state.p),false]);
+            const owned=[...this.room.structures.values()].filter(o=>o.owner===state.p.sid);
+            if(owned.length)other.send('H',[owned.flatMap(o=>[
+              o.sid,o.x,o.y,0,o.scale,o.type,o.id,o.owner])]);
+          }
         }
+        if(state.p.team)this._syncTribes();
         return;
       }
       const p=state.p;if(!p)return;
@@ -197,10 +206,56 @@ export class GameServer {
         }
       }
       else if(name==='H')this.room.upgrade(p.id,args[0]);
-      else if(name==='L'){if(this.room.createTribe(p.id,args[0]))this._syncTribes();}
-      else if(name==='N'){if(this.room.leaveTribe(p.id))this._syncTribes();}
-      else if(name==='b')this.room.requestTribe(p.id,args[0]);
-      else if(name==='P'){if(this.room.answerTribe(p.id,args[0],args[1]===true))this._syncTribes();}
+      else if(name==='L'){
+        const tag=args[0];
+        if(p.accountId&&this.accounts){
+          if(state.clanBusy||p.team||this.room.tribes.has(tag)||
+            this.room.reservedTribeTags.has(tag))return;
+          state.clanBusy=true;
+          try{
+            const clan=await this.accounts.createClan(p.accountId,tag);
+            this.room.reservedTribeTags.add(tag);
+            if(this.room.players.has(p.id)&&this.room.restoreClan(p,clan))
+              this._syncTribes();
+          }catch(error){console.error('[MooQuest] clan create rejected:',error.message);}
+          finally{state.clanBusy=false;}
+        }else if(this.room.createTribe(p.id,tag))this._syncTribes();
+      }
+      else if(name==='N'){
+        if(state.clanBusy)return;
+        const tribe=p.team&&this.room.tribes.get(p.team);
+        if(tribe?.persistent){
+          if(!p.accountId||!this.accounts)return;
+          state.clanBusy=true;
+          try{
+            const result=await this.accounts.leaveClan(p.accountId);
+            if(result?.disbanded)this.room.disbandTribe(result.tag);
+            else if(result)this.room.leaveTribe(p.id);
+            if(result)this._syncTribes();
+          }catch(error){console.error('[MooQuest] clan leave failed:',error.message);}
+          finally{state.clanBusy=false;}
+        }else if(this.room.leaveTribe(p.id))this._syncTribes();
+      }
+      else if(name==='b'){
+        const target=this.room.tribes.get(args[0]);
+        if(!target?.persistent||p.accountId)this.room.requestTribe(p.id,args[0]);
+      }
+      else if(name==='P'){
+        if(state.clanBusy)return;
+        const requestedSid=args[0],allow=args[1]===true;
+        const tribe=p.team&&this.room.tribes.get(p.team);
+        if(allow&&tribe?.persistent){
+          const applicant=[...this.room.players.values()].find(x=>x.sid===requestedSid);
+          if(!p.accountId||!applicant?.accountId||
+            tribe.owner!==p.id||!tribe.requests.has(applicant.id))return;
+          state.clanBusy=true;
+          try{
+            if(await this.accounts.joinClan(p.accountId,applicant.accountId,p.team)&&
+              this.room.answerTribe(p.id,requestedSid,true))this._syncTribes();
+          }catch(error){console.error('[MooQuest] clan invitation failed:',error.message);}
+          finally{state.clanBusy=false;}
+        }else if(this.room.answerTribe(p.id,requestedSid,allow))this._syncTribes();
+      }
       else if(name==='6'&&typeof args[0]==='string'){
         const txt=args[0].replace(/[\x00-\x1f]/g,'').slice(0,30);
         if(txt)this._nativeBroadcast('6',[p.sid,txt]);
