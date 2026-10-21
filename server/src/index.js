@@ -222,6 +222,18 @@ app.get("/ping", (_req, res) => {
     });
 });
 
+// Moo-Quest-added local identity. Avoid accidentally connecting the native
+// client to a still-running legacy sandbox server on port 8080.
+app.get("/mooquest/status", (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.json({
+        project: "Moo-Quest",
+        server: "vendored-node",
+        economy: config.unlimitedResources ? "unlimited" : "gather",
+        build: build.BUILD_ID
+    });
+});
+
 app.use(express.static(PUBLIC_DIR));
 
 // ---------------------------------------------------------------- websocket
