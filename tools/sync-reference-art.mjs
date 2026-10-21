@@ -90,6 +90,11 @@ async function synchronize(){
     console.warn("[ARTE] Lista completa: ARTES-PENDENTES.txt");
   }
   const blocked=required.filter(p=>pending.includes(p));
+  if(blocked.length && process.env.MOOQUEST_ART_TEST_ONLY==="1"){
+    console.warn("[ARTE][CI] Teste apenas do fluxo de rede e Canvas. "+
+      "Sem martelo original valido, o resultado NAO prova fidelidade grafica.");
+    return;
+  }
   if(blocked.length){
     throw Error("A arma inicial usa "+blocked.join(", ")+
       ", arquivo invalido no repositorio de referencia. "+
