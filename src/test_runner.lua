@@ -22,7 +22,10 @@ M.paths={
   "tests/reference_camera.lua",
   "tests/reference_menu.lua",
   "tests/reference_panels.lua",
-  "tests/local_auth.lua"
+  "tests/local_auth.lua",
+  "tests/json.lua",
+  "tests/clan_api.lua",
+  "tests/account_clans.lua"
 }
 function M.run()
   local results={passed=0,failed=0,rows={}}
