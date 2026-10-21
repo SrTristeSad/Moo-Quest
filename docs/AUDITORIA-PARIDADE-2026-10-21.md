@@ -156,6 +156,33 @@ sobreposições de construções, paredes e recursos.
   renderização; ainda faltam avaliações manuais lado a lado de
   animação, colisão visível e efeitos na partida completa.
 
+## Progresso subsequente — ordem de desenho de jogadores e animais (PR #15)
+
+A referência JS usa duas listas persistentes `players[]` e `ais[]`:
+`renderPlayers`, `renderAI` e os rótulos percorrem estas listas,
+não um mapa hash. O cliente Lua já preservava os slots dos objetos do
+cenário (PR #14), mas ainda fazia `pairs(world.players)` e
+`pairs(world.animals)`. Em encontros com personagens/animais sobrepostos,
+a ordem podia variar de forma diferente da referência.
+
+- `world_state.lua`: acompanha a sequência dos **SIDs reais do Node**
+  introduzidos por `D`, `a` e `I`, preservando-a após atualizações.
+  Entidades temporariamente ocultas continuam com suas antigas posições
+  e retornam nelas; `E` retira definitivamente o jogador desconectado,
+  como `removePlayer` no original.
+- `reference_view.lua`: renderiza corpos, acessórios, armas,
+  animais, nomes e balões de chat nesta sequência, **sem modificar
+  a ordem global das camadas** ou a orientação dos sprites.
+- Novo teste de três jogadores (com cores originais) e três animais:
+  verifica o ciclo `D/a/E/I`, ocultação, reentrada e
+  a sequência das chamadas reais de desenho em Canvas LÖVE.
+- Mantidos todos os efeitos existentes: mergulho, ataque, números de dano
+  e cura, indicadores do chefe, projéteis, estruturas e mapa secreto.
+
+**Limite:** a ordem agora segue a criação e visibilidade dos SIDs
+vistos pelo cliente. Ainda falta auditoria manual da imagem final
+de partidas simultâneas no Windows, antes de afirmar paridade 1:1.
+
 ## Critério objetivo para chamar 1:1
 
 Todos os fluxos do escopo original aplicável têm controle correspondente, visual correspondente, evento Node validado, teste automatizado específico e evidência de execução manual lado a lado. **Um PR com 7 workflows verdes não é equivalente a paridade 1:1.**
