@@ -163,7 +163,7 @@ export class World {
       inventory:{weapons:[0],items:[0,3,6,10]},weaponIndex:0,buildIndex:-1,score:0,
       rootedUntil:0,nextHealAt:0,nextTeleportAt:0,poison:null,regen:null,
       lastGearRegenAt:this.now(),raisedUntil:0,raisedOrigin:null,
-       lastGeneratorAt:this.now(),generatorRemainder:0};
+       lastGeneratorAt:this.now(),generatorRemainder:0,deferredStructures:[]};
     this.players.set(p.id,p);
     if(profile)this.restoreProfile(p,profile);
     this.events.push({kind:'join',id:p.id,sid:p.sid,name:p.name});return p;
@@ -179,8 +179,11 @@ export class World {
       hat:p.hat,tail:p.tail,weaponIndex:p.weaponIndex,skinColor:p.skinColor,
       // Structures are saved only for an authenticated account; disconnected
       // structures disappear from the live world, then restore on login.
-      structures:[...this.structures.values()].filter(o=>o.owner===p.sid)
-        .slice(0,150).map(o=>({id:o.id,x:o.x,y:o.y,hp:o.hp}))};
+      structures:[
+        ...[...this.structures.values()].filter(o=>o.owner===p.sid)
+          .map(o=>({id:o.id,x:o.x,y:o.y,hp:o.hp})),
+        ...(p.deferredStructures||[])
+      ].slice(0,150)};
   }
   restoreProfile(p,data){
     if(!data||data.version!==1||typeof data!=='object')return;
@@ -225,13 +228,20 @@ export class World {
         const {x,y}=saved,scale=recipe.scale;
         if(x<scale||x>this.size-scale||y<scale||y>this.size-scale||
           Math.abs(y-this.size/2)<470)continue;
-        if([...this.structures.values(),...this.resources.values()].some(o=>
-          Math.hypot(x-o.x,y-o.y)<scale+(o.scale||50)*0.7))continue;
-        if([...this.players.values()].some(other=>other!==p&&other.hp>0&&
-          Math.hypot(x-other.x,y-other.y)<scale+30))continue;
         const count=[...this.structures.values()].filter(o=>o.owner===p.sid&&
-          RECIPES[o.id]?.group===recipe.group).length;
+          RECIPES[o.id]?.group===recipe.group).length+
+          p.deferredStructures.filter(o=>RECIPES[o.id]?.group===recipe.group).length;
         if(count>=recipe.limit)continue;
+        const blocked=[...this.structures.values(),...this.resources.values()].some(o=>
+          Math.hypot(x-o.x,y-o.y)<scale+(o.scale||50)*0.7)||
+          [...this.players.values()].some(other=>other!==p&&other.hp>0&&
+          Math.hypot(x-other.x,y-other.y)<scale+30);
+        if(blocked){
+          // Do not erase a purchased building merely because another player
+          // or a respawned resource occupies its saved position.
+          p.deferredStructures.push({id:saved.id,x,y,hp:saved.hp});
+          continue;
+        }
         const sid=this.nextObjectSid++;
         this.structures.set(sid,{sid,x,y,scale,type:4,id:saved.id,
           owner:p.sid,ownerAccountId:p.accountId,
@@ -365,7 +375,8 @@ export class World {
   place(id,itemId){
     const p=this.players.get(id),recipe=RECIPES[itemId];
     if(!p||p.hp<=0||!recipe||!p.inventory.items.includes(itemId)||p.buildIndex!==itemId)return false;
-    if([...this.structures.values()].filter(o=>o.owner===p.sid&&RECIPES[o.id]?.group===recipe.group).length>=recipe.limit)return false;
+    if([...this.structures.values()].filter(o=>o.owner===p.sid&&RECIPES[o.id]?.group===recipe.group).length+
+      (p.deferredStructures||[]).filter(o=>RECIPES[o.id]?.group===recipe.group).length>=recipe.limit)return false;
     if(Object.entries(recipe.cost).some(([k,n])=>p.resources[k]<n))return false;
     const x=p.x+Math.cos(p.angle)*95,y=p.y+Math.sin(p.angle)*95,scale=recipe.scale;
     if(x<scale||x>this.size-scale||y<scale||y>this.size-scale||Math.abs(y-this.size/2)<470)return false;
