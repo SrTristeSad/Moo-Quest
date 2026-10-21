@@ -29,6 +29,7 @@ local C = {
   nameY = 34,
   healthBarWidth = 50,
   healthBarPad = 4.5,
+  deathFadeout = 3000, -- shared/config.js, CSS #diedText duration (ms)
   crownIconScale = 60,
   crownPad = 35,
   gatherWiggle = 10,
