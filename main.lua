@@ -146,6 +146,7 @@ function love.update(dt)
     end
   end
   world:update(dt)
+  if phase=="menu" then menu.world:update(dt) end
   local localPlayer=world:localPlayer()
   if localPlayer and localPlayer.x and localPlayer.y and camera then
     camera:followReference(localPlayer.visualX or localPlayer.x,
