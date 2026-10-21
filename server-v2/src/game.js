@@ -37,7 +37,9 @@ export class GameServer {
       try { location = new URL(req.url, 'http://localhost'); }
       catch { socket.destroy(); return; }
       if (!['/play','/s/LC'].includes(location.pathname) ||
-          (location.pathname==='/play' && process.env.MOO_DEV_JSON!=='1') || this.storage.data.settings.maintenance ||
+          (location.pathname==='/play' &&
+            (process.env.MOO_DEV_JSON!=='1'||process.env.MOO_PUBLIC_MODE==='1')) ||
+          this.storage.data.settings.maintenance ||
           this.room.players.size >= this.room.maxPlayers) { socket.destroy(); return; }
       const origin = req.headers.origin;
       if (origin) {
