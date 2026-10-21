@@ -20,9 +20,18 @@ export class Auth {
   constructor() {
     this.sessions = new Map();
     this.failures = new Map();
+    this.registrations = new Map();
     this.setupCode = String(randomInt(100000, 1000000));
     // Setup code is output in terminal only, never in web content or the API.
     this.setupAttempts = 0;
+  }
+  allowRegistration(key) {
+    const now=Date.now();
+    const old=this.registrations.get(key);
+    const record=old&&old.until>now?old:{count:0,until:now+60_000};
+    record.count++;
+    this.registrations.set(key,record);
+    return record.count<=3;
   }
   loginBlocked(key) {
     const record = this.failures.get(key);

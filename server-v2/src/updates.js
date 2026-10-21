@@ -9,7 +9,8 @@ const VERSION = /^\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/i;
 const FILE = /^(?:src\/[a-zA-Z0-9_/-]+\.js|public\/[a-zA-Z0-9_.-]+\.(?:html|js|css))$/;
 const REQUIRED = ['src/index.js','src/http.js','src/auth.js','src/storage.js',
   'src/updates.js','src/game.js','src/world.js','src/native-protocol.js',
-  'src/store.js','src/database.js','src/redis-services.js','src/player-accounts.js','public/admin.html','public/login.html',
+  'src/store.js','src/database.js','src/redis-services.js','src/player-accounts.js',
+    'src/request-identity.js','public/admin.html','public/login.html',
   'public/setup.html','public/style.css','public/app.js'];
 const MAX_BYTES = 12 * 1024 * 1024;
 

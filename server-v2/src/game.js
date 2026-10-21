@@ -6,26 +6,17 @@ import { WebSocketServer } from 'ws';
 import { createHmac, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { isIP } from 'node:net';
+import { requestIdentity } from './request-identity.js';
 import { World } from './world.js';
 import { NativeSession } from './native-protocol.js';
-function requestIdentity(req){
-  const peer=req.socket.remoteAddress||'unknown';
-  const loopback=['127.0.0.1','::1','::ffff:127.0.0.1'].includes(peer);
-  const forwarded=process.env.MOO_TRUST_PROXY==='1'&&loopback?
-    String(req.headers['x-real-ip']||''):'';
-  return {
-    address:forwarded&&isIP(forwarded)?forwarded:peer,
-    trustedOrigin:!(loopback&&process.env.MOO_TRUST_PROXY==='1'&&!isIP(forwarded))
-  };
-}
-
 export class GameServer {
   constructor(httpServer, storage, ticketStore=null, {accounts=null,reservedClanTags=[]}={}) {
     this.ticketStore=ticketStore;
     this.accounts=accounts;
     this.activeAccounts=new Set();
     this.profileWrites=new Set();
+    this.unsavedProfiles=new Map();
+    this.profileRecoveries=new Map();
     this.storage = storage;
     const keyFile = path.join(storage.dir, 'mod-secret.key');
     if (!fs.existsSync(keyFile)) fs.writeFileSync(keyFile, randomBytes(32), { mode: 0o600, flag: 'wx' });
@@ -136,6 +127,24 @@ export class GameServer {
           try{
             let saved=null;
             if(accountId){
+              // Existing online sessions always retain exclusive ownership,
+              // even if an earlier periodic save temporarily failed.
+              if([...this.room.players.values()].some(p=>p.accountId===accountId)){
+                ws.close(1008,'account_in_use');return;
+              }
+              if(this.unsavedProfiles.has(accountId))await Promise.all([...this.profileWrites]);
+              // Recover the latest authoritative snapshot before allowing
+              // login after a previous database write failure.
+              if(this.unsavedProfiles.has(accountId)){
+                let retry=this.profileRecoveries.get(accountId);
+                if(!retry){
+                  retry=this.accounts.save(accountId,this.unsavedProfiles.get(accountId))
+                    .then(()=>{this.unsavedProfiles.delete(accountId);this.activeAccounts.delete(accountId);})
+                    .finally(()=>this.profileRecoveries.delete(accountId));
+                  this.profileRecoveries.set(accountId,retry);
+                }
+                await retry;
+              }
               if(!this.accounts||this.activeAccounts.has(accountId)){
                 ws.close(1008,'account_in_use');return;
               }
@@ -272,7 +281,10 @@ export class GameServer {
         this.online.delete(state.p.id);this.room.leave(state.p.id);
         this._nativeBroadcast('E',[state.p.id]);this._nativeBroadcast('R',[state.p.sid]);this._syncTribes();
         if(state.accountId){
-          if(save)void save.finally(()=>this.activeAccounts.delete(state.accountId));
+          if(save)void save.then(ok=>{
+            if(ok)this.activeAccounts.delete(state.accountId);
+            else console.error('[MooQuest] Account remains locked until PostgreSQL recovery');
+          });
           else this.activeAccounts.delete(state.accountId);
         }
       }
@@ -281,10 +293,17 @@ export class GameServer {
   }
   persistPlayer(p){
     if(!this.accounts||!p.accountId)return null;
+    const snapshot=this.room.persistentProfile(p);
     let task;
-    task=this.accounts.save(p.accountId,this.room.persistentProfile(p))
-      .catch(error=>console.error('[MooQuest] player save failed:',error.message))
-      .finally(()=>this.profileWrites.delete(task));
+    task=Promise.resolve().then(()=>this.accounts.save(p.accountId,snapshot))
+      .then(()=>{
+        this.unsavedProfiles.delete(p.accountId);
+        return true;
+      },error=>{
+        this.unsavedProfiles.set(p.accountId,snapshot);
+        console.error('[MooQuest] player save failed:',error.message);
+        return false;
+      }).finally(()=>this.profileWrites.delete(task));
     this.profileWrites.add(task);
     return task;
   }
@@ -320,6 +339,12 @@ export class GameServer {
         this._nativeBroadcast('J',[evt.sid]);
         if(victim)this._nativeBroadcast('O',[victim.sid,victim.hp]);
         this._nativeBroadcast('8',[evt.x,evt.y,-evt.damage,1]);
+      }else if(evt.kind==='steal'){
+        // Both inventories change in a server-approved melee transfer.
+        const taker=[...this.nativeClients.values()].find(st=>st.p?.id===evt.from);
+        const victim=[...this.nativeClients.values()].find(st=>st.p?.id===evt.to);
+        taker?.send('N',[evt.key,taker.p.resources[evt.key],1]);
+        victim?.send('N',[evt.key,victim.p.resources[evt.key],1]);
       }else if(evt.kind==='hit'){
         const p=this.room.players.get(evt.to);
         if(p)this._nativeBroadcast('O',[p.sid,p.hp]);
@@ -489,5 +514,8 @@ export class GameServer {
       await new Promise(resolve=>server.close(()=>resolve()));
     }
     await Promise.all([...this.profileWrites]);
+    if(this.unsavedProfiles.size)throw new Error(
+      'Unpersisted player profiles: '+this.unsavedProfiles.size+
+      '. Do not treat this shutdown as clean.');
   }
 }

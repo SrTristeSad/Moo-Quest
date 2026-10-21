@@ -17,7 +17,8 @@ test('full signed update: verify bytes, stage, activate and roll back',async t=>
   const manifestURL='https://updates.example.net/manifest.json';
   const names=['src/index.js','src/http.js','src/auth.js','src/storage.js',
     'src/updates.js','src/game.js','src/world.js','src/native-protocol.js',
-    'src/store.js','src/database.js','src/redis-services.js','src/player-accounts.js','public/admin.html',
+    'src/store.js','src/database.js','src/redis-services.js','src/player-accounts.js',
+    'src/request-identity.js','public/admin.html',
     'public/login.html','public/setup.html','public/style.css','public/app.js'];
   const content=new Map();
   const files=names.map(name=>{
