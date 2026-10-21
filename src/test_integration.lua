@@ -5,10 +5,12 @@ local Original=require("src.net.original_client")
 local Auth=require("src.net.local_auth")
 local World=require("src.game.world_state")
 local Panels=require("src.game.reference_panels")
+local Clans=require("src.game.account_clans")
+local SecureRandom=require("src.net.secure_random")
 local I={}
 I.__index=I
 function I.new(mode)
-  if mode~="guest" and mode~="account" and mode~="store_tribe" then
+  if mode~="guest" and mode~="account" and mode~="store_tribe" and mode~="persistent_clan" then
     error("unknown Node integration mode")
   end
   local token=nil
