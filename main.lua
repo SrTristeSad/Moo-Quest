@@ -10,6 +10,7 @@ local Config=require("src.game.config")
 local Hud=require("src.game.reference_hud")
 local Panels=require("src.game.reference_panels")
 local Clans=require("src.game.account_clans")
+local Death=require("src.game.reference_death")
 local Upgrades=require("src.game.reference_upgrades")
 local Assets=require("src.game.reference_assets")
 local Camera=require("src.camera")
@@ -29,6 +30,7 @@ local menuCamera=nil
 local menu=Menu.new()
 local panels=Panels.new()
 local clans=Clans.new()
+local death=Death.new()
 local phase="menu"
 local diagnostic=nil
 local reconnectSeconds=0
@@ -141,6 +143,7 @@ function love.update(dt)
       if packet.name=="C" then
         panels:reset()
         clans:close()
+        death:reset()
         phase="playing"
         menu.status=""
         latestEvent="SPAWN CONFIRMADO pelo Node original. SID "..tostring(client.sid)
@@ -166,19 +169,28 @@ function love.update(dt)
           end
         end
       elseif packet.name=="P" then
+        -- Match killPlayer() in the browser: hide the HUD, show "YOU DIED"
+        -- over the live world, then reveal the usual Play screen after 3s.
         panels:reset()
         clans:close()
         chatOpen=false;chatDraft=""
+        input.keys={};lastMove=false
+        mouseAttack=false;spaceAttack=false;lockDir=false
         died=true
-        phase="menu"
-        menu.status="Voce morreu. Pressione Play para renascer."
-        latestEvent="Morte confirmada pelo Node. Pressione R para reaparecer."
+        phase="death"
+        death:start()
+        menu.status=""
+        latestEvent="YOU DIED: morte confirmada pelo Node."
       elseif packet.name=="B" then
         latestEvent="Servidor recusou partida: "..tostring(packet.args[1])
       end
     end
   end
   world:update(dt)
+  if phase=="death" and death:update(dt) then
+    phase="menu"
+    menu.status=""
+  end
   if phase=="menu" then menu.world:update(dt) end
   -- Use the actual menu click handler, not Original:spawn(), so CI verifies
   -- the user's Play button and the real Node connection together.
@@ -286,6 +298,13 @@ function love.draw()
   end
   local w,h=love.graphics.getDimensions()
   local p=world:localPlayer()
+  if phase=="death" then
+    -- The original browser keeps the world underneath #diedText
+    -- instead of instantly replacing it with the game entry card.
+    View.draw(world,camera,frameDelta,{showGrid=menu.grid})
+    death:draw(w,h)
+    return
+  end
   if phase=="menu" then
     View.draw(menu.world,menuCamera,frameDelta,{showGrid=menu.grid})
     local state=client and client.state
@@ -372,8 +391,9 @@ local function requestPlay()
     menu.status=startupError or "Cliente de rede indisponivel."
     return false
   end
-  if client.state~="keyed_transport" and
-    not (died and client.state=="spawn_confirmed") then
+  if phase=="death" or
+    (client.state~="keyed_transport" and
+    not (died and client.state=="spawn_confirmed")) then
     menu.status=client.state=="joining"
       and "Play enviado; aguardando confirmacao C do servidor..."
       or "Aguardando conexao com Node. Estado: "..tostring(client.state)
@@ -451,6 +471,7 @@ menuAction=function(action)
 end
 
 function love.keypressed(key)
+  if phase=="death" then return end
   if clans:isOpen() then
     clans:keypressed(key)
     return
@@ -468,6 +489,10 @@ function love.keypressed(key)
   end
   if diagnostic then return end
   if phase=="menu" then
+    if key=="r" and died and client and client.state=="spawn_confirmed" then
+      requestPlay()
+      return
+    end
     if key=="r" and not menu.authMode and client and
       (client.state=="failed" or client.state=="closed"
         or client.state=="blocked") then
@@ -569,6 +594,7 @@ function love.keypressed(key)
   end
 end
 function love.textinput(text)
+  if phase=="death" then return end
   if clans:isOpen() then clans:textinput(text);return end
   if phase=="menu" then menu:textinput(text);return end
   if panels:isOpen() then panels:textinput(text);return end
@@ -577,6 +603,7 @@ function love.textinput(text)
   end
 end
 function love.keyreleased(key)
+  if phase=="death" then return end
   if not diagnostic then input:keyreleased(key) end
   if key=="space" and spaceAttack then
     spaceAttack=false
@@ -595,7 +622,7 @@ function love.focus(focused)
   end
 end
 function love.mousepressed(x,y,button)
-  if diagnostic then return end
+  if diagnostic or phase=="death" then return end
   if phase=="menu" then
     if button==1 then
       local width,height=love.graphics.getDimensions()
