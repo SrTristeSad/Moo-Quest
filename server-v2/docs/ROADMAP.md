@@ -45,6 +45,11 @@ Implementado na fundação experimental:
   fauna básica (animais sem diálogo/NPC), estruturas com custo e dano,
   espinhos, combate direcional, cura por alimento, progressão e upgrades parciais,
   vida/morte, compras limitadas e tribos básicas — decisões do servidor;
+- armas de longo alcance 9/12/13/15 com requisitos de evolução e munição,
+  projéteis `X`/`Y` animados pelo Lua e colisão varrida no Node contra
+  jogadores, animais, obstáculos e construções; proteção da própria tribo;
+- botão `F` mantido aciona disparos/coleta somente após o intervalo autorizado
+  pelo servidor e o envio de `F(0)` interrompe o ataque;
 - testes unitários de codecs, entrada, inventário, compras, construção,
   recursos, retorno após coleta, cura, XP e escolhas de equipamentos. O teste
   WebSocket de ponta a ponta inclui loja, cura e upgrades, além da entrada.
@@ -61,8 +66,10 @@ precisa de auditoria/recriação licenciada antes de lançamento comercial.
    cliente Lua/LÖVE no Windows, provando `M -> C/D -> movimento -> coleta`.
 2. Implementar os recursos, animais existentes, obstáculos, objetos e biomas
    requeridos pelo cliente, sem introduzir NPCs ou editores de mapa.
-3. Completar TODOS os itens/armas existentes no cliente, inclusive tempos de
-   ataque, custos, upgrades, inventário, colisões, projéteis e efeitos.
+3. Completar os equipamentos e efeitos restantes: já há arco, besta e armas
+   de disparo básicas, porém ainda faltam muitas combinações de itens, variantes,
+   escudos, torres, objetos especiais e as respectivas animações/proteções.
+   Não assumir paridade só porque os pacotes `X`/`Y` passaram na CI.
 4. Morte/renascimento, clãs, loja, chat, placar, perfil e moderação no Node,
    usando confirmações autoritativas; testes para manipulação de pacotes,
    replay, fraude de posição e execução simultânea de 40 jogadores.
