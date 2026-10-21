@@ -278,9 +278,16 @@ function love.draw()
   local p=world:localPlayer()
   if phase=="menu" then
     View.draw(menu.world,menuCamera,frameDelta,{showGrid=menu.grid})
-    local status=menu.status~="" and menu.status or
-      (client and (client.error or client.status)) or startupError
-    menu:draw(client and client.state,status)
+    local state=client and client.state
+    -- A transport failure must take precedence over the last menu hint.
+    local status
+    if state=="blocked" or state=="failed" or state=="closed" then
+      status=client.error or client.status or startupError
+    else
+      status=menu.status~="" and menu.status or
+        (client and (client.error or client.status)) or startupError
+    end
+    menu:draw(state,status)
     return
   end
   if client and client.state=="spawn_confirmed" and not died
@@ -409,6 +416,10 @@ local function accountAction(action)
 end
 menuAction=function(action)
   if action=="play" then return requestPlay() end
+  if action=="play_unavailable" then
+    menu.status="Jogo indisponivel; confira o status do servidor e os Detalhes."
+    return false
+  end
   if action=="auth_request" or action=="auth_verify" or
     action=="auth_logout" then
     accountAction(action)
@@ -431,7 +442,8 @@ function love.keypressed(key)
   if diagnostic then return end
   if phase=="menu" then
     if key=="r" and not menu.authMode and client and
-      (client.state=="failed" or client.state=="closed") then
+      (client.state=="failed" or client.state=="closed"
+        or client.state=="blocked") then
       world=World.new()
       local ok,why=client:connect()
       if not ok then menu.status=tostring(why) end
