@@ -141,10 +141,17 @@ local function renderAnimal(a,camera,world)
     (a.dir or 0)+(a.dirPlus or 0)-pi/2)
 end
 local function drawWeapon(weapon,variant,scale)
-  local src=weapon.src..(variants[variant or 0] or "")
-  Assets.draw("weapons",src..".png",
-    scale+(weapon.xOff or 0),(weapon.yOff or 0),
-    weapon.length,weapon.width)
+  local filename,fallback=Assets.weaponFilename(
+    weapon.src,variants[variant or 0] or "")
+  if not filename then return end
+  -- The upstream has no bow_1_d.png. Use only the EXISTING original bow
+  -- image in this exceptional case, never a newly invented sprite.
+  local x,y=scale+(weapon.xOff or 0),(weapon.yOff or 0)
+  local ok=Assets.draw("weapons",filename,x,y,weapon.length,weapon.width)
+  if not ok and not fallback and variant and variant~=0 then
+    Assets.draw("weapons",weapon.src..".png",x,y,
+      weapon.length,weapon.width)
+  end
   local proj=type(weapon.projectile)=="number"
     and Catalog.projectiles[weapon.projectile+1] or nil
   if proj and not weapon.hideProjectile and proj.src then
