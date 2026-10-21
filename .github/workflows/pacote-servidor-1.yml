@@ -1,0 +1,71 @@
+name: Pacote Windows - Servidor 1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "TESTAR-SERVIDOR-1.bat"
+      - "INICIAR-WINDOWS.bat"
+      - "docs/TESTAR-SERVIDOR-1.md"
+      - "server/**"
+      - "src/**"
+      - "shared/**"
+      - "main.lua"
+      - ".github/workflows/pacote-servidor-1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  pacote-testavel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test original server code and Node game logic
+        run: |
+          set -euo pipefail
+          test -f server/src/index.js
+          test -f server/src/anticheat/config.js
+          test -f src/net/original_client.lua
+          test -f src/protocol/original_session.lua
+          test ! -e server/src/network/nativeBridge.js
+          node --check server/src/index.js
+          npm install --omit=dev --no-audit --no-fund
+          npm run test:node
+      - name: Build test bundle with server 1 only
+        run: |
+          set -euo pipefail
+          dest="Moo-Quest-Teste-Servidor-1"
+          mkdir -p "$dest"
+          cp -a server shared src tools support licenses docs "$dest/"
+          cp -a main.lua conf.lua package.json SERVER-ORIGIN.md "$dest/"
+          cp -a TESTAR-SERVIDOR-1.bat INICIAR-WINDOWS.bat "$dest/"
+          cp -a PREPARAR-SERVIDOR.bat TESTAR-WINDOWS.bat "$dest/"
+          cp -a VERIFICAR-CONEXAO.bat VERIFICAR-PARTIDA-NODE.bat "$dest/"
+          cp docs/TESTAR-SERVIDOR-1.md "$dest/LEIA-ME-PRIMEIRO.md"
+          # The release is SOURCE+FIRST SERVER only; npm and reference sprites
+          # are restored at first launch, never bundled from a third party.
+          test -f "$dest/server/src/index.js"
+          test -f "$dest/TESTAR-SERVIDOR-1.bat"
+          test -f "$dest/src/net/original_client.lua"
+          test -f "$dest/LEIA-ME-PRIMEIRO.md"
+          test ! -e "$dest/server-v2"
+          test ! -e "$dest/INICIAR-V2-WINDOWS.bat"
+          test ! -e "$dest/node_modules"
+          test ! -e "$dest/assets/reference"
+          echo 'Server 1 bundle ready; no V2, no database migrations.'
+      - name: Upload Windows ZIP for testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moo-Quest-Servidor-1
+          path: Moo-Quest-Teste-Servidor-1/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
