@@ -1,10 +1,29 @@
 # Moo-Quest
 
-**Decisao do projeto:** o Moo-Quest tera **apenas o CLIENTE desenvolvido em Lua/LÖVE 2D**. A simulacao, as regras, os animais, o combate, a construcao, os itens, as contas e os demais sistemas continuam no **servidor original de [al007ex/moomoo-clone](https://github.com/al007ex/moomoo-clone)**, executado primeiro localmente e depois possivelmente online.
+**Arquitetura atual (2026-10-21):** cliente **Lua + LÖVE 2D** e
+servidor **Node.js reconstruido, agora versionado neste proprio GitHub**
+(`server/src/` e `shared/`). O jogo continua usando o protocolo real da
+referencia de [al007ex/moomoo-clone](https://github.com/al007ex/moomoo-clone),
+sem gateway TCP alternativo nem entidades inventadas no Lua.
 
-**Regra obrigatoria:** usar o motor Node.js original, sem criar outro servidor, ponte TCP ou protocolo alternativo. O preparador **apenas complementa um arquivo de configuracao que o autor nao publicou**, sem sobrescrever nenhum arquivo do upstream. Essa configuracao e apenas para desenvolvimento local.
+**Economia normal:** `shared/config.js` passou a utilizar
+`unlimitedResources:false` e `inSandbox:false`. O jogador inicia com
+**zero recursos**, e madeira, comida, pedra e pontos sao controlados pelo
+Node conforme coleta e custo real. Veja [SERVER-ORIGIN.md](SERVER-ORIGIN.md)
+para as alteracoes e a licenca Apache 2.0 de origem.
 
-Referencia congelada: [commit 06f7c1c](https://github.com/al007ex/moomoo-clone/tree/06f7c1ca965a7628671676c8d9a7efd3997bb5e7).
+**Artes:** o arquivo original baixado tem **seis PNGs INVALIDOS**
+(`weapons/hammer_1.png`, `sword_1.png`, `dagger_1.png`, `samurai_1.png`,
+`hats/hat_14_p.png`, `hat_53_p.png`). Nao sao falhas do LÖVE.
+`tools/sync-reference-art.mjs` NAO copia esses arquivos quebrados,
+NAO sobrescreve uma arte valida sua e NAO inventa substitutos. Importe um
+martelo PNG valido da sua arte em
+`assets/custom/img/weapons/hammer_1.png` para poder iniciar jogando
+com a arma inicial visivel. O arquivo `ARTES-PENDENTES.txt` lista o restante.
+
+Referencia do Node congelada: [commit 06f7c1c](https://github.com/al007ex/moomoo-clone/tree/06f7c1ca965a7628671676c8d9a7efd3997bb5e7).
+O servidor tem apenas configuracao de contas/anticheat **local de testes**;
+nao hospedá-lo na internet sem resolver a seguranca.
 
 ## Status real
 
@@ -18,15 +37,28 @@ No commit original, `server/src/anticheat/config.js` **nao foi publicado** e o `
 
 O cliente Lua pode tentar conectar com **qualquer instancia original ja funcionando em `127.0.0.1:8080`**, sem modifica-la. Caso o servidor aceite apenas o cliente web oficial, a tela mostrara o erro retornado; nao existe simulacao de sucesso.
 
-## Windows
+## Windows — como atualizar sem perder a instalacao anterior
 
-Necessarios LÖVE 2D 11.5 e Node.js 20+ (para executar o servidor).
+Necessarios Node.js 20+ e LÖVE 2D 11.5.
 
-1. Extraia [o ZIP atualizado](https://github.com/SrTristeSad/Moo-Quest/archive/refs/heads/main.zip).
-2. Execute `PREPARAR-SERVIDOR.bat` atualizado **mesmo que voce ja tenha o Node**, pois ele tambem importa os sprites do cliente JS original para `assets/reference/img/` apenas no PC local. O servidor `node-runtime/` e reutilizado; os arquivos existentes do upstream nao sao sobrescritos.
-3. Execute `INICIAR-WINDOWS.bat` para abrir cliente LÖVE e servidor Node (ou usar Node ja ativo em `127.0.0.1:8080`).
-4. `TESTAR-WINDOWS.bat` executa os testes do cliente Lua; isso nao substitui teste de conexao e gameplay.
-5. O cliente solicita ticket guest no Node antes de abrir a conexao, valida `io-init` e tenta spawn. O ID e a posicao aparecem somente se vierem nos pacotes originais `C` e `a`. Se o servidor responder 4001/4002/4003/4004, o motivo continua visivel.
+1. Feche todas as janelas antigas do Node de versoes anteriores: elas
+   ainda iniciavam com **1.000.000** e podem ocupar a porta 8080.
+2. Extraia o ZIP atual do Moo-Quest na pasta do projeto. Preserve
+   `node-runtime/` (imagens da referencia e dados locais anteriores) e
+   `assets/custom/` (as suas artes).
+3. Execute `PREPARAR-SERVIDOR.bat` para instalar dependencias do servidor
+   agora versionado em `server/`. O script copia dados antigos para
+   `server/data/` somente quando ainda nao existe um estado novo.
+4. Confira `ARTES-PENDENTES.txt`: o upstream fornece um martelo corrompido.
+   Forneca `assets/custom/img/weapons/hammer_1.png` valido, de sua arte.
+   Enquanto a arma inicial for invalida, o iniciador para deliberadamente.
+5. Execute `INICIAR-WINDOWS.bat`. Ele identifica o servidor Moo-Quest
+   pela rota `/mooquest/status` e recusa um Node antigo rodando em 8080.
+   Ao iniciar o Lua, `Play` exige o handshake verdadeiro.
+6. `TESTAR-WINDOWS.bat` roda os testes unitarios do cliente.
+
+As artes nao sao incluidas no Git; outras 5 imagens da referencia tambem
+precisam ser substituidas antes de suas respectivas aparicoes no jogo.
 
 Leia [docs/EXECUTAR-LOCAL.md](docs/EXECUTAR-LOCAL.md), [docs/REGRA-PRINCIPAL.md](docs/REGRA-PRINCIPAL.md) e [docs/PARIDADE.md](docs/PARIDADE.md).
 
