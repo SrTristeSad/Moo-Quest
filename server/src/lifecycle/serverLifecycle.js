@@ -4,8 +4,16 @@
 // No BrowserQuest movement, combat or network protocol is imported here.
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+const closeSockets = (socketServer, log) => new Promise((resolve, reject) => {
+    if (!socketServer) return resolve();
+    for (const ws of socketServer.clients || []) {
+        try { ws.terminate(); } catch (error) { log(`[Moo-Quest] socket: ${error}`); }
+    }
+    socketServer.close(error => error ? reject(error) : resolve());
+});
+
 export function createServerLifecycle({
-    games, accounts, httpServer, websocketServer, log = console.log,
+    games, accounts, httpServer, websocketServer, social, stream, log = console.log,
     wait = sleep, noticeSeconds = 3, socketGraceMs = 200
 }) {
     let stopping = false;
@@ -45,13 +53,16 @@ export function createServerLifecycle({
             // Closing sockets triggers Game.removePlayer -> recordLife ->
             // AccountStore.save(). Flush only AFTER those close handlers finish,
             // or the last lifetime stats and clan updates are lost.
-            await phase("websocket", () => new Promise((resolve, reject) => {
-                if (!websocketServer) return resolve();
-                for (const ws of websocketServer.clients || []) {
-                    try { ws.terminate(); } catch (error) { log(`[Moo-Quest] socket: ${error}`); }
-                }
-                websocketServer.close(error => error ? reject(error) : resolve());
-            }));
+            await phase("websocket", () => closeSockets(websocketServer, log));
+            // FRVR social uses another noServer WebSocketServer and page
+            // events use long-lived HTTP SSE connections. Closing only the
+            // gameplay sockets leaves a VPS restart hanging on open streams.
+            await phase("social websocket", () => closeSockets(social?.wss, log));
+            await phase("page streams", () => {
+                if (!stream) return;
+                for (const page of [...stream.pages]) page.res.end();
+                stream.pages.clear();
+            });
             await phase("accounts and clans", () => {
                 if (accounts && typeof accounts.flush === "function") accounts.flush();
             });
