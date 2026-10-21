@@ -60,6 +60,12 @@ test('actual Redis persists sessions across Auth instances, throttles logins and
   const prefix='mq:integration:'+randomUUID()+':';
   const admin=new RedisAuth(client,{prefix});
   const secondAdmin=new RedisAuth(client,{prefix});
+  // The distributed limiter is atomic across concurrent API workers.
+  const attempts=await Promise.all(Array.from({length:6},
+    ()=>admin.allowRegistration('203.0.113.10')));
+  assert.equal(attempts.filter(Boolean).length,3);
+  assert.equal(await admin.allowRegistration('203.0.113.11'),true);
+  assert.ok((await client.ttl(admin.key('registration','203.0.113.10')))>0);
   const session=await admin.issue();
   assert.deepEqual(await secondAdmin.get(session.token),{csrf:session.csrf});
   assert.equal(secondAdmin.sameCsrf(await admin.get(session.token),session.csrf),true);
