@@ -490,12 +490,12 @@ function love.keypressed(key)
   end
   if diagnostic then return end
   if phase=="menu" then
-    if key=="r" and died and not menu.authMode and client
+    if key=="r" and died and not menu:isEditingText() and client
       and client.state=="spawn_confirmed" then
       requestPlay()
       return
     end
-    if key=="r" and not menu.authMode and client and
+    if key=="r" and not menu:isEditingText() and client and
       (client.state=="failed" or client.state=="closed"
         or client.state=="blocked") then
       world=World.new()
