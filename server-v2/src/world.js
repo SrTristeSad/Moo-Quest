@@ -142,7 +142,7 @@ export class World {
         nameIndex:0,state:0});
     }
   }
-  join(socket,name){
+  join(socket,name,profile=null){
     if(this.players.size>=this.maxPlayers)throw new Error('server_full');
     const used=new Set([...this.players.values()].map(p=>p.sid));
     let sid=0;while(used.has(sid))sid++;
@@ -159,7 +159,51 @@ export class World {
       lastGearRegenAt:this.now(),raisedUntil:0,raisedOrigin:null,
        lastGeneratorAt:this.now(),generatorRemainder:0};
     this.players.set(p.id,p);
+    if(profile)this.restoreProfile(p,profile);
     this.events.push({kind:'join',id:p.id,sid:p.sid,name:p.name});return p;
+  }
+  // Compact whitelisted snapshot. SQL never accepts state supplied by the
+  // client. Combat stays live in RAM; only registered accounts get snapshots.
+  persistentProfile(p){
+    return {version:1,hp:p.hp,x:p.x,y:p.y,age:p.age,xp:p.xp,
+      upgradePoints:p.upgradePoints,upgradeAge:p.upgradeAge,
+      resources:{...p.resources},score:p.score,
+      inventory:{weapons:[...p.inventory.weapons],items:[...p.inventory.items]},
+      ownedHats:[...p.ownedHats],ownedAccessories:[...p.ownedAccessories],
+      hat:p.hat,tail:p.tail,weaponIndex:p.weaponIndex,skinColor:p.skinColor};
+  }
+  restoreProfile(p,data){
+    if(!data||data.version!==1||typeof data!=='object')return;
+    const number=(v,min,max,def)=>Number.isSafeInteger(v)&&v>=min&&v<=max?v:def;
+    const ids=(values,allowed,max,required)=>[
+      ...new Set([...(required||[]),
+        ...(Array.isArray(values)?values.slice(0,max):[])
+          .filter(n=>Number.isSafeInteger(n)&&allowed(n))])].slice(0,max);
+    p.ownedHats=new Set(ids(data.ownedHats,n=>n===0||Object.hasOwn(HATS,n),100,[0,...FREE_HATS]));
+    p.ownedAccessories=new Set(ids(data.ownedAccessories,
+      n=>n===0||Object.hasOwn(ACCESSORIES,n),50,[0]));
+    p.hat=p.ownedHats.has(data.hat)?data.hat:0;
+    p.tail=p.ownedAccessories.has(data.tail)?data.tail:0;
+    p.skinColor=number(data.skinColor,0,9,0);
+    // A dead character cannot escape the normal death reset by logging out:
+    // unlocked store cosmetics survive, survival-level progression does not.
+    if(!Number.isFinite(data.hp)||data.hp<=0)return;
+    p.hp=number(data.hp,1,p.maxHp,p.maxHp);
+    p.age=number(data.age,1,20,1);
+    p.maxXp=LEVEL_XP(p.age);
+    p.xp=number(data.xp,0,p.maxXp-1,0);
+    p.upgradePoints=number(data.upgradePoints,0,8,0);
+    p.upgradeAge=number(data.upgradeAge,2,20,2);
+    p.resources=Object.fromEntries(Object.keys(p.resources).map(key=>
+      [key,number(data.resources?.[key],0,1_000_000_000,0)]));
+    p.score=number(data.score,0,1_000_000_000,0);
+    p.inventory.weapons=ids(data.inventory?.weapons,
+      n=>Object.hasOwn(WEAPONS,n),16,[0]);
+    p.inventory.items=ids(data.inventory?.items,
+      n=>Object.hasOwn(FOOD,n)||Object.hasOwn(RECIPES,n),40,[0,3,6,10]);
+    p.weaponIndex=p.inventory.weapons.includes(data.weaponIndex)?data.weaponIndex:0;
+    const x=data.x,y=data.y;
+    if(this.landingClear(x,y,p.sid)){p.x=x;p.y=y;}
   }
   leave(id){
     const p=this.players.get(id);if(!p)return;
