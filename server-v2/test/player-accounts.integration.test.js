@@ -164,6 +164,75 @@ test('PostgreSQL player account + Redis token protects persistent progress acros
   assert.equal((await post('/api/join',request,head)).status,401);
 });
 
+test('client session contract: refresh rotation, revocation, password change and account-wide logout',async t=>{
+  if(!pgURL||!redisURL)return t.skip('live PostgreSQL + Redis only');
+  const {base,accounts,post,cleanupUsers}=await launch(t);
+  const username='Session'+randomUUID().slice(0,8);
+  cleanupUsers.push(username);
+  const password='initial-password-for-game';
+  await accounts.register(username,password);
+  const login=async pass=>{
+    const response=await post('/api/account/login',{username,password:pass});
+    return {status:response.status,data:await response.json()};
+  };
+  const first=await login(password);
+  assert.equal(first.status,200);
+  assert.match(first.data.token,/^[a-f0-9]{64}$/);
+  assert.match(first.data.refreshToken,/^[a-f0-9]{64}$/);
+  assert.equal(first.data.expiresIn,28800);
+  assert.equal(first.data.refreshExpiresIn,2592000);
+  const bearer=token=>({authorization:'Bearer '+token});
+  const me=async token=>fetch(base+'/api/account/me',{headers:bearer(token)});
+  assert.equal((await me(first.data.token)).status,200);
+  const rotate=async refreshToken=>post('/api/account/refresh',{refreshToken});
+  const updated=await rotate(first.data.refreshToken);
+  assert.equal(updated.status,200);
+  const second=await updated.json();
+  assert.equal(second.id,first.data.id);
+  assert.notEqual(second.token,first.data.token);
+  assert.notEqual(second.refreshToken,first.data.refreshToken);
+  assert.equal((await me(first.data.token)).status,401);
+  assert.equal((await me(second.token)).status,200);
+  assert.equal((await rotate(first.data.refreshToken)).status,401,
+    'a refresh token can be used only once');
+  const parallel=await Promise.all([
+    rotate(second.refreshToken),rotate(second.refreshToken)]);
+  assert.deepEqual(parallel.map(r=>r.status).sort(),[200,401],
+    'parallel refresh requests cannot both succeed');
+  const third=await parallel.find(r=>r.status===200).json();
+  assert.equal((await me(second.token)).status,401);
+  assert.equal((await me(third.token)).status,200);
+  const loggedOut=await post('/api/account/logout',{refreshToken:third.refreshToken});
+  assert.equal(loggedOut.status,200,'logout works after access-token expiration');
+  assert.equal((await me(third.token)).status,401);
+  assert.equal((await rotate(third.refreshToken)).status,401);
+  const renewed=await login(password);
+  const sibling=await login(password);
+  assert.equal(renewed.status,200);
+  assert.equal(sibling.status,200);
+  const wrong=await post('/api/account/change-password',{
+    currentPassword:'wrong-password',newPassword:'new-long-account-password'
+  },bearer(renewed.data.token));
+  assert.equal(wrong.status,401);
+  assert.equal((await me(sibling.data.token)).status,200);
+  const changed=await post('/api/account/change-password',{
+    currentPassword:password,newPassword:'new-long-account-password'
+  },bearer(renewed.data.token));
+  assert.equal(changed.status,200);
+  assert.equal((await me(renewed.data.token)).status,401);
+  assert.equal((await me(sibling.data.token)).status,401);
+  assert.equal((await rotate(sibling.data.refreshToken)).status,401);
+  assert.equal((await login(password)).status,401);
+  const fresh=await login('new-long-account-password');
+  assert.equal(fresh.status,200);
+  const alternative=await login('new-long-account-password');
+  assert.equal(alternative.status,200);
+  const revoked=await post('/api/account/logout-all',{},bearer(fresh.data.token));
+  assert.equal(revoked.status,200);
+  assert.equal((await me(alternative.data.token)).status,401);
+  assert.equal((await rotate(alternative.data.refreshToken)).status,401);
+});
+
 test('invalid legacy DID does not become an authenticated account; dead character loses survival state',async t=>{
   if(!pgURL||!redisURL)return t.skip('live PostgreSQL + Redis only');
   const {base,accounts,post,game,cleanupUsers}=await launch(t);

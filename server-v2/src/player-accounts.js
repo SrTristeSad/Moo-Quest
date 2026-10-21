@@ -114,6 +114,23 @@ export class PlayerAccounts{
     if(!row||!passwordMatches(password,row.password_hash))return null;
     return {id:row.id,username:row.username};
   }
+  async changePassword(id,currentPassword,nextPassword){
+    if(typeof id!=='string'||!/^[a-f0-9-]{36}$/i.test(id))
+      return false;
+    if(typeof nextPassword!=='string'||nextPassword.length<12||nextPassword.length>128)
+      throw Object.assign(new Error('invalid_new_password'),{status:400});
+    // Compare-and-swap prevents overlapping requests from resurrecting
+    // an old password or replacing a change made in another process.
+    const found=await this.pool.query(
+      'SELECT password_hash FROM mq_player_accounts WHERE id=$1',[id]);
+    const previous=found.rows[0]?.password_hash;
+    if(!previous||!passwordMatches(currentPassword,previous))return false;
+    const next=passwordHash(nextPassword);
+    const updated=await this.pool.query(
+      'UPDATE mq_player_accounts SET password_hash=$1 WHERE id=$2 AND password_hash=$3',
+      [next,id,previous]);
+    return updated.rowCount===1;
+  }
   async load(id){
     if(typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id))return null;
     // A reconnect must not load stale progress while an earlier socket's

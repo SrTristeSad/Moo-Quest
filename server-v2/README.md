@@ -88,6 +88,18 @@ simulação de provas de integridade. Os pacotes estendidos ainda não estão
 implementados. A entrada de convidados não substitui CAPTCHA ou contas
 seguras para uma instalação pública.
 
+## Contrato do login definitivo para cliente novo
+
+O servidor expõe um login tradicional com nome de usuário e senha; **não é
+necessário copiar as telas de login existentes**. PostgreSQL guarda contas,
+hashes scrypt e progresso. Redis guarda hashes de credenciais efêmeras.
+O cadastro público é desligado por padrão e deve ser habilitado no painel
+(`publicRegistration`). Consulte
+[docs/CLIENT-LOGIN-API.md](docs/CLIENT-LOGIN-API.md) para o contrato de rotas
+e os fluxos recomendados de refresh/logout. O cliente ainda não armazena
+refresh tokens de maneira durável; essa responsabilidade será da nova interface.
+Nunca disponibilize login remoto sem HTTPS.
+
 ## Contas V2 e limite do modo convidado
 
 O cliente LÖVE iniciado pelo `INICIAR-V2-WINDOWS.bat` agora utiliza
