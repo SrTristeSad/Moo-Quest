@@ -6,6 +6,8 @@ assert(m.tab=="Game" and m.name=="Jogador" and m.skin==0)
 assert(m.world.objects[0] and m.world.objects[0].x==C.mapScale/2)
 assert(m.world.objects[0].y==C.mapScale/2+200)
 assert(m.world.objects[12].type==2)
+assert(m.world.objects[10].id==10 and m.world.objects[11].id==10,
+  "reference menu includes two original windmills")
 local z,x,y=m:geometry(1280,720)
 assert(z==1 and x==0 and y==0)
 assert(m:click(395,341,1280,720)=="focus")
