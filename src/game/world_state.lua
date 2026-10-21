@@ -270,7 +270,11 @@ function World:apply(name,args)
     -- Shutdown: -1 cancels, otherwise count down from server seconds.
     local seconds=args[1]
     if not number(seconds) or seconds< -1 then return false end
-    self.restartSeconds=seconds==-1 and nil or seconds
+    if seconds==-1 then
+      self.restartSeconds=nil
+    else
+      self.restartSeconds=seconds
+    end
     return true
   elseif name=="0" then
     -- Pong is sent only by the Node server in reply to client ping.
