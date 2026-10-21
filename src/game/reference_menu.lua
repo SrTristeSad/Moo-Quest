@@ -111,7 +111,8 @@ function Menu:click(sx,sy,w,h)
     return nil
   end
   if self.accountEmail then
-    if hot(x,y,839,472,344,40) then return "auth_logout" end
+    if hot(x,y,839,472,161,40) then return "clan_open" end
+    if hot(x,y,1011,472,172,40) then return "auth_logout" end
   else
     if hot(x,y,839,444,161,42) then
       self.authMode="login";self.authStep="email";self.authFocus="email"
@@ -365,8 +366,10 @@ function Menu:draw(connectionState,status)
     local email=self.accountEmail
     if #email>38 then email=email:sub(1,35).."..." end
     text(email,839,435,14,{0.31,0.31,0.31})
-    rect(839,472,344,40,0.92,0.92,0.92,1,5)
-    center("Sair da conta",839,482,344,15)
+    rect(839,472,161,40,0.49,0.90,0.35,1,5)
+    center("Meu cla",839,482,161,15,{0.12,0.23,0.12})
+    rect(1011,472,172,40,0.92,0.92,0.92,1,5)
+    center("Sair da conta",1011,482,172,15)
   else
     text("CONTA LOCAL",839,402,17,{0.22,0.22,0.22})
     rect(839,444,161,42,0.49,0.90,0.35,1,6)
