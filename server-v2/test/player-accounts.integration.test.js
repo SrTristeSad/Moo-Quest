@@ -133,7 +133,7 @@ test('PostgreSQL player account + Redis token protects persistent progress acros
   while(game.activeAccounts.has(registered.id)&&Date.now()<deadline)await sleep(10);
   assert.equal(game.activeAccounts.has(registered.id),false);
   const persisted=await accounts.load(registered.id);
-  assert.equal(persisted.profile.resources.wood,87);
+  assert.equal(persisted.profile.resources.wood,77,'wood cost of the wall is charged before snapshot');
   assert.equal(persisted.profile.hat,57);
   assert.equal(persisted.profile.structures.length,1);
   assert.equal(persisted.profile.structures[0].id,3);
@@ -142,7 +142,7 @@ test('PostgreSQL player account + Redis token protects persistent progress acros
   t.after(()=>second.ws.terminate());
   const restored=[...game.room.players.values()][0];
   assert.equal(restored.name,username);
-  assert.equal(restored.resources.wood,87);
+  assert.equal(restored.resources.wood,77);
   assert.equal(restored.resources.points,300);
   assert.equal(restored.age,4);
   assert.equal(restored.hp,78);
