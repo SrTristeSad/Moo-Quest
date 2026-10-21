@@ -42,6 +42,7 @@ function Original.new(options)
     name=options.name or "Jogador",
     autoSpawn=options.autoSpawn~=false,
     authToken=options.authToken,
+    authRefresh=options.authRefresh,
     expectedBuild=options.expectedBuild,
     nativeSession=options.nativeSession==true,
     join=options.join or Join,
@@ -80,15 +81,31 @@ function Original:connect()
   -- /api/join is the exact API used by the author's local client. Its guest
   -- CAPTCHA is an explicit local stand-in (boolean), not an internet service.
   -- One fresh, single-use ticket is required for every WebSocket attempt.
-  local grant,joinError=self.join.guest({
-    host=self.host,port=self.port,server=self.server,did=self.did,
-    authToken=self.authToken,
-    http=self.http,ltn12=self.ltn12
-  })
+  local function requestTicket()
+    return self.join.guest({
+      host=self.host,port=self.port,server=self.server,did=self.did,
+      authToken=self.authToken,
+      http=self.http,ltn12=self.ltn12
+    })
+  end
+  local grant,joinError,httpStatus=requestTicket()
+  -- V2 access tokens expire after 8h. Only an explicit 401 from the
+  -- account-bound admission endpoint may trigger ONE refresh+retry.
+  -- Never retry arbitrary HTTP failures or a refused guest CAPTCHA.
+  if not grant and self.nativeSession and self.authToken and httpStatus==401
+    and type(self.authRefresh)=="function" then
+    local refreshed,refreshError=self.authRefresh()
+    if refreshed and type(refreshed.token)=="string" then
+      self.authToken=refreshed.token
+      grant,joinError,httpStatus=requestTicket()
+    else
+      joinError="Sessao V2 expirada: "..tostring(refreshError or "entre na conta novamente")
+    end
+  end
   if not grant then
     self.state="failed"
     self.error=joinError
-    self.status="Servidor recusou ingresso guest: "..tostring(joinError)
+    self.status="Servidor recusou ingresso: "..tostring(joinError)
     return false,joinError
   end
   self.ticket=grant.ticket

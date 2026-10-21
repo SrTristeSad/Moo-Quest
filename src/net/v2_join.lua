@@ -48,7 +48,7 @@ function M.guest(options)
     return nil,"Ticket V2 invalido: "..tostring(why)
   end
   if tonumber(status)~=200 then
-    return nil,"API V2 HTTP "..tostring(status)..": "..tostring(response.error or "recusado")
+    return nil,"API V2 HTTP "..tostring(status)..": "..tostring(response.error or "recusado"),tonumber(status)
   end
   local ticket,did=response.ticket,response.did
   if type(ticket)~="string" or #ticket~=36
