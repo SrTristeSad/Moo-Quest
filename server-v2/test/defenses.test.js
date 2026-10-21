@@ -114,6 +114,7 @@ test('a turret ignores allies, does not hit its own emplacement and stops when d
   world.tick(0.05);
   assert.equal(world.projectiles.size,1,'enemy now receives an aimed shot');
   const id=[...world.projectiles.keys()][0];
+  attacker.x=turret.x+650; // allow the shot to travel without hitting the player yet
   world.tick(0.1);
   assert.ok(world.projectiles.has(id),'projectile must not collide with its own turret');
   world.structures.delete(turret.sid);
