@@ -15,6 +15,10 @@ local Input=require("src.input")
 local Pack=require("src.protocol.msgpack")
 local client=nil
 local integration=nil
+local uiSmoke=os.getenv("MOOQUEST_UI_E2E")=="1"
+local uiSmokeTime=0
+local uiSmokeClicked=false
+local uiSmokeDrawn=false
 local world=World.new()
 local camera=nil
 local menuCamera=nil
@@ -108,6 +112,16 @@ function love.update(dt)
   frameDelta=dt
   if integration then integration:update(dt);return end
   if diagnostic or not client then return end
+  if uiSmoke then
+    uiSmokeTime=uiSmokeTime+dt
+    if uiSmokeTime>22 then
+      print("UI E2E FAIL: timeout; phase="..tostring(phase)..
+        " state="..tostring(client.state).." status="..tostring(client.status))
+      love.event.quit(1)
+      uiSmoke=false
+      return
+    end
+  end
   client:update()
   for _,evt in ipairs(client:drain()) do
     if evt.kind=="io-init" then
@@ -156,6 +170,19 @@ function love.update(dt)
   end
   world:update(dt)
   if phase=="menu" then menu.world:update(dt) end
+  -- Use the actual menu click handler, not Original:spawn(), so CI verifies
+  -- the user's Play button and the real Node connection together.
+  if uiSmoke and not uiSmokeClicked and phase=="menu"
+    and client.state=="keyed_transport" then
+    uiSmokeClicked=true
+    print("UI E2E: clicking actual Play button")
+    love.mousepressed(410,488,1)
+    if client.state~="joining" then
+      print("UI E2E FAIL: Play click did not send M; state="..
+        tostring(client.state).." menu status="..tostring(menu.status))
+      love.event.quit(1);uiSmoke=false;return
+    end
+  end
   local localPlayer=world:localPlayer()
   if localPlayer and localPlayer.x and localPlayer.y and camera then
     camera:followReference(localPlayer.visualX or localPlayer.x,
@@ -232,6 +259,11 @@ function love.draw()
     and p and p.x and p.y then
     View.draw(world,camera,frameDelta,{showGrid=menu.grid})
     Hud.draw(world,chatOpen,chatDraft)
+    if uiSmoke and uiSmokeClicked and not uiSmokeDrawn then
+      uiSmokeDrawn=true
+      print("UI E2E PASS: Play click -> original C/D -> graphical View + HUD rendered")
+      love.event.quit(0)
+    end
     -- When a reference PNG is absent, report the missing local source.
     -- Never substitute a generated image or fabricated gameplay entity.
     local absent,total=Assets.missingSummary(3)
