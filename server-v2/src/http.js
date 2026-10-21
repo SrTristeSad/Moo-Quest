@@ -79,6 +79,13 @@ export function createHTTP({ root, storage, auth, updates, game = null,
       if(req.method==='GET' && pathname==='/ping')return respond(res,200,{
         status:'ok',build:'mqv2native',servers:[{key:'LC',name:'LC',playerCount:gameRef?.room.players.size||0}]
       });
+      if(req.method==='GET' && pathname==='/api/capabilities')return respond(res,200,{
+        build:'mqv2native',registeredAccounts:true,
+        persistentClans:true,
+        guestAdmission:guestVerifier.publicMode?'verified_challenge':'direct_loopback_only',
+        tlsRequiredForRemote:true,
+        mode:guestVerifier.publicMode?'public':'local_development'
+      });
       if(req.method==='POST' && pathname==='/api/join'){
         if(!installed || !gameRef)return respond(res,503,{error:'not_installed'});
         const body=await readBody(req);
@@ -123,10 +130,25 @@ export function createHTTP({ root, storage, auth, updates, game = null,
         const bearer=/^Bearer ([a-f0-9]{64})$/.exec(req.headers.authorization||'');
         const token=bearer?.[1],accountId=token?await playerTokens.get(token):null;
         if(!accountId)return respond(res,401,{error:'invalid_player_token'});
-        if(req.method==='GET'&&pathname==='/api/account/me'){
+        if(req.method==='GET'&&
+            (pathname==='/api/account/me'||pathname==='/api/account/progress')){
           const user=await accounts.load(accountId);
-          return user?respond(res,200,{id:user.id,username:user.username}):
-            respond(res,401,{error:'invalid_player_token'});
+          if(!user)return respond(res,401,{error:'invalid_player_token'});
+          if(pathname==='/api/account/me')
+            return respond(res,200,{id:user.id,username:user.username,
+              clan:user.clan?.tag||null});
+          // This is a *persisted* snapshot; live world data can be newer.
+          const p=user.profile||{};
+          const resources=p.resources||{};
+          return respond(res,200,{id:user.id,username:user.username,
+            snapshot:'last_committed',online:[...gameRef?.room?.players?.values?.()||[]]
+              .some(player=>player.accountId===accountId),
+            clan:user.clan?.tag||null,
+            age:Number(p.age)||1,xp:Number(p.xp)||0,
+            resources:Object.fromEntries(['wood','stone','food','points','kills']
+              .map(key=>[key,Number(resources[key])||0])),
+            ownedWeapons:Array.isArray(p.inventory?.weapons)?p.inventory.weapons:[],
+            buildingCount:Array.isArray(p.structures)?p.structures.length:0});
         }
         if(req.method==='POST'&&pathname==='/api/account/logout'){
           await playerTokens.revoke(token);
@@ -258,5 +280,9 @@ export function createHTTP({ root, storage, auth, updates, game = null,
       respond(res, status, { error: status >= 500 ? 'internal_error' : e.message });
     }
   });
+  // Limit slow HTTP clients; WebSocket upgrades use their own transport.
+  server.requestTimeout=30_000;
+  server.headersTimeout=15_000;
+  server.keepAliveTimeout=5_000;
   return { server, setGame: value => { gameRef = value; } };
 }

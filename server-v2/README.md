@@ -87,6 +87,25 @@ simulação de provas de integridade. Os pacotes estendidos ainda não estão
 implementados. A entrada de convidados não substitui CAPTCHA ou contas
 seguras para uma instalação pública.
 
+## Contas V2 e limite do modo convidado
+
+O cliente LÖVE iniciado pelo `INICIAR-V2-WINDOWS.bat` agora utiliza
+`/api/account/register`, `/api/account/login` e o token de acesso
+`Authorization: Bearer` em `/api/join`. As credenciais nunca devem ser
+enviadas na URL. A senha substitui o emulador anterior de seis dígitos.
+O cadastro é desabilitado inicialmente; ative `publicRegistration` no
+painel se desejar abrir inscrições.
+
+`GET /api/capabilities` identifica o protocolo, políticas de ingresso e
+recursos disponíveis. `GET /api/account/progress` exige Bearer e apresenta
+somente o último snapshot gravado no PostgreSQL. Se o personagem estiver
+conectado, o mundo ao vivo pode conter progresso mais recente.
+
+**O ingresso de convidado sem desafio externo somente é aceito em
+conexões HTTP de loopback direto**, sem cabeçalhos de proxy. Em instalações
+públicas, configure corretamente `MOO_PUBLIC_MODE=1` e Turnstile, ou
+utilize contas autenticadas. Nunca publique a porta Node diretamente.
+
 ## Administração e atualizações
 
 O painel oferece, nesta fase: sessões HttpOnly, scrypt, CSRF, limites de
