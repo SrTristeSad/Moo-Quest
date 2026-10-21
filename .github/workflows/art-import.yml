@@ -63,6 +63,20 @@ jobs:
           }
           console.log('PASS: all 180 original images are real PNG files on disk');
           NODE
+      - name: Install LÖVE/OpenGL headless for real sprite rendering
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y love xvfb xauth libgl1-mesa-dri
+      - name: Load and draw all original images and inventory icons in LÖVE
+        env:
+          MOOQUEST_TESTS: '1'
+          MOOQUEST_TESTS_EXIT: '1'
+          MOOQUEST_VERIFY_ART: '1'
+          SDL_AUDIODRIVER: dummy
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set -euo pipefail
+          xvfb-run -a -s "-screen 0 1280x720x24" love .
       - name: Verify fully offline relaunch uses locally converted PNGs
         env:
           MOOQUEST_ART_OFFLINE: '1'
