@@ -190,13 +190,33 @@ function O.sprite(obj,asIcon)
   return buildSprite(key,scale*2.1+P.width,love.math.random()*pi,
     function() return drawResource(typ,scale,biome) end)
 end
+-- Original GameObject.init copies these visual properties from items.list.
+-- Packet H transmits only id/owner, so restore them from the same static
+-- catalog used by the server. Do not create any new world entities.
+function O.renderStyle(obj)
+  local item=obj and type(obj.id)=="number" and Catalog.itemById(obj.id)
+  if not item then return 1,nil end
+  return item.hideFromEnemy and 0.6 or 1,item.blocker
+end
 function O.draw(obj,x,y,zoom)
   local sprite=O.sprite(obj)
   if not sprite then return false end
-  love.graphics.setColor(1,1,1)
-  love.graphics.draw(sprite,x,y,
-    type(obj.id)=="number" and (obj.dir or 0) or 0,
-    zoom,zoom,sprite:getWidth()/2,sprite:getHeight()/2)
+  local alpha,blocker=O.renderStyle(obj)
+  -- JS renderGameObjects: translate/rotate the whole object, draw its sprite,
+  -- then render the blocker radius in translucent red over the world.
+  love.graphics.push("all")
+  love.graphics.translate(x,y)
+  love.graphics.rotate(type(obj.id)=="number" and (obj.dir or 0) or 0)
+  love.graphics.scale(zoom or 1)
+  love.graphics.setColor(1,1,1,alpha)
+  love.graphics.draw(sprite,0,0,0,1,1,
+    sprite:getWidth()/2,sprite:getHeight()/2)
+  if type(blocker)=="number" and blocker>0 then
+    love.graphics.setColor(219/255,110/255,110/255,0.3)
+    love.graphics.setLineWidth(6)
+    love.graphics.circle("line",0,0,blocker)
+  end
+  love.graphics.pop()
   return true
 end
 return O
