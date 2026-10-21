@@ -40,25 +40,48 @@ export function verifyPNG(buffer){
   catch{throw Error("IDAT comprimido invalido");}
   return width+"x"+height;
 }
+function isWebP(data){
+  return data.length>=16 &&
+    data.toString("ascii",0,4)==="RIFF" &&
+    data.toString("ascii",8,12)==="WEBP";
+}
 async function audit(){
-let checked=0,failed=0;
-for(const category of ["animals","weapons","hats","accessories","resources","icons"]){
-  let entries;
-  try{entries=await fs.readdir(path.join(base,category));}
-  catch(error){console.error("[PNG] "+category+": pasta ausente");failed++;continue;}
-  for(const file of entries.filter(name=>name.toLowerCase().endsWith(".png"))){
-    checked++;
-    const location=path.join(base,category,file);
-    try{
-      const data=await fs.readFile(location);
-      verifyPNG(data);
-    }catch(err){
-      failed++;
-      console.error("[PNG] INVALIDO: "+category+"/"+file+" - "+err.message);
+  // .png describes a NAME, not a guarantee of the underlying codec.
+  // Six valid archived images are VP8L WebP inside RIFF containers.
+  const {default:sharp}=await import("sharp");
+  let checked=0,pngs=0,webps=0,invalid=0;
+  for(const category of ["animals","weapons","hats","accessories","resources","icons"]){
+    let entries;
+    try{entries=await fs.readdir(path.join(base,category));}
+    catch(error){
+      console.error("[IMG] Pasta ausente: "+category+" (NAO significa arquivos corrompidos)");
+      invalid++;continue;
+    }
+    for(const file of entries.filter(name=>name.toLowerCase().endsWith(".png"))){
+      checked++;
+      const key=category+"/"+file;
+      try{
+        const data=await fs.readFile(path.join(base,key));
+        if(isWebP(data)){
+          const metadata=await sharp(data).metadata();
+          if(metadata.format!=="webp" || !metadata.width || !metadata.height)
+            throw Error("WebP nao decodificavel");
+          console.log("[IMG] WEBP COM NOME .PNG (VALIDO): "+key+
+            " -> "+metadata.width+"x"+metadata.height);
+          webps++;
+        }else{
+          verifyPNG(data);
+          pngs++;
+        }
+      }catch(err){
+        invalid++;
+        console.error("[IMG] FALHA REAL: "+key+" - "+err.message);
+      }
     }
   }
+  console.log("[IMG] "+checked+" arquivos: "+pngs+" PNG legitimos; "+
+    webps+" WebP validos chamados .png; "+invalid+" erro(s).");
+  if(invalid)process.exitCode=1;
 }
-console.log("[PNG] Verificados "+checked+" arquivos; invalidos "+failed+".");
-if(failed>0)process.exitCode=1;
-}
+
 if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) await audit();
