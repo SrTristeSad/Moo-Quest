@@ -140,7 +140,7 @@ test('invalid legacy DID does not become an authenticated account; dead characte
   if(!pgURL||!redisURL)return t.skip('live PostgreSQL + Redis only');
   const {base,accounts,post,game,cleanupUsers}=await launch(t);
   const username='Player'+randomUUID().slice(0,8);
-  t.after(()=>pool.query('DELETE FROM mq_player_accounts WHERE username_key=$1',[username.toLowerCase()]));
+  cleanupUsers.push(username);
   const user=await accounts.register(username,'correct-account-password');
   const guestRequest={host:base+'/s/LC',captcha:true,did:user.id.replaceAll('-','')};
   const guest=await (await post('/api/join',guestRequest)).json();
