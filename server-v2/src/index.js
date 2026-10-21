@@ -23,7 +23,9 @@ const updates = new Updates(root, storage.dir);
 let stopping = false;
 const app = createHTTP({ root: moduleRoot, storage, auth, updates,
   accounts,playerTokens,stopStatus: () => stopping });
-const game = new GameServer(app.server, storage, new RedisTickets(redis),{accounts});
+const reservedClanTags=await accounts.listClanTags();
+const game = new GameServer(app.server, storage, new RedisTickets(redis),
+  {accounts,reservedClanTags});
 app.setGame(game);
 const host = process.env.MOO_HOST || '127.0.0.1';
 const port = Number(process.env.MOO_PORT || 8100);
