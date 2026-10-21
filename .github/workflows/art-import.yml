@@ -74,3 +74,15 @@ jobs:
             exit 1
           fi
           echo 'PASS: restart works offline with all converted PNGs'
+      - name: Accept user's future optional diamond bow sprite (test fixture only)
+        env:
+          MOOQUEST_ART_OFFLINE: '1'
+        run: |
+          mkdir -p assets/custom/img/weapons
+          # CI ONLY: a temporary placeholder proves the import route accepts
+          # user art. No new images are committed or distributed in the game.
+          cp assets/reference/img/weapons/bow_1.png assets/custom/img/weapons/bow_1_d.png
+          node tools/sync-reference-art.mjs
+          cmp assets/custom/img/weapons/bow_1_d.png assets/reference/img/weapons/bow_1_d.png
+          grep -q 'Variante de arco diamante fornecida: SIM' ARTES-PENDENTES.txt
+          echo 'PASS: a user-supplied optional variant is recognized without changing source manifest'
