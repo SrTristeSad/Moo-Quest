@@ -80,8 +80,12 @@ export function createHTTP({ root, storage, auth, updates, game = null, stopStat
       }
       if (req.method === 'GET' && pathname === '/health') return respond(res, 200,
         { status: 'ok', version: '0.1.0', project: 'MooQuest-Own-Server' });
-      if (req.method === 'GET' && pathname === '/ready') return respond(res, installed && !stopStatus() ? 200 : 503,
-        { ready: installed && !stopStatus() });
+      if (req.method === 'GET' && pathname === '/ready'){
+        const healthy=installed&&!stopStatus()&&
+          (typeof auth.isHealthy!=='function'||auth.isHealthy())&&
+          (typeof storage.isHealthy!=='function'||await storage.isHealthy());
+        return respond(res,healthy?200:503,{ready:healthy});
+      }
       if (req.method === 'GET' && pathname === '/api/status') return respond(res, 200,
         { name: storage.data.settings.title, players: gameRef?.room.players.size ?? 0,
           capacity: storage.data.settings.maxPlayers, maintenance: storage.data.settings.maintenance,
