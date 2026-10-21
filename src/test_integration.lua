@@ -117,6 +117,9 @@ function I:update(dt)
       end
     end
   end
+  if self.mode=="store_tribe" and self.hasC and self.hasD then
+    return testStoreTribe(self)
+  end
   if self.hasC and self.hasD then
     return self:stop(true,"Lua "..self.mode..
       " account /api/join -> WebSocket -> io-init -> M -> C -> D")
