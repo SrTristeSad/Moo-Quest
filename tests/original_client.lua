@@ -46,4 +46,12 @@ refuseOpts.join={guest=function() return nil,"HTTP 403: captcha" end}
 local refused=O.new(refuseOpts)
 assert(not refused:connect() and refused.state=="failed")
 assert(refused.status:find("captcha",1,true))
+local deferredOpts=fakeOpts()
+deferredOpts.autoSpawn=false
+local deferred=O.new(deferredOpts)
+assert(deferred.autoSpawn==false)
+assert(deferred:connect() and not deferred.spawnSent)
+local early,why=deferred:spawn({name="Lua",skin=0})
+assert(not early and type(why)=="string", "cannot send M until authenticated")
+deferred:close()
 print("direct original WebSocket guest ticket integration tests passed")
