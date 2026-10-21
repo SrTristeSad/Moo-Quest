@@ -258,7 +258,8 @@ function Menu:draw(connectionState,status)
   love.graphics.translate(offX,offY)
   love.graphics.scale(scale)
   rect(0,0,1280,720,0,0,0,0.5,0)
-  center("MOOMOO.io",0,72,1280,64,{1,1,1})
+  center(self.accountBackend=="v2" and "MOO-QUEST" or "MOOMOO.io",
+    0,72,1280,64,{1,1,1})
   -- Three-column game menu is copied from the HTML/CSS layout, not
   -- a fabricated HUD displayed during gameplay.
   rect(68,205,285,335,1,1,1,0.97,9)

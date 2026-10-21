@@ -1,6 +1,6 @@
--- Moo-Quest is a Lua client for the UNMODIFIED al007ex/moomoo-clone server.
--- Real native gameplay rendering is gated by actual server C/D/a/H/I packets.
--- Never generate local entities or claim spawn before the Node server confirms it.
+-- Moo-Quest Lua/LÖVE client. The V2 launcher selects the independent
+-- server transport and account API. The legacy compatibility mode remains
+-- available while migrating old test workflows. Never simulate a spawn.
 local Original=require("src.net.original_client")
 local World=require("src.game.world_state")
 local View=require("src.game.reference_view")

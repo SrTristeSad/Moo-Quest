@@ -58,4 +58,16 @@ m.authMode=nil
 m.accountEmail="player@example.com"
 assert(m:click(963,487,1280,720)=="clan_open")
 assert(m:click(1063,487,1280,720)=="auth_logout")
-print("original opening menu hit targets and character entry passed")
+local v2=Menu.new()
+v2.accountBackend="v2"
+assert(v2:click(870,460,1280,720)=="auth_open")
+v2:textinput("User_123!@foo")
+assert(v2.authEmail=="User_123foo" and #v2.authEmail<=20)
+v2.authStep="code"
+v2.authCode=""
+v2:textinput("Long Password 123!")
+assert(v2.authCode=="Long Password 123!")
+v2:keypressed("backspace")
+assert(v2.authCode=="Long Password 123")
+assert(v2:isEditingText())
+print("legacy and V2 menu credential input tests passed")
