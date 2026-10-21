@@ -48,19 +48,45 @@ export class RedisTickets{
   constructor(client,{prefix='mq:v2:'}={}){
     this.client=client;this.prefix=prefix;
   }
-  async issue(ipHash){
+  async issue(ipHash,accountId=null){
     const key=this.prefix+'ticket-rate:'+hash(ipHash);
     const count=await this.client.incr(key);
     if(count===1)await this.client.expire(key,10);
     if(count>8)return null;
     const token=randomBytes(18).toString('hex');
-    await this.client.set(this.prefix+'ticket:'+token,ipHash,{EX:30,NX:true});
+    await this.client.set(this.prefix+'ticket:'+token,
+      JSON.stringify({ipHash,accountId}),{EX:30,NX:true});
     return token;
   }
+  async consumeDetails(token,ipHash){
+    if(!/^[a-f0-9]{36}$/.test(token||''))return null;
+    // GETDEL is atomic and burns a token even on identity mismatch.
+    const payload=await this.client.getDel(this.prefix+'ticket:'+token);
+    if(!payload)return null;
+    const claim=JSON.parse(payload);
+    return claim.ipHash===ipHash?{accountId:claim.accountId||null}:null;
+  }
   async consume(token,ipHash){
-    if(!/^[a-f0-9]{36}$/.test(token||''))return false;
-    // GETDEL is atomic: one ticket can authenticate only one connection.
-    const match=await this.client.getDel(this.prefix+'ticket:'+token);
-    return match!==null&&match===ipHash;
+    return Boolean(await this.consumeDetails(token,ipHash));
+  }
+}
+
+export class RedisPlayerTokens{
+  constructor(client,{prefix='mq:v2:'}={}){
+    this.client=client;this.prefix=prefix;
+  }
+  key(token){return this.prefix+'player-session:'+hash(token);}
+  async issue(accountId){
+    const token=randomBytes(32).toString('hex');
+    await this.client.set(this.key(token),accountId,{EX:8*3600});
+    return {token,expiresIn:8*3600};
+  }
+  async get(token){
+    if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))return null;
+    return await this.client.get(this.key(token));
+  }
+  async revoke(token){
+    if(typeof token==='string'&&/^[a-f0-9]{64}$/.test(token))
+      await this.client.del(this.key(token));
   }
 }
