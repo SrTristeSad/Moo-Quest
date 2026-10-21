@@ -31,7 +31,7 @@ function M.guest(options)
     ["Connection"]="close"
   }
   if authToken then headers["Authorization"]="Bearer "..authToken end
-  local chunks={},oldTimeout=http.TIMEOUT
+  local chunks,oldTimeout={},http.TIMEOUT
   http.TIMEOUT=5
   local ok,result,status=pcall(http.request,{
     url="http://"..host..":"..port.."/api/join",method="POST",
