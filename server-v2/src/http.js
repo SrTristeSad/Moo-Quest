@@ -63,9 +63,9 @@ export function createHTTP({ root, storage, auth, updates, game = null, stopStat
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
     const pathname = new URL(req.url, 'http://localhost').pathname;
-    const logged = auth.get(cookieToken(req));
-    const installed = Boolean(storage.data.owner);
     try {
+      const logged = await auth.get(cookieToken(req));
+      const installed = Boolean(storage.data.owner);
       if (req.method === 'GET' && publicFiles.has(pathname)) return page(res, publicDir, publicFiles.get(pathname));
       // Compatibility ingress for the EXISTING Lua client, not the old
       // server implementation. The native binary session is first-party.
@@ -75,7 +75,7 @@ export function createHTTP({ root, storage, auth, updates, game = null, stopStat
       if(req.method==='POST' && pathname==='/api/join'){
         if(!installed || !gameRef)return respond(res,503,{error:'not_installed'});
         const body=await readBody(req);
-        const token=gameRef.issueTicket(req,body);
+        const token=await gameRef.issueTicket(req,body);
         return token?respond(res,200,token):respond(res,429,{error:'join_rejected'});
       }
       if (req.method === 'GET' && pathname === '/health') return respond(res, 200,
@@ -98,9 +98,9 @@ export function createHTTP({ root, storage, auth, updates, game = null, stopStat
         }
         const encoded = passwordHash(body.password);
         storage.data.owner = { username: body.username, password: encoded, createdAt: new Date().toISOString() };
-        storage.audit('installation', { owner: body.username });
+        await storage.audit('installation', { owner: body.username });
         auth.setupCode = null;
-        const session = auth.issue();
+        const session = await auth.issue();
         res.setHeader('Set-Cookie', cookieHeader(session.token, httpsCookies));
         return redirect(res, '/admin');
       }
@@ -110,14 +110,14 @@ export function createHTTP({ root, storage, auth, updates, game = null, stopStat
       if (req.method === 'POST' && pathname === '/admin/login') {
         if (!installed) return redirect(res, '/setup');
         const ip = rateKey(req);
-        if (auth.loginBlocked(ip)) return respond(res, 429, { error: 'too_many_attempts' });
+        if (await auth.loginBlocked(ip)) return respond(res, 429, { error: 'too_many_attempts' });
         const body = await readBody(req);
         if (body.username !== storage.data.owner.username ||
             !passwordMatches(body.password, storage.data.owner.password)) {
-          auth.recordFailure(ip);
+          await auth.recordFailure(ip);
           return respond(res, 401, { error: 'invalid_login' });
         }
-        auth.failures.delete(ip);
+        await auth.clearFailure(ip);
         const session = auth.issue();
         res.setHeader('Set-Cookie', cookieHeader(session.token, httpsCookies));
         return redirect(res, '/admin');
@@ -145,7 +145,7 @@ export function createHTTP({ root, storage, auth, updates, game = null, stopStat
         if (req.method === 'GET' && pathname === '/api/admin/updates') return respond(res, 200, updates.status());
         if (req.method === 'POST' && pathname === '/api/admin/settings') {
           storage.data.settings = sanitizeSettings(storage.data.settings, await readBody(req));
-          storage.audit('settings_changed');
+          await storage.audit('settings_changed');
           if (gameRef) gameRef.room.maxPlayers = storage.data.settings.maxPlayers;
           return respond(res, 200, storage.data.settings);
         }
@@ -154,14 +154,14 @@ export function createHTTP({ root, storage, auth, updates, game = null, stopStat
           if (typeof body.message !== 'string' || !body.message.trim() || body.message.length > 240) return respond(res, 400, {error:'invalid_message'});
           storage.data.announcements.push({ message: body.message.trim(), at: new Date().toISOString() });
           if (storage.data.announcements.length > 100) storage.data.announcements.shift();
-          storage.audit('announcement_sent');
+          await storage.audit('announcement_sent');
           gameRef?.announce(body.message.trim());
           return respond(res, 200, { ok: true });
         }
         if (req.method === 'POST' && pathname === '/api/admin/players/kick') {
           const body = await readBody(req);
           if (typeof body.id !== 'string' || !gameRef?.kick(body.id)) return respond(res, 404, { error: 'unknown_player' });
-          storage.audit('player_kicked', { playerId: body.id });
+          await storage.audit('player_kicked', { playerId: body.id });
           return respond(res, 200, { ok: true });
         }
         if (req.method === 'POST' && pathname === '/api/admin/players/ban') {
@@ -171,21 +171,21 @@ export function createHTTP({ root, storage, auth, updates, game = null, stopStat
           if (!target.ipHash || !target.trustedOrigin) return respond(res, 400, { error: 'configure_reverse_proxy_identity' });
           storage.data.bans[target.ipHash] = { at: new Date().toISOString(), reason: String(body.reason || 'admin').slice(0, 80) };
           gameRef?.kick(body.id, 'banned');
-          storage.audit('player_banned', { playerId: body.id });
+          await storage.audit('player_banned', { playerId: body.id });
           return respond(res, 200, { ok: true });
         }
         if (req.method === 'POST' && pathname === '/api/admin/updates/check') return respond(res, 200, await updates.check());
         if (req.method === 'POST' && pathname === '/api/admin/updates/stage') return respond(res, 200, await updates.stage());
         if (req.method === 'POST' && pathname === '/api/admin/updates/activate') {
-          const value = updates.activate(); storage.audit('update_activated', { version: value.active });
+          const value = updates.activate(); await storage.audit('update_activated', { version: value.active });
           return respond(res, 200, { ...value, requiresAaPanelRestart: true });
         }
         if (req.method === 'POST' && pathname === '/api/admin/updates/rollback') {
-          const value = updates.rollback(); storage.audit('update_rollback', { version: value.active });
+          const value = updates.rollback(); await storage.audit('update_rollback', { version: value.active });
           return respond(res, 200, { ...value, requiresAaPanelRestart: true });
         }
         if (req.method === 'POST' && pathname === '/admin/logout') {
-          auth.revoke(cookieToken(req));
+          await auth.revoke(cookieToken(req));
           res.setHeader('Set-Cookie', 'mq_admin=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');
           return respond(res, 200, { ok: true });
         }
