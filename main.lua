@@ -8,6 +8,7 @@ local Menu=require("src.game.reference_menu")
 local Auth=require("src.net.local_auth")
 local Config=require("src.game.config")
 local Hud=require("src.game.reference_hud")
+local Panels=require("src.game.reference_panels")
 local Upgrades=require("src.game.reference_upgrades")
 local Assets=require("src.game.reference_assets")
 local Camera=require("src.camera")
@@ -25,6 +26,7 @@ local world=World.new()
 local camera=nil
 local menuCamera=nil
 local menu=Menu.new()
+local panels=Panels.new()
 local phase="menu"
 local diagnostic=nil
 local reconnectSeconds=0
@@ -135,6 +137,7 @@ function love.update(dt)
       world:apply(packet.name,packet.args)
       serverPackets=serverPackets+1
       if packet.name=="C" then
+        panels:reset()
         phase="playing"
         menu.status=""
         latestEvent="SPAWN CONFIRMADO pelo Node original. SID "..tostring(client.sid)
@@ -160,6 +163,7 @@ function love.update(dt)
           end
         end
       elseif packet.name=="P" then
+        panels:reset()
         chatOpen=false;chatDraft=""
         died=true
         phase="menu"
@@ -217,6 +221,7 @@ function love.update(dt)
       localPlayer.visualY or localPlayer.y,dt)
   end
   if client.state=="spawn_confirmed" and not died then
+    if panels:isOpen() then input.keys={} end
     heartbeatClock=heartbeatClock+dt
     if heartbeatClock>=15 then
       heartbeatClock=0
@@ -294,6 +299,7 @@ function love.draw()
     and p and p.x and p.y then
     View.draw(world,camera,frameDelta,{showGrid=menu.grid})
     Hud.draw(world,chatOpen,chatDraft)
+    panels:draw(world)
     if uiSmoke and uiSmokeClicked and not uiSmokeDrawn then
       uiSmokeDrawn=true
       print("UI E2E PASS: Play click -> original C/D -> graphical View + HUD rendered")
@@ -432,6 +438,10 @@ menuAction=function(action)
 end
 
 function love.keypressed(key)
+  if key=="escape" and phase=="playing" and panels:isOpen() then
+    panels:keypressed(key)
+    return
+  end
   if key=="escape" then
     if phase=="menu" and menu.authMode then
       menuAction(menu:keypressed(key));return
@@ -471,6 +481,10 @@ function love.keypressed(key)
     input.keys={}
     lastMove=false
     client:send("e",{})
+    return
+  end
+  if panels:isOpen() then
+    panels:keypressed(key)
     return
   end
   input:keypressed(key)
@@ -539,6 +553,7 @@ function love.keypressed(key)
 end
 function love.textinput(text)
   if phase=="menu" then menu:textinput(text);return end
+  if panels:isOpen() then panels:textinput(text);return end
   if chatOpen and type(text)=="string" then
     chatDraft=shortenChat(chatDraft..text)
   end
@@ -573,9 +588,29 @@ function love.mousepressed(x,y,button)
     return
   end
   if not client or client.state~="spawn_confirmed" or died then return end
-  if chatOpen then return end
   if button==1 then
     local w,h=love.graphics.getDimensions()
+    local action=panels:click(world,x,y,w,h)
+    if action then
+      if action.packet then
+        local ok,err=client:send(action.packet,action.args or {})
+        if not ok then panels.message=tostring(err) end
+      else
+        -- Reference toggleStoreMenu/toggleAllianceMenu close chat and
+        -- stop gathering while the menu takes keyboard/mouse focus.
+        chatOpen=false;chatDraft=""
+        if panels:isOpen() then
+          input.keys={}
+          lastMove=false
+          mouseAttack=false;spaceAttack=false
+          client:send("e",{})
+          client:send("F",{0,Pack.null})
+        end
+      end
+      return
+    end
+    if panels:isOpen() then return end
+    if chatOpen then return end
     if Hud.mapHitTest(w,h,x,y) then
       client:send("S",{1})
       return
@@ -595,6 +630,9 @@ function love.mousepressed(x,y,button)
       if not spaceAttack then client:send("F",{1,currentAttackDir()}) end
     end
   end
+end
+function love.wheelmoved(dx,dy)
+  if phase=="playing" then panels:wheelmoved(dx,dy,world) end
 end
 function love.mousereleased(_,_,button)
   if diagnostic or not client or client.state~="spawn_confirmed" then return end
