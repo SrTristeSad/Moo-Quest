@@ -225,13 +225,25 @@ export class GameServer {
       }else if(evt.kind==='resource_return'){
         const obj=this.room.resources.get(evt.sid);
         if(obj)this._nativeBroadcast('H',[[obj.sid,obj.x,obj.y,0,obj.scale,obj.type,null,null]]);
-      }else if(evt.kind==='destroy')this._nativeBroadcast('Q',[evt.sid]);
+      }else if(evt.kind==='destroy'){
+        this._nativeBroadcast('Q',[evt.sid]);
+        // Counters must update on destruction and one-use spawn pads,
+        // including the zero case; otherwise the Lua HUD stays stale.
+        if(Number.isInteger(evt.id)&&Number.isInteger(evt.owner)){
+          const count=this.room.structureCount(evt.owner,evt.id);
+          const owner=[...this.nativeClients.values()].find(s=>s.p?.sid===evt.owner);
+          if(count)owner?.send('S',[count.group,count.count]);
+        }
+      }else if(evt.kind==='teleport'){
+        const p=this.room.players.get(evt.player);
+        if(p)this._nativeBroadcast('D',[this.room.playerData(p),false]);
+      }
       else if(evt.kind==='build'){
         const obj=this.room.structures.get(evt.sid);
         if(obj)this._nativeBroadcast('H',[[obj.sid,obj.x,obj.y,0,obj.scale,obj.type,obj.id,obj.owner]]);
         const state=[...this.nativeClients.values()].find(s=>s.p?.sid===evt.owner);
         if(state){
-          for(const key of ['wood','stone'])state.send('N',[key,state.p.resources[key],1]);
+          for(const key of ['wood','stone','food'])state.send('N',[key,state.p.resources[key],1]);
           // S addresses the shared Lua item GROUP, not the concrete item ID:
           // e.g. every grade of wall shares group 1; mills share group 3.
           const total=this.room.structureCount(state.p.sid,evt.id);
