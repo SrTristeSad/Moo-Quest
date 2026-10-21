@@ -237,8 +237,11 @@ export class World {
       if(Math.hypot(x-o.x,y-o.y)<scale+(o.scale||50)*0.7)return false;
     }
     // Placement cannot trap a player or bypass a rival's building blocker.
+    // The sapling has a large visual canopy but a narrow trunk collision.
+    // Using its entire sprite radius made placement impossible at 95 units.
+    const footprint=itemId===14?scale*0.5:scale;
     if([...this.players.values()].some(other=>other.hp>0&&
-      Math.hypot(x-other.x,y-other.y)<scale+30))return false;
+      Math.hypot(x-other.x,y-other.y)<footprint+30))return false;
     if([...this.structures.values()].some(block=>{
       const owner=[...this.players.values()].find(other=>other.sid===block.owner);
       return RECIPES[block.id]?.blocker &&
