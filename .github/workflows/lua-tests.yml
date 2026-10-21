@@ -26,7 +26,7 @@ jobs:
       - name: Test WebSocket and handshake for unmodified original Node server
         run: |
           set -eu
-          for test in tests/handshake.lua tests/msgpack.lua tests/msgpack_gameplay.lua tests/bootstrap.lua tests/upgrade.lua tests/websocket_frames.lua tests/websocket_client.lua tests/original_client.lua tests/original_join.lua tests/original_session.lua tests/build_lookup.lua tests/catalog.lua tests/world_state.lua tests/reference_render.lua tests/reference_animation.lua tests/reference_upgrades.lua tests/reference_hud.lua tests/reference_camera.lua tests/reference_menu.lua tests/local_auth.lua; do
+          for test in tests/handshake.lua tests/msgpack.lua tests/msgpack_gameplay.lua tests/bootstrap.lua tests/upgrade.lua tests/websocket_frames.lua tests/websocket_client.lua tests/original_client.lua tests/original_join.lua tests/original_session.lua tests/build_lookup.lua tests/catalog.lua tests/world_state.lua tests/reference_render.lua tests/reference_animation.lua tests/reference_upgrades.lua tests/reference_hud.lua tests/reference_camera.lua tests/reference_menu.lua tests/reference_panels.lua tests/local_auth.lua; do
             echo "RUN $test"
             lua${{ matrix.version }} "$test"
           done
