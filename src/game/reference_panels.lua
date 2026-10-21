@@ -116,12 +116,12 @@ function P:click(world,x,y,w,h)
     local request=world.joinRequests[1]
     local acceptX,denyX=w-310,w-368
     if inside(x,y,acceptX,94,52,37) then
-      table.remove(world.joinRequests,1)
-      return {packet="P",args={request.sid,true},consumed=true}
+      return {packet="P",args={request.sid,true},consumed=true,
+        consumeRequest=true}
     end
     if inside(x,y,denyX,94,52,37) then
-      table.remove(world.joinRequests,1)
-      return {packet="P",args={request.sid,false},consumed=true}
+      return {packet="P",args={request.sid,false},consumed=true,
+        consumeRequest=true}
     end
   end
   if not self.opened then return nil end
@@ -217,14 +217,23 @@ function P:textinput(s)
   end
   return true
 end
-function P:keypressed(key)
+function P:keypressed(key,world)
   if not self:isOpen() then return false end
   if key=="escape" then self:close();return true end
   if self.opened=="tribe" and self.editing and key=="backspace" then
     self.tribeName=self.tribeName:sub(1,-2);return true
   end
   if key=="up" then self.scroll=math.max(0,self.scroll-1);return true end
-  if key=="down" then self.scroll=self.scroll+1;return true end
+  if key=="down" then
+    local rows=0
+    if self.opened=="store" then rows=#self:storeEntries()
+    elseif world then
+      rows=self.opened=="tribe" and
+        #(world.tribe and world.tribeMembers or world.teams) or 0
+    end
+    self.scroll=math.min(math.max(0,rows-5),self.scroll+1)
+    return true
+  end
   return true
 end
 local function button(label,x,y,w,h,active,enabled)
