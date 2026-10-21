@@ -156,6 +156,27 @@ local function actionBarEntries(world)
   end
   return entries
 end
+-- Only the Node's "a" packet can establish buildIndex/weaponIndex.
+-- Do not highlight a slot optimistically on click, and do not assume
+-- the default weapon has been confirmed before the first attributes frame.
+function H.isSelected(world,entry)
+  if not entry then return false end
+  local player=world:localPlayer()
+  if not player or type(player.buildIndex)~="number" then return false end
+  if player.buildIndex>=0 then
+    return entry.kind=="item" and entry.id==player.buildIndex
+  end
+  return player.buildIndex==-1 and entry.kind=="weapon"
+    and type(player.weaponIndex)=="number"
+    and entry.id==player.weaponIndex
+end
+-- Both hotkeys and hit tests use the exact same visible, server-synced slots.
+function H.slotForKey(world,key)
+  if type(key)~="string" or not key:match("^[1-9]$") then return nil end
+  local entry=actionBarEntries(world)[tonumber(key)]
+  if not entry then return nil end
+  return entry.id,entry.kind=="weapon"
+end
 local function actionBar(world,w,h)
   local entries=actionBarEntries(world)
   local count=#entries
@@ -168,6 +189,14 @@ local function actionBar(world,w,h)
     local x=origin+(i-1)*(slot+space)
     box(x,y,slot,slot)
     Icons.draw(entry.kind,entry.data,x+slot/2,y+slot/2,slot)
+    if H.isSelected(world,entry) then
+      -- Show only confirmed equipment; a rejected "z" does not alter the UI.
+      love.graphics.push("all")
+      color(0.53,0.86,0.31,1)
+      love.graphics.setLineWidth(4)
+      love.graphics.rectangle("line",x+2,y+2,slot-4,slot-4,4,4)
+      love.graphics.pop()
+    end
     -- Reference showItemInfo() reads itemCounts by groupId.
     -- Display the live group count only for placeable structures.
     if entry.kind=="item" then
