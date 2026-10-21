@@ -1,0 +1,43 @@
+name: Reference image-source diagnosis
+
+on:
+  push:
+    paths:
+      - .github/workflows/asset-diagnosis.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Inspect PNG signatures and local-only official recovery source
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 2 'https://github.com/al007ex/moomoo-clone/archive/06f7c1ca965a7628671676c8d9a7efd3997bb5e7.zip' -o /tmp/reference.zip
+          unzip -q /tmp/reference.zip -d /tmp
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs/promises';
+          const base='/tmp/moomoo-clone-06f7c1ca965a7628671676c8d9a7efd3997bb5e7/client/public/img/';
+          for(const name of ['weapons/hammer_1.png','weapons/sword_1.png','weapons/axe_1.png','weapons/dagger_1.png','hats/hat_14_p.png']){
+            const data=await fs.readFile(base+name);
+            const sig=data.subarray(0,16).toString('hex');
+            console.log('UPSTREAM:',name,'bytes',data.length,'hex16',sig);
+          }
+          for(const host of ['https://moomoo.io/img/','https://www.moomoo.io/img/']){
+            for(const name of ['weapons/hammer_1.png','weapons/sword_1.png']){
+              try{
+                const response=await fetch(host+name,{signal:AbortSignal.timeout(6000),redirect:'follow'});
+                const data=Buffer.from(await response.arrayBuffer());
+                console.log('OFFICIAL:',host+name,'status',response.status,'type',response.headers.get('content-type'),'bytes',data.length,'hex8',data.subarray(0,8).toString('hex'));
+              }catch(err){console.log('OFFICIAL:',host+name,err.message)}
+            }
+          }
+          NODE
