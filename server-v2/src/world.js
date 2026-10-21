@@ -110,6 +110,7 @@ export class World {
     this.size=size;this.maxPlayers=maxPlayers;this.now=now;
     this.players=new Map();this.events=[];this.tickNumber=0;
     this.resources=new Map();this.depleted=new Map();this.structures=new Map();this.tribes=new Map();
+    this.reservedTribeTags=new Set();
     this.animals=new Map();this.animalRandom=seededRandom(seed^0xfedcba98);
     this.projectiles=new Map();this.nextProjectileSid=1;
     this.nextObjectSid=1;this.nextPlayerSid=0;
@@ -235,7 +236,17 @@ export class World {
   leave(id){
     const p=this.players.get(id);if(!p)return;
     this.players.delete(id);
-    if(p.team){const tribe=this.tribes.get(p.team);if(tribe){tribe.members.delete(id);if(!tribe.members.size)this.tribes.delete(p.team);else if(tribe.owner===id)tribe.owner=tribe.members.values().next().value;}}
+    if(p.team){
+      const tribe=this.tribes.get(p.team);
+      if(tribe){
+        tribe.members.delete(id);
+        if(tribe.persistent){
+          if(tribe.owner===id)tribe.owner=null;
+          if(!tribe.members.size)this.tribes.delete(p.team);
+        }else if(!tribe.members.size)this.tribes.delete(p.team);
+        else if(tribe.owner===id)tribe.owner=tribe.members.values().next().value;
+      }
+    }
     for(const [key,o] of this.structures)if(o.owner===p.sid){
       this.structures.delete(key);
       this.events.push({kind:'destroy',sid:o.sid,owner:o.owner,id:o.id});
@@ -282,9 +293,42 @@ export class World {
   }
   createTribe(id,name){
     const p=this.players.get(id);
-    if(!p||p.team||typeof name!=='string'||!/^[A-Za-z0-9]{1,7}$/.test(name)||this.tribes.has(name))return false;
+    if(!p||p.team||typeof name!=='string'||!/^[A-Za-z0-9]{1,7}$/.test(name)||
+      this.tribes.has(name)||this.reservedTribeTags.has(name))return false;
     this.tribes.set(name,{owner:id,members:new Set([id]),requests:new Set()});p.team=name;
     this.events.push({kind:'tribe_created',name,sid:p.sid});return true;
+  }
+  // A SQL-verified membership is reapplied to the ephemeral online roster.
+  // Offline owners are never replaced or impersonated by random members.
+  restoreClan(p,clan){
+    if(!p?.accountId||!clan?.tag||!/^[A-Za-z0-9]{1,7}$/.test(clan.tag)||
+      !clan.ownerAccountId||p.team)return false;
+    let tribe=this.tribes.get(clan.tag);
+    if(tribe&&(!tribe.persistent||
+      tribe.ownerAccountId!==clan.ownerAccountId))return false;
+    if(!tribe){
+      tribe={owner:null,ownerAccountId:clan.ownerAccountId,persistent:true,
+        members:new Set(),requests:new Set()};
+      this.tribes.set(clan.tag,tribe);
+      this.events.push({kind:'tribe_created',name:clan.tag,sid:null});
+    }
+    tribe.members.add(p.id);
+    p.team=clan.tag;
+    if(p.accountId===clan.ownerAccountId)tribe.owner=p.id;
+    this.reservedTribeTags.add(clan.tag);
+    return true;
+  }
+  disbandTribe(name){
+    const tribe=this.tribes.get(name);
+    if(!tribe?.persistent)return false;
+    for(const id of tribe.members){
+      const p=this.players.get(id);
+      if(p)p.team=null;
+    }
+    this.tribes.delete(name);
+    this.reservedTribeTags.delete(name);
+    this.events.push({kind:'tribe_deleted',name});
+    return true;
   }
   leaveTribe(id){
     const p=this.players.get(id);if(!p||!p.team)return false;
