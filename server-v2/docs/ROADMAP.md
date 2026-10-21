@@ -83,6 +83,16 @@ Implementado na fundação experimental:
   cinco segundos, sem empilhamento das curas periódicas;
 - coleta de minas/árvores plantadas não pode ser usada por adversários
   para gerar recursos; eles precisam destruir a estrutura, respeitando HP;
+- plataforma elevada (item 18, upgrade Lua 34, idade 7) permite atravessar
+  paredes próximas com janela curta calculada pelo Node; travessia de água
+  e física de biomas ainda exigem validação específica com o cliente LÖVE;
+- loja autoritativa com a lista de preços correspondente a todos os itens
+  comercializáveis da loja Lua, incluindo os cosméticos; itens exclusivos
+  (45/61) permanecem indisponíveis para compra;
+- efeitos selecionados de capacetes e acessórios no Node: velocidade e
+  defesa, custo e alcance de projéteis, bônus de coleta, imunidade ao veneno,
+  proteção contra projéteis, autorregeneração, ouro passivo e evasão de torres;
+  demais efeitos especiais ainda precisam de implementação e testes;
 - testes unitários de codecs, entrada, inventário, compras, construção,
   recursos, retorno após coleta, cura, XP e escolhas de equipamentos. O teste
   WebSocket de ponta a ponta inclui loja, cura e upgrades, além da entrada.

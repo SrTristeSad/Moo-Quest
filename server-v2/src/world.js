@@ -2,6 +2,7 @@
 // map-editor or imports from the legacy game engine. Numeric packet records
 // expose only the game state required by the existing Lua renderer.
 import { randomUUID, randomInt } from 'node:crypto';
+import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 
 const TYPE={tree:0,bush:1,stone:2,ore:3};
 // These definitions are independent gameplay rules; numeric IDs serve as
@@ -29,7 +30,8 @@ const RECIPES={
   20:{cost:{wood:100,stone:100},scale:45,hp:400,group:10,limit:1,spawnPoint:true},
   22:{cost:{wood:60,stone:60},scale:45,hp:200,group:13,limit:2,teleport:true},
   // Player-built automatic defense. Static only: no NPC or editable map.
-  17:{cost:{wood:200,stone:150},scale:43,hp:800,group:7,limit:2,turret:true}
+  17:{cost:{wood:200,stone:150},scale:43,hp:800,group:7,limit:2,turret:true},
+  18:{cost:{wood:20},scale:43,hp:300,group:8,limit:12,platform:true}
 };
 const FOOD={0:{cost:10,heal:20},1:{cost:15,heal:40},
   2:{cost:25,heal:30,regen:10,seconds:5}};
@@ -63,7 +65,8 @@ const UPGRADES=new Map([
   // Index for the Lua item upgrade = number of weapon IDs (16) + item ID.
   [18,{kind:'item',id:2,age:7}],
   [21,{kind:'item',id:5,age:7,pre:4}],
-  [33,{kind:'item',id:17,age:7}], [35,{kind:'item',id:19,age:7}],
+  [33,{kind:'item',id:17,age:7}], [34,{kind:'item',id:18,age:7}],
+  [35,{kind:'item',id:19,age:7}],
   [37,{kind:'item',id:21,age:7}], [38,{kind:'item',id:22,age:7}],
   [28,{kind:'item',id:12,age:8,pre:11}],
   [24,{kind:'item',id:8,age:9,pre:7}],
@@ -75,7 +78,6 @@ const UPGRADES=new Map([
 const LEVEL_XP=age=>35+age*25;
 const RESOURCE_RETURN_MS=30000;
 const RESOURCE_DAMAGE=25;
-const SHOP_HATS={51:0,57:50},SHOP_ACCESSORIES={9:1000};
 const finite=Number.isFinite;
 function boundedName(s){return String(s||'Visitante').replace(/[^\p{L}\p{N}_ -]/gu,'').slice(0,15)||'Visitante';}
 const round=n=>Math.round(n*10)/10;
@@ -150,10 +152,11 @@ export class World {
       lastAttack:0,deadUntil:0,socket,ipHash:null,
       xp:0,age:1,upgradePoints:0,upgradeAge:2,maxXp:LEVEL_XP(1),
       native:false,team:null,hat:0,tail:0,
-      ownedHats:new Set([0,51]),ownedAccessories:new Set([0]),
+      ownedHats:new Set([0,...FREE_HATS]),ownedAccessories:new Set([0]),
       resources:{wood:0,stone:0,food:0,points:0,kills:0},
       inventory:{weapons:[0],items:[0,3,6,10]},weaponIndex:0,buildIndex:-1,score:0,
       rootedUntil:0,nextHealAt:0,nextTeleportAt:0,poison:null,regen:null,
+      lastGearRegenAt:this.now(),raisedUntil:0,raisedOrigin:null,
        lastGeneratorAt:this.now(),generatorRemainder:0};
     this.players.set(p.id,p);
     this.events.push({kind:'join',id:p.id,sid:p.sid,name:p.name});return p;
@@ -190,7 +193,7 @@ export class World {
   }
   shop(id,action,itemId,accessory){
     const p=this.players.get(id);if(!p||p.hp<=0||!Number.isSafeInteger(itemId))return false;
-    const prices=accessory?SHOP_ACCESSORIES:SHOP_HATS;
+    const prices=accessory?ACCESSORIES:HATS;
     const owned=accessory?p.ownedAccessories:p.ownedHats;
     if(action===1){
       if(!Object.hasOwn(prices,itemId)||owned.has(itemId)||p.resources.points<prices[itemId])return false;
@@ -305,15 +308,18 @@ export class World {
   }
   // Shield absorption applies only to frontal incoming damage while the
   // defensive equipment is selected. Client packets cannot set damage.
-  protectedDamage(target,raw,sourceX,sourceY){
+  protectedDamage(target,raw,sourceX,sourceY,kind='normal'){
     let amount=raw;
+    const {hat,tail}=gearEffects(target);
     const shield=WEAPONS[target.weaponIndex]?.shield;
     if(shield&&Number.isFinite(sourceX)&&Number.isFinite(sourceY)){
       const direction=Math.atan2(sourceY-target.y,sourceX-target.x);
       if(Math.cos(direction-target.angle)>=0.25)
         amount=Math.max(0,Math.round(raw*(1-shield)));
     }
-    return amount;
+    amount*=hat.damageTaken??1;
+    if(kind==='projectile')amount*=tail.projectileDamageTaken??1;
+    return Math.max(0,Math.round(amount));
   }
   spawnProjectile({owner,ownerSid,team,x,y,dir,range,speed,damage,type,layer=0,
     sourceSid=null,ammo={}}){
@@ -326,17 +332,21 @@ export class World {
     const p=this.players.get(id),time=this.now();
     if(!p||p.hp<=0)return false;
     const weapon=WEAPONS[p.weaponIndex]||WEAPONS[0];
-    if(time-p.lastAttack<weapon.cooldown)return false;
+    const {hat,tail}=gearEffects(p);
+    if(time-p.lastAttack<weapon.cooldown*(hat.attackSpeed??1))return false;
     if(p.buildIndex>=3){p.lastAttack=time;return this.place(id,p.buildIndex);}
     if(p.buildIndex>=0){p.lastAttack=time;return this.consume(id,p.buildIndex);}
     if(weapon.projectile!==undefined){
-      if(!Object.entries(weapon.ammo).every(([k,v])=>p.resources[k]>=v))return false;
-      for(const [k,v] of Object.entries(weapon.ammo))p.resources[k]-=v;
+      const ammo=Object.fromEntries(Object.entries(weapon.ammo)
+        .map(([k,v])=>[k,Math.max(1,Math.ceil(v*(hat.ammoCost??1)))]));
+      if(!Object.entries(ammo).every(([k,v])=>p.resources[k]>=v))return false;
+      for(const [k,v] of Object.entries(ammo))p.resources[k]-=v;
       p.lastAttack=time;
       const x=p.x+Math.cos(p.angle)*46,y=p.y+Math.sin(p.angle)*46;
       this.spawnProjectile({owner:p.id,ownerSid:p.sid,team:p.team,x,y,dir:p.angle,
-        range:weapon.range,speed:weapon.speed,damage:weapon.damage,
-        type:weapon.projectile,ammo:{...weapon.ammo}});
+        range:weapon.range*(hat.arrow??1),speed:weapon.speed*(hat.arrow??1),
+        damage:Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
+          (tail.damageDone??1))),type:weapon.projectile,ammo});
       return true;
     }
     if(weapon.shield)return false; // Defensive selection cannot damage wildlife.
@@ -349,7 +359,9 @@ export class World {
       if(d<distance&&Math.cos(angle-p.angle)>=0.15){victim=other;distance=d;}
     }
     if(victim){
-      const damage=this.protectedDamage(victim,weapon.damage,p.x,p.y);
+      const attackDamage=Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
+        (tail.damageDone??1)));
+      const damage=this.protectedDamage(victim,attackDamage,p.x,p.y);
       victim.hp=Math.max(0,victim.hp-damage);
       this.events.push({kind:'hit',from:p.id,to:victim.id,damage,hp:victim.hp,x:victim.x,y:victim.y});
       if(victim.hp===0){victim.deadUntil=time+3000;victim.vx=0;victim.vy=0;p.resources.kills++;p.score+=100;this.events.push({kind:'death',id:victim.id,killer:p.id});this.awardXp(p.id,40);}
@@ -367,8 +379,10 @@ export class World {
       animal=a;animalDistance=d;
     }
     if(animal){
-      animal.health=Math.max(0,animal.health-weapon.damage);
-      this.events.push({kind:'animal_hit',sid:animal.sid,from:p.id,x:animal.x,y:animal.y,damage:weapon.damage});
+      const damage=Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
+        (tail.damageDone??1)));
+      animal.health=Math.max(0,animal.health-damage);
+      this.events.push({kind:'animal_hit',sid:animal.sid,from:p.id,x:animal.x,y:animal.y,damage});
       if(!animal.health){
         animal.deadUntil=time+15000;
         p.resources.food+=30;p.resources.points+=20;p.score+=20;
@@ -391,8 +405,10 @@ export class World {
     }
     if(farm){
       const key=RECIPES[farm.id].harvest;
-      p.resources[key]+=2;p.resources.points++;p.score++;
-      this.events.push({kind:'gather',sid:farm.sid,player:p.id,key,amount:2,points:1});
+      const amount=2+(key==='wood'?(tail.extraWood??0):(tail.extraStone??0));
+      const points=1+(hat.extraGold??0);
+      p.resources[key]+=amount;p.resources.points+=points;p.score+=points;
+      this.events.push({kind:'gather',sid:farm.sid,player:p.id,key,amount,points});
       this.awardXp(p.id,8);
       return true;
     }
@@ -410,9 +426,11 @@ export class World {
       targetStructure=obj;structureDistance=d;
     }
     if(targetStructure){
-      targetStructure.hp=Math.max(0,targetStructure.hp-weapon.damage);
+      const damage=Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
+        (tail.damageDone??1)*(hat.structureDamage??1)));
+      targetStructure.hp=Math.max(0,targetStructure.hp-damage);
       this.events.push({kind:'structure_hit',sid:targetStructure.sid,dir:p.angle,
-        x:targetStructure.x,y:targetStructure.y,damage:weapon.damage});
+        x:targetStructure.x,y:targetStructure.y,damage});
       if(targetStructure.hp===0){
         this.structures.delete(targetStructure.sid);
         this.events.push({kind:'destroy',sid:targetStructure.sid,
@@ -432,10 +450,13 @@ export class World {
     }
     if(resource){
       const key=resource.kind==='tree'?'wood':resource.kind==='bush'?'food':'stone';
-      const amount=resource.kind==='ore'?4:2;
-      p.resources[key]+=amount;p.resources.points++;p.score++;
+      const bonus=key==='wood'?(tail.extraWood??0):
+        key==='stone'?(tail.extraStone??0):(tail.extraFood??0);
+      const amount=(resource.kind==='ore'?4:2)+bonus;
+      const points=1+(hat.extraGold??0);
+      p.resources[key]+=amount;p.resources.points+=points;p.score+=points;
       resource.hp-=RESOURCE_DAMAGE;
-      this.events.push({kind:'gather',sid:resource.sid,player:p.id,key,amount,points:1});
+      this.events.push({kind:'gather',sid:resource.sid,player:p.id,key,amount,points});
       this.awardXp(p.id,8);
       if(resource.hp<=0){
         this.resources.delete(resource.sid);
@@ -487,6 +508,7 @@ export class World {
     p.vx=0;p.vy=0;p.lastAttack=0;p.rootedUntil=0;p.nextHealAt=0;
     p.poison=null;p.regen=null;
     p.nextTeleportAt=this.now()+3000;
+    p.lastGearRegenAt=this.now();p.raisedUntil=0;p.raisedOrigin=null;
     p.lastGeneratorAt=this.now();p.generatorRemainder=0;
     this.events.push({kind:'respawn',id:p.id,sid:p.sid,x:p.x,y:p.y});return true;
   }
@@ -531,11 +553,23 @@ export class World {
       if(p.hp<=0)continue;
       const boosted=[...this.structures.values()].some(o=>o.id===16&&
         Math.hypot(p.x-o.x,p.y-o.y)<o.scale+32);
-      const speed=at<p.rootedUntil?0:250*(boosted?1.5:1);
+      const {hat,tail}=gearEffects(p);
+      const speed=at<p.rootedUntil?0:250*(boosted?1.5:1)*
+        (hat.speed??1)*(tail.speed??1);
       const x=Math.max(24,Math.min(this.size-24,p.x+p.vx*speed*step));
       const y=Math.max(24,Math.min(this.size-24,p.y+p.vy*speed*step));
+      // Platforms provide a short, local raised state for crossing a
+      // nearby wall. It expires away from the platform: no global phasing.
+      const platform=[...this.structures.values()].find(o=>o.id===18&&
+        Math.hypot(p.x-o.x,p.y-o.y)<o.scale+36);
+      if(platform){
+        p.raisedUntil=at+1200;
+        p.raisedOrigin={x:platform.x,y:platform.y};
+      }
+      const raised=at<p.raisedUntil&&p.raisedOrigin&&
+        Math.hypot(x-p.raisedOrigin.x,y-p.raisedOrigin.y)<200;
       const blocking=[...this.structures.values()].some(o=>[3,4,5].includes(o.id)&&
-        Math.hypot(x-o.x,y-o.y)<o.scale+30);
+        Math.hypot(x-o.x,y-o.y)<o.scale+30&&!raised);
       if(!blocking){p.x=x;p.y=y;}
       for(const trap of this.structures.values()){
         if(![6,7,8,9].includes(trap.id))continue;
@@ -547,9 +581,10 @@ export class World {
         trap.nextDamage[p.id]=at+850;
         const recipe=RECIPES[trap.id];
         // The existing V2 basic spikes retain their balancing.
-        const amount=recipe.spikeDamage??(trap.id===7?15:10);
+        const raw=recipe.spikeDamage??(trap.id===7?15:10);
+        const amount=this.protectedDamage(p,raw,trap.x,trap.y);
         p.hp=Math.max(0,p.hp-amount);
-        if(p.hp>0&&recipe.poison){
+        if(p.hp>0&&recipe.poison&&!hat.poisonImmune){
           // Re-entering a poison spike refreshes its expiry but cannot
           // postpone a pending tick indefinitely.
           p.poison={until:at+recipe.poison.seconds*1000,
@@ -591,6 +626,7 @@ export class World {
       }
       // Periodic status effects use elapsed wall-clock seconds, not tick
       // counts. Missed ticks can recover at most the fixed effect duration.
+      if(p.poison&&hat.poisonImmune)p.poison=null;
       if(p.poison){
         const dot=p.poison;
         const until=Math.min(at,dot.until);
@@ -607,6 +643,30 @@ export class World {
           }
         }
         if(p.poison&&at>=dot.until)p.poison=null;
+      }
+      if(p.hp<=0)continue;
+      // Passive equipment recovery/drain is measured by real elapsed
+      // seconds and bounded to prevent gaining extra healing from FPS.
+      const gearSeconds=Math.max(0,Math.min(5,
+        Math.floor((at-p.lastGearRegenAt)/1000)));
+      if(gearSeconds){
+        p.lastGearRegenAt+=gearSeconds*1000;
+        const perSecond=(hat.healthRegen??0)+(tail.healthRegen??0);
+        if(perSecond>0&&p.hp<p.maxHp){
+          const amount=Math.min(p.maxHp-p.hp,gearSeconds*perSecond);
+          p.hp+=amount;
+          this.events.push({kind:'heal',player:p.id,sid:p.sid,
+            amount,hp:p.hp,x:p.x,y:p.y});
+        }else if(perSecond<0){
+          const damage=Math.min(p.hp,-perSecond*gearSeconds);
+          p.hp-=damage;
+          this.events.push({kind:'hit',from:null,to:p.id,
+            damage,hp:p.hp,x:p.x,y:p.y});
+          if(p.hp===0){
+            p.deadUntil=at+3000;p.vx=0;p.vy=0;p.poison=null;p.regen=null;
+            this.events.push({kind:'death',id:p.id});
+          }
+        }
       }
       if(p.hp<=0)continue;
       if(p.regen){
@@ -642,7 +702,7 @@ export class World {
       // a single delayed tick to five seconds of accrual (no idle farming).
       const elapsed=Math.max(0,Math.min(5,(at-p.lastGeneratorAt)/1000));
       p.lastGeneratorAt=at;
-      const rate=[...this.structures.values()].reduce((sum,o)=>
+      const rate=(hat.pps??0)+[...this.structures.values()].reduce((sum,o)=>
         sum+(o.owner===p.sid?(RECIPES[o.id]?.pps||0):0),0);
       p.generatorRemainder+=elapsed*rate;
       const income=Math.floor(p.generatorRemainder);
@@ -665,7 +725,8 @@ export class World {
       if(!owner)continue;
       let victim=null,best=700;
       for(const p of this.players.values()){
-        if(p.id===owner.id||p.hp<=0||owner.team&&p.team===owner.team)continue;
+        if(p.id===owner.id||p.hp<=0||owner.team&&p.team===owner.team||
+          gearEffects(p).hat.antiTurret)continue;
         const distance=Math.hypot(p.x-turret.x,p.y-turret.y);
         if(distance>=best)continue;
         best=distance;victim=p;
@@ -724,7 +785,7 @@ export class World {
         const {kind,target}=first;
         const shooter=this.players.get(arrow.owner);
         if(kind==='player'){
-          const damage=this.protectedDamage(target,arrow.damage,arrow.x,arrow.y);
+          const damage=this.protectedDamage(target,arrow.damage,arrow.x,arrow.y,'projectile');
           target.hp=Math.max(0,target.hp-damage);
           this.events.push({kind:'hit',from:arrow.owner,to:target.id,
             damage,hp:target.hp,x:target.x,y:target.y});
