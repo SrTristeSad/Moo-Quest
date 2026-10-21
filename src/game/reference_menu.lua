@@ -71,7 +71,9 @@ function Menu.new()
     nameFocus=false,grid=true,world=menuView(),
     startPending=false,status="",authMode=nil,authStep="email",
     authEmail="",authCode="",authFocus="email",authFlow=nil,
-    authMessage="",accountEmail=nil},Menu)
+    authMessage="",accountEmail=nil,
+    connectionState="connecting",showTechnical=false,
+    technicalMessage=""},Menu)
 end
 function Menu:geometry(w,h)
   local scale=math.min(w/1280,h/720)
@@ -83,29 +85,39 @@ function Menu:mapInput(sx,sy,w,h)
 end
 function Menu:click(sx,sy,w,h)
   local x,y=self:mapInput(sx,sy,w,h)
+  -- Dedicated compact "details" control; long filesystem paths never
+  -- overlap the login/register buttons on the original right card.
+  if hot(x,y,1066,300,116,31) then
+    self.showTechnical=not self.showTechnical
+    return "details"
+  end
+  if self.showTechnical and hot(x,y,839,68,344,126) then
+    self.showTechnical=false
+    return "details"
+  end
   if self.authMode then
-    if hot(x,y,846,474,163,44) then
+    if hot(x,y,839,472,161,40) then
       return self.authStep=="email" and "auth_request" or "auth_verify"
     end
-    if hot(x,y,1020,474,163,44) then
+    if hot(x,y,1011,472,172,40) then
       self.authMode=nil;self.authStep="email";self.authFocus=nil
       self.authMessage=""
       return "auth_back"
     end
-    if hot(x,y,844,399,338,48) then
+    if hot(x,y,839,423,344,41) then
       self.authFocus=self.authStep
       return "auth_focus"
     end
     return nil
   end
   if self.accountEmail then
-    if hot(x,y,845,440,338,45) then return "auth_logout" end
+    if hot(x,y,839,472,344,40) then return "auth_logout" end
   else
-    if hot(x,y,845,440,161,45) then
+    if hot(x,y,839,444,161,42) then
       self.authMode="login";self.authStep="email";self.authFocus="email"
       self.authMessage="";return "auth_open"
     end
-    if hot(x,y,1020,440,163,45) then
+    if hot(x,y,1011,444,172,42) then
       self.authMode="register";self.authStep="email";self.authFocus="email"
       self.authMessage="";return "auth_open"
     end
@@ -120,7 +132,7 @@ function Menu:click(sx,sy,w,h)
     end
     if hot(x,y,396,469,112,48) then
       self.nameFocus=false
-      return "play"
+      return self:canPlay() and "play" or "play_unavailable"
     end
     for i=0,9 do
       local col,row=i%5,math.floor(i/5)
@@ -138,6 +150,31 @@ function Menu:click(sx,sy,w,h)
   end
   self.nameFocus=false
   return nil
+end
+function Menu:canPlay()
+  return self.connectionState=="keyed_transport"
+    or self.connectionState=="spawn_confirmed"
+end
+function Menu:connectionInfo(connectionState,details)
+  local state=connectionState or "connecting"
+  self.connectionState=state
+  self.technicalMessage=tostring(details or "")
+  if state=="keyed_transport" or state=="spawn_confirmed" then
+    return "Conectado","Pronto para jogar.", "ready"
+  elseif state=="joining" then
+    return "Entrando","Aguardando confirmacao da partida...", "working"
+  elseif state=="blocked" then
+    if self.technicalMessage:find("build",1,true)
+      or self.technicalMessage:find("MOOQUEST_BUILD_FILE",1,true) then
+      return "Bloqueado","Build do protocolo ausente. Reinicie pelo INICIAR-WINDOWS.bat.", "error"
+    end
+    return "Bloqueado","Handshake recusado. Veja os detalhes tecnicos.", "error"
+  elseif state=="failed" then
+    return "Falha","Nao foi possivel conectar. Confira o servidor.", "error"
+  elseif state=="closed" then
+    return "Desconectado","Conexao encerrada. Pressione R para tentar novamente.", "error"
+  end
+  return "Conectando","Preparando a conexao com o servidor...", "working"
 end
 function Menu:keypressed(key)
   if self.authMode then
@@ -165,7 +202,7 @@ function Menu:keypressed(key)
     self.name=self.name:sub(1,pos-1)
   elseif (key=="return" or key=="kpenter") and self.tab=="Game" then
     self.nameFocus=false
-    return "play"
+    return self:canPlay() and "play" or "play_unavailable"
   end
 end
 function Menu:textinput(chars)
