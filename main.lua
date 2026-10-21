@@ -440,7 +440,7 @@ end
 
 function love.keypressed(key)
   if key=="escape" and phase=="playing" and panels:isOpen() then
-    panels:keypressed(key)
+    panels:keypressed(key,world)
     return
   end
   if key=="escape" then
@@ -485,7 +485,7 @@ function love.keypressed(key)
     return
   end
   if panels:isOpen() then
-    panels:keypressed(key)
+    panels:keypressed(key,world)
     return
   end
   input:keypressed(key)
@@ -595,7 +595,13 @@ function love.mousepressed(x,y,button)
     if action then
       if action.packet then
         local ok,err=client:send(action.packet,action.args or {})
-        if not ok then panels.message=tostring(err) end
+        if not ok then
+          panels.message=tostring(err)
+        elseif action.consumeRequest then
+          -- This consumes only the displayed notification after a
+          -- successful send, never a server-owned team or membership.
+          table.remove(world.joinRequests,1)
+        end
       else
         -- Reference toggleStoreMenu/toggleAllianceMenu close chat and
         -- stop gathering while the menu takes keyboard/mouse focus.
