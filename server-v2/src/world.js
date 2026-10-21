@@ -12,7 +12,9 @@ const RECIPES={
   6:{cost:{wood:20,stone:5},scale:49,hp:300,group:2,limit:15},
   7:{cost:{wood:30,stone:10},scale:52,hp:400,group:2,limit:15},
   10:{cost:{wood:50,stone:10},scale:45,hp:350,group:3,limit:20},
-  11:{cost:{wood:60,stone:20},scale:47,hp:450,group:3,limit:20}
+  11:{cost:{wood:60,stone:20},scale:47,hp:450,group:3,limit:20},
+  // Player-built automatic defense. Static only: no NPC or editable map.
+  17:{cost:{wood:200,stone:150},scale:43,hp:800,group:7,limit:2,turret:true}
 };
 const FOOD={0:{cost:10,heal:20},1:{cost:15,heal:40}};
 const WEAPONS={0:{damage:15,reach:85,cooldown:500},
@@ -23,6 +25,8 @@ const WEAPONS={0:{damage:15,reach:85,cooldown:500},
   // indices 0/2/3/5 are the LÖVE renderer's existing visual contract.
   // Speed is world units per millisecond, matching Lua's X packet display.
   9:{damage:25,cooldown:600,projectile:0,speed:1.6,range:1000,ammo:{wood:4}},
+  // Selecting this defensive item never falls back to an offensive hammer.
+  11:{damage:0,reach:0,cooldown:300,shield:0.35},
   12:{damage:35,cooldown:700,projectile:2,speed:2.5,range:1200,ammo:{wood:5}},
   13:{damage:30,cooldown:300,projectile:3,speed:2.0,range:1200,ammo:{wood:10}},
   15:{damage:50,cooldown:1500,projectile:5,speed:3.6,range:1400,ammo:{stone:10}}
@@ -38,6 +42,8 @@ const UPGRADES=new Map([
   [11,{kind:'weapon',id:11,age:6}], [14,{kind:'weapon',id:14,age:6}],
   [2,{kind:'weapon',id:2,age:8,pre:1}], [4,{kind:'weapon',id:4,age:8,pre:3}],
   [12,{kind:'weapon',id:12,age:8,pre:9}],
+  // Index for the Lua item upgrade = number of weapon IDs (16) + item ID.
+  [33,{kind:'item',id:17,age:7}],
   [13,{kind:'weapon',id:13,age:9,pre:12}],
   [15,{kind:'weapon',id:15,age:9,pre:12}]
 ]);
@@ -208,7 +214,8 @@ export class World {
     }
     for(const [k,n] of Object.entries(recipe.cost))p.resources[k]-=n;
     const sid=this.nextObjectSid++;
-    this.structures.set(sid,{sid,x,y,scale,type:4,id:itemId,owner:p.sid,hp:recipe.hp,maxHp:recipe.hp,createdAt:this.now()});
+    this.structures.set(sid,{sid,x,y,scale,type:4,id:itemId,owner:p.sid,
+      hp:recipe.hp,maxHp:recipe.hp,createdAt:this.now(),nextFire:0});
     this.events.push({kind:'build',sid,owner:p.sid,id:itemId,x,y});return true;
   }
   consume(id,itemId){
@@ -227,7 +234,7 @@ export class World {
     p.xp+=amount;
     while(p.xp>=p.maxXp&&p.age<20){
       p.xp-=p.maxXp;p.age++;p.maxXp=LEVEL_XP(p.age);
-      if([2,3,5,6,8,9].includes(p.age))p.upgradePoints++;
+      if([2,3,5,6,7,8,9].includes(p.age))p.upgradePoints++;
     }
     this.events.push({kind:'progress',player:id,xp:p.xp,maxXp:p.maxXp,age:p.age,
       points:p.upgradePoints,upgradeAge:p.upgradeAge});
@@ -241,7 +248,7 @@ export class World {
     // One selection per stage. Older paths remain available to players who
     // choose melee rather than ranged at age six.
     group.push(rule.id);p.upgradePoints--;
-    p.upgradeAge=({2:3,3:5,5:6,6:8,8:9})[rule.age]??20;
+    p.upgradeAge=({2:3,3:5,5:6,6:7,7:8,8:9})[rule.age]??20;
     this.events.push({kind:'upgrade',player:id,equipmentKind:rule.kind,id:rule.id,
       points:p.upgradePoints,upgradeAge:p.upgradeAge});
     return true;
