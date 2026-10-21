@@ -43,7 +43,10 @@ local function request(route,payload,options)
   if not ok then return nil,"API de conta indisponivel: "..tostring(result) end
   if not result then return nil,"API de conta nao respondeu: "..tostring(status) end
   local response=table.concat(chunks)
-  if #response>16384 then return nil,"resposta de conta muito grande" end
+  -- The original permanent-clan API allows up to 80 members plus
+  -- history/stats; JSON for that screen can exceed the login's 16 KiB.
+  local maxResponse=route:sub(1,5)=="clan/" and 131072 or 16384
+  if #response>maxResponse then return nil,"resposta de conta muito grande" end
   if tonumber(status)~=200 then
     local kind=response:match('"type"%s*:%s*"([^"]+)"')
       or response:match('"error"%s*:%s*"([^"]+)"')
