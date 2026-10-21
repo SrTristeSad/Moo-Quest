@@ -91,28 +91,97 @@ export class RedisTickets{
   }
 }
 
+// Player sessions: 8h access tokens + 30d rotating refresh tokens.
+// Redis receives hashes only; raw session credentials are returned once.
+// A per-account generation invalidates all devices without scanning Redis.
 export class RedisPlayerTokens{
   constructor(client,{prefix='mq:v2:'}={}){
     this.client=client;this.prefix=prefix;
   }
   key(token){return this.prefix+'player-session:'+hash(token);}
+  refreshKey(token){return this.prefix+'player-refresh:'+hash(token);}
+  generationKey(accountId){return this.prefix+'player-generation:'+accountId;}
+  ticketRevisionKey(accountId){return this.prefix+'ticket-revision:'+accountId;}
+  async generation(accountId){
+    return String(await this.client.get(this.generationKey(accountId))||'0');
+  }
   async issue(accountId){
+    if(typeof accountId!=='string'||!/^[a-f0-9-]{36}$/i.test(accountId))
+      throw new Error('Invalid player account');
     const token=randomBytes(32).toString('hex');
-    await this.client.set(this.key(token),accountId,{EX:8*3600});
-    return {token,expiresIn:8*3600};
+    const refreshToken=randomBytes(32).toString('hex');
+    const generation=await this.generation(accountId);
+    const refreshHash=hash(refreshToken),accessHash=hash(token);
+    const session={accountId,generation,refreshHash};
+    const refresh={accountId,generation,accessHash};
+    await this.client.multi()
+      .set(this.key(token),JSON.stringify(session),{EX:8*3600})
+      .set(this.refreshKey(refreshToken),JSON.stringify(refresh),{EX:30*24*3600})
+      .exec();
+    return {token,refreshToken,tokenType:'Bearer',
+      expiresIn:8*3600,refreshExpiresIn:30*24*3600};
   }
   async get(token){
     if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))return null;
-    return await this.client.get(this.key(token));
+    const raw=await this.client.get(this.key(token));
+    if(!raw)return null;
+    let record;
+    try{record=JSON.parse(raw);}catch{return null;}
+    if(typeof record?.accountId!=='string'||typeof record?.generation!=='string')
+      return null;
+    return record.generation===await this.generation(record.accountId)?
+      record.accountId:null;
   }
   async revoke(token){
-    if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))return;
-    const accountId=await this.get(token);
-    if(!accountId)return;
-    // Epoch prevents a pre-logout admission ticket being redeemed later.
-    // The epoch expires after all prior 30s tickets have necessarily expired.
-    const revisionKey=this.prefix+'ticket-revision:'+accountId;
-    await this.client.multi().incr(revisionKey).expire(revisionKey,90)
-      .del(this.key(token)).exec();
+    if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))return null;
+    const raw=await this.client.get(this.key(token));
+    if(!raw)return null;
+    let record;
+    try{record=JSON.parse(raw);}catch{return null;}
+    if(!record?.accountId)return null;
+    await this.client.multi()
+      .del(this.key(token))
+      .del(this.prefix+'player-refresh:'+record.refreshHash)
+      .exec();
+    await this.invalidateTickets(record.accountId);
+    return record.accountId;
+  }
+  async revokeRefresh(token){
+    if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))return null;
+    const raw=await this.client.getDel(this.refreshKey(token));
+    if(!raw)return null;
+    let record;
+    try{record=JSON.parse(raw);}catch{return null;}
+    if(!record?.accountId||typeof record.accessHash!=='string')return null;
+    await this.client.del(this.prefix+'player-session:'+record.accessHash);
+    await this.invalidateTickets(record.accountId);
+    return record.accountId;
+  }
+  async refresh(token){
+    if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))return null;
+    // GETDEL enforces single-use rotation even across parallel API instances.
+    const raw=await this.client.getDel(this.refreshKey(token));
+    if(!raw)return null;
+    let record;
+    try{record=JSON.parse(raw);}catch{return null;}
+    if(typeof record?.accountId!=='string'||typeof record?.generation!=='string'||
+      typeof record?.accessHash!=='string')return null;
+    await this.client.del(this.prefix+'player-session:'+record.accessHash);
+    if(record.generation!==await this.generation(record.accountId))return null;
+    return this.issue(record.accountId);
+  }
+  async invalidateTickets(accountId){
+    // A 90s revision covers the complete 30s join-ticket lifetime.
+    const key=this.ticketRevisionKey(accountId);
+    await this.client.multi().incr(key).expire(key,90).exec();
+  }
+  async revokeAll(accountId){
+    if(typeof accountId!=='string')return;
+    // Generation must outlive the longest outstanding refresh token.
+    await this.client.multi()
+      .incr(this.generationKey(accountId))
+      .expire(this.generationKey(accountId),31*24*3600)
+      .exec();
+    await this.invalidateTickets(accountId);
   }
 }
