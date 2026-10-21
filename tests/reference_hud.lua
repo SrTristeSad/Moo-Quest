@@ -31,4 +31,54 @@ assert(Hud.mapHitTest(width,height,20,height-150))
 assert(Hud.mapHitTest(width,height,149,height-21))
 assert(not Hud.mapHitTest(width,height,150,height-21))
 assert(not Hud.mapHitTest(width,height,21,height-151))
-print("reference clickable action bar mappings passed")
+-- The same displayed slots drive mouse clicks and keyboard selection.
+local function assertSlot(key,x,expectedId,expectedWeapon)
+  local viaKey,isWeapon=Hud.slotForKey(w,key)
+  local viaMouse,mouseWeapon=Hud.hitTest(w,width,height,x,y)
+  assert(viaKey==expectedId and isWeapon==expectedWeapon)
+  assert(viaMouse==viaKey and mouseWeapon==isWeapon)
+end
+assertSlot("1",start+33,0,true)
+assertSlot("2",start+76+33,0,false)
+assertSlot("3",start+2*76+33,3,false)
+assert(Hud.slotForKey(w,"0")==nil)
+assert(Hud.slotForKey(w,"9")==nil)
+assert(Hud.slotForKey(w,"kp1")==nil)
+-- Merely knowing the player's SID must never invent a selected item.
+assert(not Hud.isSelected(w,{kind="weapon",id=0}))
+assert(w:apply("D",{{"socket-0",0,"Player",100,200,0,100,100,35,0}}))
+assert(not Hud.isSelected(w,{kind="weapon",id=0}),
+  "before the Node attrs frame there is no authoritative selection")
+-- Node "a" attributes: sid, buildIndex, weaponIndex, variant, team,
+-- isLeader, skin, tail, icon, zIndex.
+local function serverSelection(build,weaponId)
+  assert(w:apply("a",{{0,100,200,0},
+    {0,build,weaponId,0,false,0,0,0,0,0},{}}))
+end
+serverSelection(-1,0)
+assert(Hud.isSelected(w,{kind="weapon",id=0}))
+assert(not Hud.isSelected(w,{kind="item",id=0}))
+assert(not Hud.isSelected(w,{kind="item",id=3}))
+serverSelection(3,0)
+assert(Hud.isSelected(w,{kind="item",id=3}),
+  "server-selected wooden wall is highlighted")
+assert(not Hud.isSelected(w,{kind="weapon",id=0}),
+  "hammer cannot also be highlighted while building")
+serverSelection(-1,0)
+assert(not Hud.isSelected(w,{kind="item",id=3}),
+  "server deselecting the structure returns to selected hammer")
+-- A real server V packet replaces the displayed slots; never use stale IDs.
+assert(w:apply("V",{{1},1}))
+local nextKey,nextIsWeapon=Hud.slotForKey(w,"1")
+assert(nextKey==1 and nextIsWeapon==true)
+serverSelection(-1,1)
+assert(Hud.isSelected(w,{kind="weapon",id=1}))
+assert(not Hud.isSelected(w,{kind="weapon",id=0}))
+assert(w:apply("V",{{1,3,6,10},0}))
+local foodIndex,foodWeapon=Hud.slotForKey(w,"2")
+assert(foodIndex==1 and foodWeapon==false)
+assertSlot("3",start+2*76+33,3,false)
+-- New life must not keep a prior-life highlight while waiting for Node attrs.
+assert(w:apply("P",{}) and w:apply("C",{0}))
+assert(not Hud.isSelected(w,{kind="weapon",id=1}))
+print("reference clickable and authoritative selected action bar mappings passed")
