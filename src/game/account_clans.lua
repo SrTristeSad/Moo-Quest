@@ -232,9 +232,11 @@ function C:textinput(s)
   local limit=(field=="clan" and 4) or 15
   for i=1,#s do
     local ch=s:sub(i,i)
-    if ch:match("^[A-Za-z0-9_]$") and
-      (field~="clan" or ch:match("^[A-Za-z0-9]$")) and
-      #self.inputs[field]<limit then
+    -- Clan tags: [A-Za-z0-9] 3-4. Account names follow the
+    -- original Node help text: letters, digits and _ : ( ) / ? -.
+    local allowed=field=="clan" and ch:match("^[A-Za-z0-9]$")
+      or (ch:match("^[A-Za-z0-9_:%(%)%/%?%-]$") or ch==" ")
+    if allowed and #self.inputs[field]<limit then
       self.inputs[field]=self.inputs[field]..ch
     end
   end
