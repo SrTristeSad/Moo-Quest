@@ -50,6 +50,7 @@ export class Auth {
     return session;
   }
   revoke(token) { if (token) this.sessions.delete(digest(token)); }
+  clearFailure(key){this.failures.delete(key);}
   sameCsrf(session, supplied) {
     if (!session || typeof supplied !== 'string') return false;
     const a = Buffer.from(session.csrf), b = Buffer.from(supplied);
