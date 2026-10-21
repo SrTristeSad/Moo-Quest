@@ -308,7 +308,7 @@ export class World {
   }
   // Shield absorption applies only to frontal incoming damage while the
   // defensive equipment is selected. Client packets cannot set damage.
-  protectedDamage(target,raw,sourceX,sourceY){
+  protectedDamage(target,raw,sourceX,sourceY,kind='normal'){
     let amount=raw;
     const {hat,tail}=gearEffects(target);
     const shield=WEAPONS[target.weaponIndex]?.shield;
@@ -318,7 +318,7 @@ export class World {
         amount=Math.max(0,Math.round(raw*(1-shield)));
     }
     amount*=hat.damageTaken??1;
-    if(arguments[4]==='projectile')amount*=tail.projectileDamageTaken??1;
+    if(kind==='projectile')amount*=tail.projectileDamageTaken??1;
     return Math.max(0,Math.round(amount));
   }
   spawnProjectile({owner,ownerSid,team,x,y,dir,range,speed,damage,type,layer=0,
@@ -508,6 +508,7 @@ export class World {
     p.vx=0;p.vy=0;p.lastAttack=0;p.rootedUntil=0;p.nextHealAt=0;
     p.poison=null;p.regen=null;
     p.nextTeleportAt=this.now()+3000;
+    p.lastGearRegenAt=this.now();p.raisedUntil=0;p.raisedOrigin=null;
     p.lastGeneratorAt=this.now();p.generatorRemainder=0;
     this.events.push({kind:'respawn',id:p.id,sid:p.sid,x:p.x,y:p.y});return true;
   }
@@ -552,11 +553,23 @@ export class World {
       if(p.hp<=0)continue;
       const boosted=[...this.structures.values()].some(o=>o.id===16&&
         Math.hypot(p.x-o.x,p.y-o.y)<o.scale+32);
-      const speed=at<p.rootedUntil?0:250*(boosted?1.5:1);
+      const {hat,tail}=gearEffects(p);
+      const speed=at<p.rootedUntil?0:250*(boosted?1.5:1)*
+        (hat.speed??1)*(tail.speed??1);
       const x=Math.max(24,Math.min(this.size-24,p.x+p.vx*speed*step));
       const y=Math.max(24,Math.min(this.size-24,p.y+p.vy*speed*step));
+      // Platforms provide a short, local raised state for crossing a
+      // nearby wall. It expires away from the platform: no global phasing.
+      const platform=[...this.structures.values()].find(o=>o.id===18&&
+        Math.hypot(p.x-o.x,p.y-o.y)<o.scale+36);
+      if(platform){
+        p.raisedUntil=at+1200;
+        p.raisedOrigin={x:platform.x,y:platform.y};
+      }
+      const raised=at<p.raisedUntil&&p.raisedOrigin&&
+        Math.hypot(x-p.raisedOrigin.x,y-p.raisedOrigin.y)<200;
       const blocking=[...this.structures.values()].some(o=>[3,4,5].includes(o.id)&&
-        Math.hypot(x-o.x,y-o.y)<o.scale+30);
+        Math.hypot(x-o.x,y-o.y)<o.scale+30&&!raised);
       if(!blocking){p.x=x;p.y=y;}
       for(const trap of this.structures.values()){
         if(![6,7,8,9].includes(trap.id))continue;
@@ -568,9 +581,10 @@ export class World {
         trap.nextDamage[p.id]=at+850;
         const recipe=RECIPES[trap.id];
         // The existing V2 basic spikes retain their balancing.
-        const amount=recipe.spikeDamage??(trap.id===7?15:10);
+        const raw=recipe.spikeDamage??(trap.id===7?15:10);
+        const amount=this.protectedDamage(p,raw,trap.x,trap.y);
         p.hp=Math.max(0,p.hp-amount);
-        if(p.hp>0&&recipe.poison){
+        if(p.hp>0&&recipe.poison&&!hat.poisonImmune){
           // Re-entering a poison spike refreshes its expiry but cannot
           // postpone a pending tick indefinitely.
           p.poison={until:at+recipe.poison.seconds*1000,
@@ -612,6 +626,7 @@ export class World {
       }
       // Periodic status effects use elapsed wall-clock seconds, not tick
       // counts. Missed ticks can recover at most the fixed effect duration.
+      if(p.poison&&hat.poisonImmune)p.poison=null;
       if(p.poison){
         const dot=p.poison;
         const until=Math.min(at,dot.until);
@@ -628,6 +643,30 @@ export class World {
           }
         }
         if(p.poison&&at>=dot.until)p.poison=null;
+      }
+      if(p.hp<=0)continue;
+      // Passive equipment recovery/drain is measured by real elapsed
+      // seconds and bounded to prevent gaining extra healing from FPS.
+      const gearSeconds=Math.max(0,Math.min(5,
+        Math.floor((at-p.lastGearRegenAt)/1000)));
+      if(gearSeconds){
+        p.lastGearRegenAt+=gearSeconds*1000;
+        const perSecond=(hat.healthRegen??0)+(tail.healthRegen??0);
+        if(perSecond>0&&p.hp<p.maxHp){
+          const amount=Math.min(p.maxHp-p.hp,gearSeconds*perSecond);
+          p.hp+=amount;
+          this.events.push({kind:'heal',player:p.id,sid:p.sid,
+            amount,hp:p.hp,x:p.x,y:p.y});
+        }else if(perSecond<0){
+          const damage=Math.min(p.hp,-perSecond*gearSeconds);
+          p.hp-=damage;
+          this.events.push({kind:'hit',from:null,to:p.id,
+            damage,hp:p.hp,x:p.x,y:p.y});
+          if(p.hp===0){
+            p.deadUntil=at+3000;p.vx=0;p.vy=0;p.poison=null;p.regen=null;
+            this.events.push({kind:'death',id:p.id});
+          }
+        }
       }
       if(p.hp<=0)continue;
       if(p.regen){
@@ -663,7 +702,7 @@ export class World {
       // a single delayed tick to five seconds of accrual (no idle farming).
       const elapsed=Math.max(0,Math.min(5,(at-p.lastGeneratorAt)/1000));
       p.lastGeneratorAt=at;
-      const rate=[...this.structures.values()].reduce((sum,o)=>
+      const rate=(hat.pps??0)+[...this.structures.values()].reduce((sum,o)=>
         sum+(o.owner===p.sid?(RECIPES[o.id]?.pps||0):0),0);
       p.generatorRemainder+=elapsed*rate;
       const income=Math.floor(p.generatorRemainder);
@@ -686,7 +725,8 @@ export class World {
       if(!owner)continue;
       let victim=null,best=700;
       for(const p of this.players.values()){
-        if(p.id===owner.id||p.hp<=0||owner.team&&p.team===owner.team)continue;
+        if(p.id===owner.id||p.hp<=0||owner.team&&p.team===owner.team||
+          gearEffects(p).hat.antiTurret)continue;
         const distance=Math.hypot(p.x-turret.x,p.y-turret.y);
         if(distance>=best)continue;
         best=distance;victim=p;
@@ -745,7 +785,7 @@ export class World {
         const {kind,target}=first;
         const shooter=this.players.get(arrow.owner);
         if(kind==='player'){
-          const damage=this.protectedDamage(target,arrow.damage,arrow.x,arrow.y);
+          const damage=this.protectedDamage(target,arrow.damage,arrow.x,arrow.y,'projectile');
           target.hp=Math.max(0,target.hp-damage);
           this.events.push({kind:'hit',from:arrow.owner,to:target.id,
             damage,hp:target.hp,x:target.x,y:target.y});
