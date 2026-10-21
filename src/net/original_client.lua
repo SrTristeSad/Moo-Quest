@@ -8,6 +8,7 @@ local Bootstrap=require("src.protocol.bootstrap")
 local Random=require("src.net.secure_random")
 local Build=require("src.protocol.original_build")
 local OriginalSession=require("src.protocol.original_session")
+local V2Session=require("src.protocol.v2_session")
 local Join=require("src.net.original_join")
 local MessagePack=require("src.protocol.msgpack")
 local Original={}
@@ -42,6 +43,7 @@ function Original.new(options)
     autoSpawn=options.autoSpawn~=false,
     authToken=options.authToken,
     expectedBuild=options.expectedBuild,
+    nativeSession=options.nativeSession==true,
     join=options.join or Join,
     ltn12=options.ltn12,
     did=nil,ticket=nil,spawnSent=false,sid=nil,packetCount=0,
@@ -143,7 +145,8 @@ function Original:update()
             self.state="blocked"
             self.status="Build local diferente do servidor remoto; parametros rejeitados."
           else
-            local session,sessionError=OriginalSession.new(handshake,params,
+            local sessionFactory=self.nativeSession and V2Session or OriginalSession
+            local session,sessionError=sessionFactory.new(handshake,params,
               function(data) return love.data.hash("sha256",data) end)
             if not session then
               self.state="blocked"

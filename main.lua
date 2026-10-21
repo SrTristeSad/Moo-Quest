@@ -106,7 +106,8 @@ function love.load()
   end
   local ok,result=pcall(Original.new,{host="127.0.0.1",port=8080,server="LC",autoSpawn=false,
     expectedBuild=v2Mode and "mqv2native" or nil,
-    join=v2Mode and V2Join or nil})
+    join=v2Mode and V2Join or nil,
+    nativeSession=v2Mode})
   if not ok then
     startupError="Falha ao inicializar cliente de rede: "..tostring(result)
     return
