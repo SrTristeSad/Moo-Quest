@@ -295,7 +295,10 @@ export class GameServer {
         state.send('I',this.room.animalPacket());
         if(this.counter%30===0)state.send('G',[board]);
       }
+      // A connection tracked for admin moderation may use either protocol.
+      // Native Lua clients accept ONLY authenticated binary game packets.
       for (const ws of this.online.values()) {
+        if (this.nativeClients.has(ws)) continue;
         if (ws.readyState !== ws.OPEN) continue;
         if (ws.bufferedAmount > 512_000) { ws.terminate(); continue; }
         ws.send(world); ws.send(events);
@@ -304,7 +307,10 @@ export class GameServer {
   }
   announce(message) {
     const text = JSON.stringify({ kind: 'announcement', message: String(message).slice(0, 240) });
-    for (const ws of this.online.values()) if (ws.readyState === ws.OPEN) ws.send(text);
+    for (const ws of this.online.values()) {
+      if (this.nativeClients.has(ws)) continue;
+      if (ws.readyState === ws.OPEN) ws.send(text);
+    }
   }
   kick(id, reason = 'admin') { const ws = this.online.get(id); if (!ws) return false; ws.close(1008, String(reason).slice(0, 100)); return true; }
   async stop() {
