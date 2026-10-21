@@ -37,12 +37,18 @@ assert(order(w:orderedPlayers())=="90,50,11",
 local function animal(sid,id)
   return {sid,id,7200,7200,0,100,0,0}
 end
-assert(w:apply("I",{{unpack(animal(55,0)),unpack(animal(5,4)),
-    unpack(animal(88,1))},{}}))
+local function flatAnimals(...)
+  local flat={}
+  for _,animalData in ipairs({...}) do
+    for _,value in ipairs(animalData) do flat[#flat+1]=value end
+  end
+  return flat
+end
+assert(w:apply("I",{flatAnimals(animal(55,0),animal(5,4),animal(88,1)),{}}))
 assert(order(w:orderedAnimals())=="55,5,88")
-assert(w:apply("I",{{unpack(animal(88,1)),unpack(animal(55,0))},{5}}))
+assert(w:apply("I",{flatAnimals(animal(88,1),animal(55,0)),{5}}))
 assert(order(w:orderedAnimals())=="55,88")
-assert(w:apply("I",{{unpack(animal(5,4))},{}}))
+assert(w:apply("I",{flatAnimals(animal(5,4)),{}}))
 assert(order(w:orderedAnimals())=="55,5,88",
   "returning hidden wolf keeps original JS array slot")
 local fallback=World.new()
