@@ -126,18 +126,36 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo Validando imagens originais e preservando artes que voce fornecer...
-echo [INFO] Os arquivos PNG corrompidos do upstream NAO sao copiados.
+echo Verificando o conversor local de arquivos WebP com nome PNG...
+if not exist "%~dp0node_modules\sharp\package.json" (
+  echo Instalando ferramentas para converter WebP sem mudar as imagens...
+  call npm.cmd install --omit=dev --no-audit --no-fund
+  if errorlevel 1 (
+    echo [ERRO] NPM nao conseguiu instalar o conversor de imagens.
+    pause
+    exit /b 1
+  )
+)
+if not exist "%~dp0node_modules\adm-zip\package.json" (
+  echo Instalando extrator de imagens da referencia...
+  call npm.cmd install --omit=dev --no-audit --no-fund
+  if errorlevel 1 (
+    echo [ERRO] NPM nao conseguiu instalar o leitor ZIP.
+    pause
+    exit /b 1
+  )
+)
+echo Verificando imagens originais, procurando em pastas locais e recuperando as ausentes...
+echo [ARTE] Arquivos WebP chamados .png serao convertidos para PNG real automaticamente.
 node "%~dp0tools\sync-reference-art.mjs"
 if errorlevel 1 (
-  echo [ARTE] O upstream contem PNGs CORROMPIDOS, inclusive a arma inicial.
-  echo Consulte ARTES-PENDENTES.txt e coloque um PNG valido em:
-  echo assets\custom\img\weapons\hammer_1.png
-  echo Nenhuma arte sera inventada nem substituida por um bloco generico.
+  echo [ARTE] Nao foi possivel recuperar todos os arquivos necessarios.
+  echo Veja o motivo EXATO no ARTES-PENDENTES.txt.
+  echo Se voce ja tem as imagens em outra pasta, defina MOOQUEST_ART_SOURCE_DIR.
   pause
   exit /b 1
 )
-echo [OK] Sprites copiados. Abrindo cliente Lua...
+echo [OK] Sprites validos e convertidos. Abrindo cliente Lua...
 rem The original Node generates build parameters at startup. A stale or
 rem nonexistent MOOQUEST_BUILD_FILE must NEVER open an apparently playable
 rem UI that will only block on io-init.
