@@ -1,0 +1,76 @@
+name: Reference art WebP to PNG conversion
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  art-import:
+    name: Recover all 180 images, convert mislabeled WebP and verify pixels
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout scripts only (never upload third-party art)
+        uses: actions/checkout@v4
+      - name: Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install local-only PNG and WebP tools
+        run: npm install --omit=dev --no-audit --no-fund
+      - name: Recover art with NO prior node-runtime folder
+        run: |
+          set -euo pipefail
+          test ! -d node-runtime
+          node tools/sync-reference-art.mjs
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import sharp from 'sharp';
+          import AdmZip from 'adm-zip';
+          import {verifyPNG} from './tools/inspect-reference-png.mjs';
+          const manifest=JSON.parse(fs.readFileSync('support/reference-image-manifest.json','utf8'));
+          const all=Object.entries(manifest).flatMap(([cat,names])=>names.map(n=>cat+'/'+n));
+          for(const name of all){
+            const filename='assets/reference/img/'+name;
+            const data=fs.readFileSync(filename);
+            verifyPNG(data);
+          }
+          const converted=['weapons/hammer_1.png','weapons/sword_1.png',
+            'weapons/dagger_1.png','weapons/samurai_1.png',
+            'hats/hat_14_p.png','hats/hat_53_p.png'];
+          const archive=await fetch('https://github.com/al007ex/moomoo-clone/archive/06f7c1ca965a7628671676c8d9a7efd3997bb5e7.zip');
+          if(!archive.ok)throw Error('Cannot validate lossless source');
+          const zip=new AdmZip(Buffer.from(await archive.arrayBuffer()));
+          const prefix='moomoo-clone-06f7c1ca965a7628671676c8d9a7efd3997bb5e7/client/public/img/';
+          for(const key of converted){
+            const old=zip.getEntry(prefix+key).getData();
+            if(old.toString('ascii',0,4)!=='RIFF'||old.toString('ascii',8,12)!=='WEBP')
+              throw Error(key+' source not WebP');
+            const current=fs.readFileSync('assets/reference/img/'+key);
+            verifyPNG(current);
+            const sourceRGBA=await sharp(old).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+            const newRGBA=await sharp(current).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+            if(sourceRGBA.info.width!==newRGBA.info.width||
+               sourceRGBA.info.height!==newRGBA.info.height||
+               !sourceRGBA.data.equals(newRGBA.data))
+              throw Error(key+' pixel data changed during conversion');
+            console.log('PASS: original WebP pixels/alpha preserved in '+key);
+          }
+          console.log('PASS: all 180 original images are real PNG files on disk');
+          NODE
+      - name: Verify fully offline relaunch uses locally converted PNGs
+        env:
+          MOOQUEST_ART_OFFLINE: '1'
+        run: |
+          node tools/sync-reference-art.mjs
+          test -f ARTES-PENDENTES.txt
+          if grep -q 'ARQUIVOS REALMENTE NAO DISPONIVEIS' ARTES-PENDENTES.txt; then
+            cat ARTES-PENDENTES.txt
+            exit 1
+          fi
+          echo 'PASS: restart works offline with all converted PNGs'
