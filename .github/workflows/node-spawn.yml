@@ -1,0 +1,48 @@
+name: Original Node authenticated spawn
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node-spawn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Moo-Quest (without third-party game art)
+        uses: actions/checkout@v4
+      - name: Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Prepare pinned original Node server in temp workspace
+        run: |
+          set -eu
+          curl -fL --retry 3 -o /tmp/moomoo-upstream.zip \
+            'https://github.com/al007ex/moomoo-clone/archive/06f7c1ca965a7628671676c8d9a7efd3997bb5e7.zip'
+          unzip -q /tmp/moomoo-upstream.zip -d /tmp
+          mv /tmp/moomoo-clone-06f7c1ca965a7628671676c8d9a7efd3997bb5e7 node-runtime
+          cp support/local-anticheat-config.js node-runtime/server/src/anticheat/config.js
+          cd node-runtime
+          npm install --omit=dev --no-audit --no-fund
+      - name: Boot unmodified Node game logic and require real C after M
+        run: |
+          set -eu
+          HOST=127.0.0.1 PORT=8080 node node-runtime/server/src/index.js > /tmp/moo-node.log 2>&1 &
+          server_pid=$!
+          trap 'cat /tmp/moo-node.log; kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for i in $(seq 1 70); do
+            if curl -fsS http://127.0.0.1:8080/ping >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 0.2
+          done
+          test "$ready" -eq 1
+          node tools/check-node-spawn.mjs
