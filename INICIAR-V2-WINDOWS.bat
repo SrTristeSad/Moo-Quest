@@ -69,7 +69,19 @@ if errorlevel 1 (
 )
 :connected
 echo [OK] API V2 confirmada (build mqv2native).
-echo [INFO] Na primeira instalacao, abra http://127.0.0.1:8080/setup
+powershell.exe -NoProfile -Command "try { $s=Invoke-RestMethod 'http://127.0.0.1:8080/api/status' -TimeoutSec 2; if($s.installed -eq $true){exit 0}else{exit 1} } catch {exit 1}"
+if errorlevel 1 (
+  echo [INSTALACAO] Abra o navegador e crie o administrador em /setup.
+  echo O codigo inicial esta na janela de logs do Node V2.
+  start "" "http://127.0.0.1:8080/setup"
+  pause
+  powershell.exe -NoProfile -Command "try { $s=Invoke-RestMethod 'http://127.0.0.1:8080/api/status' -TimeoutSec 2; if($s.installed -eq $true){exit 0}else{exit 1} } catch {exit 1}"
+  if errorlevel 1 (
+    echo [ERRO] Instale o servidor em /setup antes de abrir o cliente.
+    pause
+    exit /b 1
+  )
+)
 echo [INFO] Este teste NAO baixa nem importa artes do servidor antigo.
 set "MOOQUEST_REQUIRE_V2=1"
 "%LOVEEXE%" "%~dp0."
