@@ -25,12 +25,12 @@ local function number(n)
   -- Font:getWidth / graphics.print expect a string, including before N/G
   -- packets have arrived. A numeric 0 crashed the first playable HUD frame.
   if type(n)~="number" or n~=n then return "0" end
-  if n>=1000000 then return string.format("%.1fm",n/1000000) end
-  if n>=10000 then return string.format("%.1fk",n/1000) end
+  -- JS updateStatusDisplay uses the literal integer, not k/m abbreviation.
+  -- On this server unlimitedResources may legitimately start at 1000000.
   return tostring(math.floor(n))
 end
 H.formatResource=number
-local function resource(name,icon,value,x,y,left)
+local function resource(name,icon,value,x,y,left,gain)
   local content=number(value)
   local width=math.max(75,fontLarge:getWidth(content)+56)
   if left then
@@ -38,11 +38,21 @@ local function resource(name,icon,value,x,y,left)
     Assets.draw("resources",icon.."_ico.png",x+23,y+22.5,28,28)
     color(1,1,1);love.graphics.setFont(fontLarge)
     love.graphics.print(content,x+42,y+9)
+    if gain and gain.amount>0 then
+      color(0.49,0.90,0.35,math.min(1,gain.remaining))
+      love.graphics.setFont(fontSmall)
+      love.graphics.print("+"..number(gain.amount),x+16,y-21)
+    end
   else
     box(x-width,y,width,45)
     Assets.draw("resources",icon.."_ico.png",x-23,y+22.5,28,28)
     color(1,1,1);love.graphics.setFont(fontLarge)
     love.graphics.print(content,x-width+10,y+9)
+    if gain and gain.amount>0 then
+      color(0.49,0.90,0.35,math.min(1,gain.remaining))
+      love.graphics.setFont(fontSmall)
+      love.graphics.print("+"..number(gain.amount),x-width+10,y-21)
+    end
   end
 end
 local function minimap(world,w,h)
@@ -102,6 +112,18 @@ local function leaderboard(world,w)
       y+7+(i-1)*line)
   end
 end
+local function kills(world,w)
+  local count=math.max(0,math.floor(world.resources.kills or 0))
+  local x=w-260
+  local n=math.min(10,#world.leaderboard)
+  local y=20+(n>0 and (18+n*25) or 0)+10
+  local content=number(count)
+  box(x,y,240,44)
+  Assets.draw("icons","skull.png",x+213,y+22,30,30)
+  color(1,1,1)
+  love.graphics.setFont(fontLarge)
+  love.graphics.print(content,x+10,y+9)
+end
 local function ageBar(world,w,h)
   color(1,1,1)
   love.graphics.setFont(fontLarge)
@@ -145,6 +167,19 @@ local function actionBar(world,w,h)
     local x=origin+(i-1)*(slot+space)
     box(x,y,slot,slot)
     Icons.draw(entry.kind,entry.data,x+slot/2,y+slot/2,slot)
+    -- Reference showItemInfo() reads itemCounts by groupId.
+    -- Display the live group count only for placeable structures.
+    if entry.kind=="item" then
+      local group=Catalog.groupById(entry.data.groupId)
+      if group and group.limit then
+        local count=world.itemCounts[group.id] or 0
+        love.graphics.setFont(fontSmall)
+        local shown=tostring(count).."/"..tostring(group.limit)
+        color(1,1,1)
+        love.graphics.print(shown,x+slot-4-fontSmall:getWidth(shown),
+          y+slot-16)
+      end
+    end
   end
 end
 local function chatBox(active,text,w,h)
@@ -183,10 +218,15 @@ function H.draw(world,chatActive,chatText)
   fonts()
   local w,h=love.graphics.getDimensions()
   leaderboard(world,w)
-  resource("food","food",world.resources.food,w-20,h-175)
-  resource("wood","wood",world.resources.wood,w-20,h-120)
-  resource("stone","stone",world.resources.stone,w-20,h-65)
-  resource("points","gold",world.resources.points,20,h-205,true)
+  kills(world,w)
+  resource("food","food",world.resources.food,w-20,h-175,
+    false,world.resourceGain.food)
+  resource("wood","wood",world.resources.wood,w-20,h-120,
+    false,world.resourceGain.wood)
+  resource("stone","stone",world.resources.stone,w-20,h-65,
+    false,world.resourceGain.stone)
+  resource("points","gold",world.resources.points,20,h-205,
+    true,world.resourceGain.points)
   minimap(world,w,h)
   ageBar(world,w,h)
   actionBar(world,w,h)
