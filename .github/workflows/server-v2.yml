@@ -1,0 +1,37 @@
+name: MooQuest independent Node.js server V2
+on:
+  push:
+    branches: [main]
+    paths: ['server-v2/**', '.github/workflows/server-v2.yml']
+  pull_request:
+    paths: ['server-v2/**', '.github/workflows/server-v2.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  standalone-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify no legacy imports or third-party artwork
+        run: |
+          test ! -d server-v2/assets
+          ! find server-v2 -type f \( -iname '*.png' -o -iname '*.webp' -o -iname '*.jpg' \) | grep .
+          ! grep -R -E 'moomoo-clone|al007ex/moomoo' server-v2/src server-v2/public
+      - name: Install independent Node server dependencies
+        run: npm install --prefix server-v2 --no-audit --no-fund
+      - name: Run security, game and live WebSocket integration tests
+        run: npm test --prefix server-v2
+      - name: Check syntax, admin pages and signed release publisher
+        run: |
+          node --check server-v2/bootstrap.js
+          node --check server-v2/src/index.js
+          node --check server-v2/src/http.js
+          node --check server-v2/src/updates.js
+          test -f server-v2/public/admin.html
+          test -f server-v2/scripts/make-release.mjs

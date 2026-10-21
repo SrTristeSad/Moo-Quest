@@ -1,0 +1,7 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MooQuest — Instalação</title><link rel="stylesheet" href="/public/style.css"></head>
+<body class="auth-page"><main class="auth-card"><div class="eyebrow">MOOQUEST · INSTALAÇÃO</div><h1>Configure seu servidor</h1><p>O código de seis dígitos aparece nos logs do projeto Node.js no aaPanel. Ele nunca é exibido na página.</p>
+<form method="post" action="/setup"><label>Código de instalação<input name="code" inputmode="numeric" pattern="[0-9]{6}" required maxlength="6" autocomplete="off" autofocus></label>
+<label>Usuário proprietário<input name="username" minlength="3" maxlength="24" pattern="[a-zA-Z0-9_-]+" required autocomplete="username"></label>
+<label>Senha forte (12+ caracteres)<input type="password" name="password" minlength="12" maxlength="128" required autocomplete="new-password"></label>
+<button type="submit">Finalizar instalação</button></form>
+<p class="subtle">Todos os dados privados ficam fora da pasta pública, em <code>server-v2/var</code>. Use HTTPS no domínio público.</p></main></body></html>

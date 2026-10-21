@@ -1,0 +1,9 @@
+{
+  "name": "mooquest-server-v2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=22"},
+  "scripts": {"start": "node bootstrap.js", "start:direct": "node src/index.js", "test": "node --test test/*.test.js"},
+  "dependencies": {"ws": "^8.18.3"}
+}
