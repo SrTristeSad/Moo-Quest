@@ -32,29 +32,84 @@ function M.parse(json)
   end
   return values
 end
-function M.load()
-  -- The .bat supplies an absolute read-only path for the actual running Node
-  -- server. Prefer it over any stale source-directory copy.
-  local content=nil
-  local absolute=os.getenv("MOOQUEST_BUILD_FILE")
-  if absolute and #absolute>0 then
-    local file=io.open(absolute,"rb")
+-- Locate the actual protocol build of the RUNNING Node server, read-only.
+-- The old implementation stopped at the first invalid MOOQUEST_BUILD_FILE and
+-- made the Windows client unusable even when the right file existed nearby.
+local function join(dir,child)
+  if not dir or dir=="" then return nil end
+  return (dir:gsub("[/\\]+$","")).."/"..child
+end
+local function candidates()
+  local result,seen={},{}
+  local function add(path)
+    if type(path)~="string" or path=="" then return end
+    -- Windows accepts '/' separators, but preserve the original casing/path.
+    local canonical=path:gsub("\\","/"):lower()
+    if seen[canonical] then return end
+    seen[canonical]=true
+    result[#result+1]=path
+  end
+  add(os.getenv("MOOQUEST_BUILD_FILE"))
+  add(os.getenv("PROTOCOL_BUILD_FILE"))
+  add(join(os.getenv("DATA_DIR"),"protocol-build.json"))
+  local server=os.getenv("MOOQUEST_SERVER_DIR") or "node-runtime"
+  add(join(server,"server/data/protocol-build.json"))
+  -- Explicit alternative layouts for people who started Node manually.
+  add("node-runtime/server/data/protocol-build.json")
+  add("server/data/protocol-build.json")
+  local base=nil
+  if love and love.filesystem and love.filesystem.getSourceBaseDirectory then
+    local ok,dir=pcall(love.filesystem.getSourceBaseDirectory)
+    if ok and type(dir)=="string" then base=dir end
+  end
+  if base then
+    add(join(base,"node-runtime/server/data/protocol-build.json"))
+    add(join(base,"server/data/protocol-build.json"))
+    local folder=os.getenv("MOOQUEST_SERVER_DIR")
+    if folder and not folder:match("^%a:[/\\]") and folder:sub(1,1)~="/" then
+      add(join(base,folder.."/server/data/protocol-build.json"))
+    end
+  end
+  return result
+end
+M.candidates=candidates
+
+function M.load(expectedBuildId)
+  local inspected=0
+  local incompatible=false
+  local malformed=false
+  for _,filename in ipairs(candidates()) do
+    local file=io.open(filename,"rb")
     if file then
-      content=file:read(32769)
+      local data=file:read(32769)
       file:close()
-    else
-      return nil,"MOOQUEST_BUILD_FILE nao encontrado: "..absolute
+      inspected=inspected+1
+      local params,err=M.parse(data)
+      if params and (not expectedBuildId or params.buildId==expectedBuildId) then
+        return params,nil,filename
+      end
+      if params and expectedBuildId and params.buildId~=expectedBuildId then
+        incompatible=true
+      elseif err then
+        malformed=true
+      end
     end
   end
-  if not content and love and love.filesystem then
-    local root="node-runtime/server/data/protocol-build.json"
-    if love.filesystem.getInfo(root) then
-      content=love.filesystem.read(root)
+  -- Fall back to the embedded LOVE filesystem for a supported local source.
+  if love and love.filesystem and love.filesystem.getInfo and
+     love.filesystem.getInfo("node-runtime/server/data/protocol-build.json") then
+    local data=love.filesystem.read("node-runtime/server/data/protocol-build.json")
+    local params=M.parse(data)
+    if params and (not expectedBuildId or params.buildId==expectedBuildId) then
+      return params,nil,"node-runtime/server/data/protocol-build.json"
     end
   end
-  if not content then
-    return nil,"protocol-build.json do servidor Node nao encontrado; execute INICIAR-WINDOWS.bat"
+  if incompatible then
+    return nil,"O build local e diferente do Node ativo. Reinicie pelo INICIAR-WINDOWS.bat ou indique o arquivo gerado pelo servidor correto."
   end
-  return M.parse(content)
+  if malformed then
+    return nil,"O protocol-build.json encontrado esta incompleto ou invalido. Verifique a instalacao do Node."
+  end
+  return nil,"protocol-build.json nao localizado. Reinicie pelo INICIAR-WINDOWS.bat; se usar outro servidor, configure MOOQUEST_BUILD_FILE."
 end
 return M
