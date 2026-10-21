@@ -52,8 +52,20 @@ de transporte ou inicialização futura **sem redesenhar o cliente**.
   itens de loja e vida. Os dados são salvos periodicamente (30 segundos),
   na desconexão e no encerramento. A morte preserva cosméticos comprados,
   mas reinicia a progressão de sobrevivência.
-- Estruturas colocadas no mundo e equipes/clãs **ainda não persistem**.
-  A entrada no modo autenticado pelo cliente LÖVE requer futuramente
+- Construções de contas autenticadas passam a integrar o snapshot de
+  progresso. Saem do mundo ao desconectar e retornam quando o dono entra,
+  somente em áreas ainda livres e dentro dos limites de construção; não são
+  fazendas ou defesas ativas enquanto a conta está offline. Se o local estiver
+  ocupado no retorno, a construção conflitante é ignorada; essa limitação é
+  intencional na primeira fase e pode requerer reposicionamento futuro.
+- Clãs de contas registradas são persistidos no PostgreSQL com nome exclusivo,
+  líder fixado à identidade autenticada e membros cadastrados. Desconectar o
+  líder não transfere a propriedade; ele pode voltar e dissolver o clã.
+  Solicitações de jogadores convidados a clãs registrados não podem gerar
+  direitos persistentes. Clãs de convidados continuam limitados à sessão.
+  O banco mantém a associação de membros; o mundo mantém online somente
+  os participantes conectados.
+- A entrada no modo autenticado pelo cliente LÖVE requer futuramente
   interface de login e envio do Bearer; o **cliente Lua permanece inalterado**
   nesta etapa. Os testes binários simulam o protocolo existente.
 
