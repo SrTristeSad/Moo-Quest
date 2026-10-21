@@ -290,6 +290,18 @@ function love.keypressed(key)
     love.event.quit();return
   end
   if diagnostic then return end
+  if phase=="menu" then
+    if key=="r" and client and
+      (client.state=="failed" or client.state=="closed") then
+      world=World.new()
+      local ok,why=client:connect()
+      if not ok then menu.status=tostring(why) end
+      return
+    end
+    local action=menu:keypressed(key)
+    if action=="play" then requestPlay() end
+    return
+  end
   if chatOpen then
     if key=="return" or key=="kpenter" then
       local value=shortenChat(chatDraft)
@@ -373,6 +385,7 @@ function love.keypressed(key)
   end
 end
 function love.textinput(text)
+  if phase=="menu" then menu:textinput(text);return end
   if chatOpen and type(text)=="string" then
     chatDraft=shortenChat(chatDraft..text)
   end
@@ -396,7 +409,16 @@ function love.focus(focused)
   end
 end
 function love.mousepressed(x,y,button)
-  if diagnostic or not client or client.state~="spawn_confirmed" or died then return end
+  if diagnostic then return end
+  if phase=="menu" then
+    if button==1 then
+      local width,height=love.graphics.getDimensions()
+      local action=menu:click(x,y,width,height)
+      if action=="play" then requestPlay() end
+    end
+    return
+  end
+  if not client or client.state~="spawn_confirmed" or died then return end
   if chatOpen then return end
   if button==1 then
     local w,h=love.graphics.getDimensions()
