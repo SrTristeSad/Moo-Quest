@@ -38,9 +38,11 @@ async function main(){
   if(!/^[a-f0-9]{36}$/.test(grant.ticket||""))fail("API did not issue a 36-hex ticket");
   const address="ws://127.0.0.1:8080/s/LC?b="+
     encodeURIComponent(ping.build)+"&token=tk:"+encodeURIComponent(grant.ticket);
+  const expectGatheredResources=process.env.MOOQUEST_EXPECT_ZERO_RESOURCES==="1";
   await new Promise((resolve,reject)=>{
     const ws=new WebSocket(address,{origin:base});
-    let settled=false,session=null,count=0;
+    let settled=false,session=null,count=0,spawnConfirmed=false;
+    const initialResources={};
     const timeout=setTimeout(()=>finish(Error("Timed out waiting for real C (spawn) packet")),10000);
     function finish(error){
       if(settled)return;
@@ -81,10 +83,23 @@ async function main(){
         const decoded=msgpack.decode(Buffer.from(data));
         const name=session.tables.s2c.dec[decoded[0]];
         if(name==="B")fail("Node rejected game session: "+String(decoded[1]?.[0]));
+        if(name==="N" && expectGatheredResources){
+          const [type,total]=decoded[1]||[];
+          if(["wood","food","stone","points"].includes(type)){
+            if(total!==0)fail("Expected ZERO gathered "+type+" at spawn, server returned "+total);
+            initialResources[type]=total;
+          }
+        }
         if(name==="C"){
           const sid=decoded[1]?.[0];
           if(!Number.isInteger(sid)||sid<0)fail("Malformed authoritative spawn C");
+          spawnConfirmed=true;
           console.log("PASS: original Node confirmed authenticated gameplay spawn C (sid="+sid+")");
+          if(!expectGatheredResources)finish();
+        }
+        if(expectGatheredResources && spawnConfirmed &&
+           ["wood","food","stone","points"].every(k=>initialResources[k]===0)){
+          console.log("PASS: Node authoritatively initialized all FOUR resources to zero");
           finish();
         }
       }catch(e){finish(e)}
