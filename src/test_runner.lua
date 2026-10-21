@@ -19,6 +19,7 @@ M.paths={
   "tests/reference_animation.lua",
   "tests/reference_combat_text.lua",
   "tests/reference_boss_effects.lua",
+  "tests/reference_server_notices.lua",
   "tests/reference_upgrades.lua",
   "tests/reference_hud.lua",
   "tests/reference_item_info.lua",
