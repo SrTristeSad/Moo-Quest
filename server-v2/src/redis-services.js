@@ -19,6 +19,7 @@ export class RedisAuth extends Auth {
     this.client=client;this.prefix=prefix;
   }
   key(type,value){return this.prefix+type+':'+hash(value);}
+  isHealthy(){return this.client.isReady===true;}
   async issue(){
     const token=randomBytes(32).toString('hex'),csrf=randomBytes(24).toString('hex');
     await this.client.set(this.key('session',token),csrf,{EX:8*3600});
