@@ -30,10 +30,11 @@ Implementação nova, independente, em
 3. Parar os ticks das partidas antes de começar a desconectar jogadores.
 4. Enviar `B` pelo fluxo existente `Game.closeAll()`; deixar o frame
    sair antes de forçar fechamento de conexões restantes.
-5. Gravar alterações pendentes de contas, clãs, preferências e estatísticas
-   em arquivo JSON temporário e substituição por rename na mesma pasta.
-6. Encerrar WebSocket e HTTP. Em caso de erro ou falha de disco, saída com
-   erro, jamais fingir gravação bem-sucedida.
+5. Encerrar WebSockets e aguardar `Game.removePlayer/recordLife` para
+   contabilizar os pontos, conquistas e tempo da última partida.
+6. **Depois da desconexão**, gravar todas as alterações de contas, clãs,
+   preferências e estatísticas em arquivo temporário + rename na mesma pasta.
+   Encerrar HTTP. Em falha de disco, saída com erro, não um sucesso falso.
 7. Pedidos de encerramento repetidos compartilham a mesma operação.
    Existe limite externo de 10 segundos caso recursos travem.
 
