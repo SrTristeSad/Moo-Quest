@@ -19,7 +19,8 @@ M.paths={
   "tests/reference_upgrades.lua",
   "tests/reference_hud.lua",
   "tests/reference_camera.lua",
-  "tests/reference_menu.lua"
+  "tests/reference_menu.lua",
+  "tests/local_auth.lua"
 }
 function M.run()
   local results={passed=0,failed=0,rows={}}
