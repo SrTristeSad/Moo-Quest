@@ -261,6 +261,7 @@ function love.draw()
   if integration then
     love.graphics.print("Real Node integration: "..integration.mode,30,30)
     love.graphics.print("State: "..tostring(integration.client.state),30,60)
+    integration:draw()
     return
   end
   if diagnostic then
