@@ -46,4 +46,8 @@ for id=0,15 do
   local d=Info.describe({kind="weapon",data=weapon},w)
   assert(d and (d.class=="primary" or d.class=="secondary"))
 end
+if love and love.graphics and love.graphics.newFont then
+  assert(Info.draw(wall,w),"LÖVE Canvas item details must render")
+  assert(Info.draw(hammer,w),"LÖVE Canvas weapon details must render")
+end
 print("real reference tooltips for 23 items, 16 weapons, upgrade offers and Node S build limits passed")
