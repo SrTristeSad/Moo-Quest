@@ -75,6 +75,14 @@ Implementado na fundação experimental:
   para coordenadas escolhidas e verificadas pelo servidor, com cooldown;
 - remoção de construções comunica ao Lua contagem atual inclusive zero, e
   construções com custo de comida também atualizam o contador de comida;
+- muralha de castelo (ID 5, upgrade Lua 21), espinhos venenosos (ID 8,
+  upgrade Lua 24), espinhos giratórios (ID 9, upgrade Lua 25) e queijo
+  (ID 2, upgrade Lua 18) seguem custos e pré-requisitos do catálogo;
+  veneno aplica dano por segundo durante tempo limitado, com proteção de
+  aliados; queijo recupera 30 pontos imediatamente e até 50 ao longo de
+  cinco segundos, sem empilhamento das curas periódicas;
+- coleta de minas/árvores plantadas não pode ser usada por adversários
+  para gerar recursos; eles precisam destruir a estrutura, respeitando HP;
 - testes unitários de codecs, entrada, inventário, compras, construção,
   recursos, retorno após coleta, cura, XP e escolhas de equipamentos. O teste
   WebSocket de ponta a ponta inclui loja, cura e upgrades, além da entrada.
