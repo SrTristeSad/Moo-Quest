@@ -1,0 +1,112 @@
+name: Portable Windows client test ZIP
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-client:
+    name: Package Moo-Quest client with official LOVE 11.5
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout current Moo-Quest sources
+        uses: actions/checkout@v4
+      - name: Fetch official LÖVE 11.5 Windows 64-bit portable engine
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $uri = 'https://github.com/love2d/love/releases/download/11.5/love-11.5-win64.zip'
+          $zip = Join-Path $env:RUNNER_TEMP 'love-11.5-win64.zip'
+          $unpack = Join-Path $env:RUNNER_TEMP 'love-11.5'
+          Invoke-WebRequest -Uri $uri -OutFile $zip
+          Expand-Archive -LiteralPath $zip -DestinationPath $unpack -Force
+          $engine = Get-ChildItem -LiteralPath $unpack -Filter 'love.exe' -Recurse -File |
+            Select-Object -First 1
+          if (-not $engine) { throw 'Official LÖVE zip missing love.exe' }
+          $source = Split-Path -Parent $engine.FullName
+          "MOOQUEST_LOVE_DIR=$source" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Official LÖVE 11.5 found in $source"
+      - name: Stage source, local Node server and Windows launch scripts
+        id: package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $target = Join-Path $env:RUNNER_TEMP 'Moo-Quest-Cliente-Windows-x64'
+          New-Item -ItemType Directory -Path $target -Force | Out-Null
+          $dirs = @('docs','licenses','server','shared','src','support','tests','tools')
+          foreach ($dir in $dirs) {
+            if (-not (Test-Path -LiteralPath $dir -PathType Container)) { throw "Missing $dir" }
+            Copy-Item -LiteralPath $dir -Destination $target -Recurse -Force
+          }
+          $files = @('main.lua','conf.lua','package.json',
+            'README.md','SERVER-ORIGIN.md','INICIAR-WINDOWS.bat',
+            'PREPARAR-SERVIDOR.bat','TESTAR-WINDOWS.bat',
+            'VERIFICAR-CONEXAO.bat','VERIFICAR-PARTIDA-NODE.bat')
+          foreach ($file in $files) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing $file" }
+            Copy-Item -LiteralPath $file -Destination $target -Force
+          }
+          Copy-Item -Path (Join-Path $env:MOOQUEST_LOVE_DIR '*') -Destination $target -Recurse -Force
+          $guide = @'
+          MOO-QUEST: TESTE DO CLIENTE PARA WINDOWS 64 BITS
+
+          Inclui o cliente Lua, o motor LÖVE 2D 11.5 oficial e o
+          servidor Node.js local do proprio Moo-Quest.
+
+          COMO TESTAR
+          1. Extraia TODO o arquivo ZIP para uma pasta comum.
+          2. Instale Node.js LTS (versao 20 ou superior), caso necessario.
+             https://nodejs.org/
+          3. Na pasta extraida, abra PREPARAR-SERVIDOR.bat.
+             Na primeira vez, precisa de internet para instalar as
+             dependencias e obter/converter as artes originais localmente.
+          4. Depois abra INICIAR-WINDOWS.bat.
+             Ele inicia o servidor Node local em 127.0.0.1:8080,
+             aguarda a conexao e abre o cliente pela copia portatil
+             de love.exe incluida nesta pasta.
+          5. No cliente, informe um nome e clique Play.
+          6. Opcional: execute TESTAR-WINDOWS.bat para testes Lua.
+
+          CONTROLES BASICOS
+          WASD para mover. Mouse para mirar/atacar. Numeros 1-9
+          para selecionar o inventario. P para perfil. Use Shop
+          e Tribe na parte superior durante a partida.
+
+          AVISOS
+          * Nao rode arquivos dentro do ZIP sem extrair.
+          * O pacote NAO redistribui sprites/arte de terceiros.
+            O preparador os recupera para uso local.
+          * Esta e uma versao de testes, NAO paridade 1:1 final.
+          * Nao exponha o servidor de testes na internet.
+          * Se falhar, copie a mensagem das janelas de console.
+          '@
+          Set-Content -LiteralPath (Join-Path $target 'LEIA-PRIMEIRO.txt') -Value $guide -Encoding utf8
+          if (-not (Test-Path -LiteralPath (Join-Path $target 'love.exe'))) {
+            throw 'Missing portable client runtime'
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $target 'server/src/index.js'))) {
+            throw 'Missing local Node game server'
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $target 'main.lua'))) {
+            throw 'Missing Lua game entrypoint'
+          }
+          $originalArt = Join-Path $target 'assets/reference/img'
+          if (Test-Path -LiteralPath $originalArt) {
+            throw 'Third-party reference art must never ship in the ZIP'
+          }
+          "package_path=$target" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "READY: portable LOVE executable, Moo-Quest Lua and Node local server"
+          Write-Host "Source SHA: $env:GITHUB_SHA"
+      - name: Upload ready-to-extract Windows client
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moo-Quest-Cliente-Windows-x64
+          path: ${{ steps.package.outputs.package_path }}/
+          if-no-files-found: error
+          retention-days: 30
