@@ -69,7 +69,9 @@ end
 function Menu.new()
   return setmetatable({name="Jogador",skin=0,tab="Game",
     nameFocus=false,grid=true,world=menuView(),
-    startPending=false,status=""},Menu)
+    startPending=false,status="",authMode=nil,authStep="email",
+    authEmail="",authCode="",authFocus="email",authFlow=nil,
+    authMessage="",accountEmail=nil},Menu)
 end
 function Menu:geometry(w,h)
   local scale=math.min(w/1280,h/720)
@@ -81,6 +83,33 @@ function Menu:mapInput(sx,sy,w,h)
 end
 function Menu:click(sx,sy,w,h)
   local x,y=self:mapInput(sx,sy,w,h)
+  if self.authMode then
+    if hot(x,y,846,474,163,44) then
+      return self.authStep=="email" and "auth_request" or "auth_verify"
+    end
+    if hot(x,y,1020,474,163,44) then
+      self.authMode=nil;self.authStep="email";self.authFocus=nil
+      self.authMessage=""
+      return "auth_back"
+    end
+    if hot(x,y,844,399,338,48) then
+      self.authFocus=self.authStep
+      return "auth_focus"
+    end
+    return nil
+  end
+  if self.accountEmail then
+    if hot(x,y,845,440,338,45) then return "auth_logout" end
+  else
+    if hot(x,y,845,440,161,45) then
+      self.authMode="login";self.authStep="email";self.authFocus="email"
+      self.authMessage="";return "auth_open"
+    end
+    if hot(x,y,1020,440,163,45) then
+      self.authMode="register";self.authStep="email";self.authFocus="email"
+      self.authMessage="";return "auth_open"
+    end
+  end
   if hot(x,y,385,219,134,43) then self.tab="Game";return "tab" end
   if hot(x,y,519,219,133,43) then self.tab="Info";return "tab" end
   if hot(x,y,652,219,131,43) then self.tab="Settings";return "tab" end
@@ -111,6 +140,23 @@ function Menu:click(sx,sy,w,h)
   return nil
 end
 function Menu:keypressed(key)
+  if self.authMode then
+    if key=="escape" then
+      self.authMode=nil;self.authMessage=""
+      return "auth_back"
+    elseif key=="backspace" then
+      local field=self.authStep=="code" and "authCode" or "authEmail"
+      local txt=self[field]
+      local pos=#txt
+      while pos>1 and txt:byte(pos)>=128 and txt:byte(pos)<192 do
+        pos=pos-1
+      end
+      self[field]=txt:sub(1,pos-1)
+    elseif key=="return" or key=="kpenter" then
+      return self.authStep=="email" and "auth_request" or "auth_verify"
+    end
+    return nil
+  end
   if key=="backspace" and self.nameFocus then
     local pos=#self.name
     while pos>1 and self.name:byte(pos)>=128 and self.name:byte(pos)<192 do
@@ -123,7 +169,17 @@ function Menu:keypressed(key)
   end
 end
 function Menu:textinput(chars)
-  if not self.nameFocus or type(chars)~="string" then return end
+  if type(chars)~="string" then return end
+  if self.authMode then
+    if self.authStep=="email" then
+      local clean=chars:gsub("[%c%s]","")
+      self.authEmail=(self.authEmail..clean):sub(1,120)
+    else
+      self.authCode=(self.authCode..chars:gsub("[^0-9]","")):sub(1,6)
+    end
+    return
+  end
+  if not self.nameFocus then return end
   local name=self.name..chars
   local count=0
   for i=1,#name do
@@ -210,9 +266,48 @@ function Menu:draw(connectionState,status)
   local state=ready and "Ready" or (connectionState or "Connecting")
   text("Connection: "..state,839,333,16,
     ready and {0.2,0.55,0.2} or {0.46,0.36,0.2})
-  font(14)
+  font(13)
   love.graphics.setColor(0.3,0.3,0.3)
-  love.graphics.printf(status or self.status or "",839,378,340,"left")
+  love.graphics.printf(status or self.status or "",839,376,340,"left")
+  if self.authMode then
+    local heading=self.authMode=="register" and "Cadastrar conta local" or
+      "Entrar na conta local"
+    text(heading,840,402-38,17)
+    rect(844,399,338,48,0.94,0.94,0.94,1,5)
+    if self.authStep=="email" then
+      text("Email: "..self.authEmail..(self.authFocus=="email" and "|" or ""),
+        853,411,15)
+    else
+      text("Codigo (6 digitos): "..self.authCode.."|",853,411,15)
+    end
+    rect(846,474,163,44,0.49,0.9,0.35,1,5)
+    center(self.authStep=="email" and "Continuar" or "Confirmar",
+      846,485,163,16,{0.1,0.2,0.1})
+    rect(1020,474,163,44,0.87,0.87,0.87,1,5)
+    center("Voltar",1020,485,163,16)
+    font(13);love.graphics.setColor(0.5,0.22,0.18)
+    love.graphics.printf(self.authMessage~="" and self.authMessage or
+      "Teste local: o Node aceita qualquer codigo de 6 digitos.",
+      841,531,343,"left")
+    font(12);love.graphics.setColor(0.4,0.4,0.4)
+    love.graphics.printf("Sem verificacao real de email. Nao use para contas publicas.",
+      841,587,338,"left")
+  elseif self.accountEmail then
+    text("Conta local conectada",842,418,15,{0.19,0.5,0.23})
+    font(14);love.graphics.setColor(0.2,0.2,0.2)
+    love.graphics.printf(self.accountEmail,843,403,339,"left")
+    rect(845,440,338,45,0.92,0.92,0.92,1,5)
+    center("Sair da conta",845,452,338,16)
+  else
+    text("CONTA (TESTE LOCAL)",841,410,17)
+    rect(845,440,161,45,0.85,0.9,0.85,1,5)
+    center("Entrar",845,452,161,16)
+    rect(1020,440,163,45,0.87,0.87,0.87,1,5)
+    center("Cadastrar",1020,452,163,16)
+    font(13);love.graphics.setColor(0.35,0.35,0.35)
+    love.graphics.printf("Ou jogue como convidado usando Play. Contas locais ainda nao possuem verificacao real.",
+      841,499,341,"left")
+  end
   center("WASD - Movement       Click / Space - Gather / Attack",
     0,635,1280,18,{1,1,1})
   love.graphics.pop()
