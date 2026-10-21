@@ -18,14 +18,28 @@ const FOOD={0:{cost:10,heal:20},1:{cost:15,heal:40}};
 const WEAPONS={0:{damage:15,reach:85,cooldown:500},
   1:{damage:23,reach:95,cooldown:550},3:{damage:30,reach:115,cooldown:650},
   5:{damage:37,reach:150,cooldown:750},6:{damage:16,reach:120,cooldown:450},
-  7:{damage:12,reach:75,cooldown:250},8:{damage:8,reach:85,cooldown:500}};
+  7:{damage:12,reach:75,cooldown:250},8:{damage:8,reach:85,cooldown:500},
+  // Ranged weapons use independently designed Node mechanics. Projectile
+  // indices 0/2/3/5 are the LÖVE renderer's existing visual contract.
+  // Speed is world units per millisecond, matching Lua's X packet display.
+  9:{damage:25,cooldown:600,projectile:0,speed:1.6,range:1000,ammo:{wood:4}},
+  12:{damage:35,cooldown:700,projectile:2,speed:2.5,range:1200,ammo:{wood:5}},
+  13:{damage:30,cooldown:300,projectile:3,speed:2.0,range:1200,ammo:{wood:10}},
+  15:{damage:50,cooldown:1500,projectile:5,speed:3.6,range:1400,ammo:{stone:10}}
+};
 // Lua sends weapon index = numeric ID, item upgrade index = 16+item ID.
 const UPGRADES=new Map([
   [1,{kind:'weapon',id:1,age:2}], [3,{kind:'weapon',id:3,age:2}],
   [5,{kind:'weapon',id:5,age:2}], [6,{kind:'weapon',id:6,age:2}],
   [7,{kind:'weapon',id:7,age:2}], [8,{kind:'weapon',id:8,age:2}],
   [17,{kind:'item',id:1,age:3}], [20,{kind:'item',id:4,age:3}],
-  [23,{kind:'item',id:7,age:5}], [27,{kind:'item',id:11,age:5}]
+  [23,{kind:'item',id:7,age:5}], [27,{kind:'item',id:11,age:5}],
+  [9,{kind:'weapon',id:9,age:6}], [10,{kind:'weapon',id:10,age:6}],
+  [11,{kind:'weapon',id:11,age:6}], [14,{kind:'weapon',id:14,age:6}],
+  [2,{kind:'weapon',id:2,age:8,pre:1}], [4,{kind:'weapon',id:4,age:8,pre:3}],
+  [12,{kind:'weapon',id:12,age:8,pre:9}],
+  [13,{kind:'weapon',id:13,age:9,pre:12}],
+  [15,{kind:'weapon',id:15,age:9,pre:12}]
 ]);
 const LEVEL_XP=age=>35+age*25;
 const RESOURCE_RETURN_MS=30000;
@@ -44,6 +58,19 @@ function randomPlacement(size,rng,kind){
   return {x:300,y:300};
 }
 function seededRandom(seed){let state=seed>>>0;return()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/0x100000000;};}
+// Closest fraction along a swept segment at which a circle is hit; unlike
+// end-point tests this cannot skip a target when an arrow travels quickly.
+function segmentHit(x1,y1,x2,y2,cx,cy,radius){
+  const dx=x2-x1,dy=y2-y1,fx=x1-cx,fy=y1-cy;
+  const length=dx*dx+dy*dy;
+  if(length===0)return fx*fx+fy*fy<=radius*radius?0:null;
+  const dot=fx*dx+fy*dy;
+  const discriminant=dot*dot-length*(fx*fx+fy*fy-radius*radius);
+  if(discriminant<0)return null;
+  const entry=(-dot-Math.sqrt(discriminant))/length;
+  if(entry>=0&&entry<=1)return entry;
+  return fx*fx+fy*fy<=radius*radius?0:null;
+}
 
 export class World {
   constructor({ size=14400,maxPlayers=60,now=()=>Date.now(),seed=24681357 }={}) {
@@ -51,6 +78,7 @@ export class World {
     this.players=new Map();this.events=[];this.tickNumber=0;
     this.resources=new Map();this.depleted=new Map();this.structures=new Map();this.tribes=new Map();
     this.animals=new Map();this.animalRandom=seededRandom(seed^0xfedcba98);
+    this.projectiles=new Map();this.nextProjectileSid=1;
     this.nextObjectSid=1;this.nextPlayerSid=0;
     const rng=seededRandom(seed);
     // Stable procedural resources, not an editable or NPC-driven map.
@@ -121,7 +149,10 @@ export class World {
   select(id,index,weapon){
     const p=this.players.get(id);if(!p||p.hp<=0||!Number.isSafeInteger(index))return false;
     if(weapon===true){if(!p.inventory.weapons.includes(index))return false;p.weaponIndex=index;p.buildIndex=-1;}
-    else {if(!p.inventory.items.includes(index))return false;p.buildIndex=index;}
+    else {if(!p.inventory.items.includes(index))return false;
+      // Clicking the selected construction/food slot again returns to weapon.
+      p.buildIndex=p.buildIndex===index?-1:index;
+    }
     return true;
   }
   shop(id,action,itemId,accessory){
@@ -196,7 +227,7 @@ export class World {
     p.xp+=amount;
     while(p.xp>=p.maxXp&&p.age<20){
       p.xp-=p.maxXp;p.age++;p.maxXp=LEVEL_XP(p.age);
-      if([2,3,5].includes(p.age))p.upgradePoints++;
+      if([2,3,5,6,8,9].includes(p.age))p.upgradePoints++;
     }
     this.events.push({kind:'progress',player:id,xp:p.xp,maxXp:p.maxXp,age:p.age,
       points:p.upgradePoints,upgradeAge:p.upgradeAge});
@@ -206,9 +237,11 @@ export class World {
     const p=this.players.get(id),rule=UPGRADES.get(index);
     if(!p||p.hp<=0||!rule||p.upgradePoints<1||p.age<rule.age||p.upgradeAge!==rule.age)return false;
     const group=rule.kind==='weapon'?p.inventory.weapons:p.inventory.items;
-    if(group.includes(rule.id))return false;
-    // One selection per stage; later stages become available on levelling.
-    group.push(rule.id);p.upgradePoints--;p.upgradeAge=rule.age===2?3:rule.age===3?5:20;
+    if(group.includes(rule.id)||rule.pre!==undefined&&!group.includes(rule.pre))return false;
+    // One selection per stage. Older paths remain available to players who
+    // choose melee rather than ranged at age six.
+    group.push(rule.id);p.upgradePoints--;
+    p.upgradeAge=({2:3,3:5,5:6,6:8,8:9})[rule.age]??20;
     this.events.push({kind:'upgrade',player:id,equipmentKind:rule.kind,id:rule.id,
       points:p.upgradePoints,upgradeAge:p.upgradeAge});
     return true;
@@ -218,9 +251,23 @@ export class World {
     if(!p||p.hp<=0)return false;
     const weapon=WEAPONS[p.weaponIndex]||WEAPONS[0];
     if(time-p.lastAttack<weapon.cooldown)return false;
+    if(p.buildIndex>=3){p.lastAttack=time;return this.place(id,p.buildIndex);}
+    if(p.buildIndex>=0){p.lastAttack=time;return this.consume(id,p.buildIndex);}
+    if(weapon.projectile!==undefined){
+      if(!Object.entries(weapon.ammo).every(([k,v])=>p.resources[k]>=v))return false;
+      for(const [k,v] of Object.entries(weapon.ammo))p.resources[k]-=v;
+      p.lastAttack=time;
+      const sid=this.nextProjectileSid++;
+      const x=p.x+Math.cos(p.angle)*46,y=p.y+Math.sin(p.angle)*46;
+      this.projectiles.set(sid,{sid,owner:p.id,ownerSid:p.sid,team:p.team,
+        x,y,dir:p.angle,range:weapon.range,speed:weapon.speed,
+        damage:weapon.damage,type:weapon.projectile,layer:0});
+      this.events.push({kind:'projectile_spawn',sid,player:p.id,x,y,dir:p.angle,
+        range:weapon.range,speed:weapon.speed,type:weapon.projectile,layer:0,
+        ammo:{...weapon.ammo}});
+      return true;
+    }
     p.lastAttack=time;
-    if(p.buildIndex>=3)return this.place(id,p.buildIndex);
-    if(p.buildIndex>=0)return this.consume(id,p.buildIndex);
     let victim=null,distance=weapon.reach;
     for(const other of this.players.values()){
       if(other.id===p.id||other.hp<=0||other.team&&other.team===p.team||time<other.deadUntil)continue;
@@ -380,7 +427,82 @@ export class World {
         if(amount){p.resources.points+=amount;p.score+=amount;this.events.push({kind:'income',player:p.id,amount});}
       }
     }
+    this.advanceProjectiles(step,at);
     this.tickNumber++;
+  }
+  advanceProjectiles(step,at){
+    for(const [sid,arrow] of this.projectiles){
+      const distance=Math.min(arrow.range,arrow.speed*1000*step);
+      const nx=arrow.x+distance*Math.cos(arrow.dir);
+      const ny=arrow.y+distance*Math.sin(arrow.dir);
+      let first=null;
+      const offer=(kind,target,t)=>{
+        if(t!==null&&(!first||t<first.t))first={kind,target,t};
+      };
+      for(const p of this.players.values()){
+        if(p.id===arrow.owner||p.hp<=0||arrow.team&&p.team===arrow.team)continue;
+        offer('player',p,segmentHit(arrow.x,arrow.y,nx,ny,p.x,p.y,34));
+      }
+      for(const animal of this.animals.values()){
+        if(animal.health<=0)continue;
+        offer('animal',animal,segmentHit(arrow.x,arrow.y,nx,ny,animal.x,animal.y,42));
+      }
+      for(const structure of this.structures.values()){
+        offer('structure',structure,segmentHit(arrow.x,arrow.y,nx,ny,
+          structure.x,structure.y,Math.max(15,structure.scale*0.6)));
+      }
+      for(const resource of this.resources.values()){
+        offer('resource',resource,segmentHit(arrow.x,arrow.y,nx,ny,
+          resource.x,resource.y,Math.max(20,resource.scale*0.47)));
+      }
+      const travelled=distance*(first?.t??1);
+      arrow.x+=travelled*Math.cos(arrow.dir);
+      arrow.y+=travelled*Math.sin(arrow.dir);
+      arrow.range-=travelled;
+      let end=Boolean(first)||arrow.range<=0||
+        arrow.x<0||arrow.x>this.size||arrow.y<0||arrow.y>this.size;
+      if(first){
+        const {kind,target}=first;
+        const shooter=this.players.get(arrow.owner);
+        if(kind==='player'){
+          target.hp=Math.max(0,target.hp-arrow.damage);
+          this.events.push({kind:'hit',from:arrow.owner,to:target.id,
+            damage:arrow.damage,hp:target.hp,x:target.x,y:target.y});
+          if(target.hp===0){
+            target.deadUntil=at+3000;target.vx=0;target.vy=0;
+            if(shooter){shooter.resources.kills++;shooter.score+=100;this.awardXp(shooter.id,40);}
+            this.events.push({kind:'death',id:target.id,killer:arrow.owner});
+          }
+        }else if(kind==='animal'){
+          target.health=Math.max(0,target.health-arrow.damage);
+          this.events.push({kind:'animal_hit',sid:target.sid,from:arrow.owner,
+            x:target.x,y:target.y,damage:arrow.damage});
+          if(target.health===0){
+            target.deadUntil=at+15000;
+            if(shooter){shooter.resources.food+=30;shooter.resources.points+=20;
+              shooter.score+=20;this.awardXp(shooter.id,30);}
+            this.events.push({kind:'animal_down',sid:target.sid,player:arrow.owner});
+          }
+        }else if(kind==='structure'){
+          const owner=[...this.players.values()].find(p=>p.sid===target.owner);
+          if(target.owner!==arrow.ownerSid&&!(arrow.team&&owner?.team===arrow.team)){
+            target.hp=Math.max(0,target.hp-arrow.damage);
+            this.events.push({kind:'structure_hit',sid:target.sid,dir:arrow.dir,
+              x:target.x,y:target.y,damage:arrow.damage});
+            if(target.hp===0){
+              this.structures.delete(target.sid);
+              this.events.push({kind:'destroy',sid:target.sid});
+            }
+          }
+        }
+        // Trees/rocks and friendly structures stop arrows, but never award
+        // resources or friendly-fire damage from a projectile.
+      }
+      if(end){
+        this.projectiles.delete(sid);
+        this.events.push({kind:'projectile_end',sid});
+      }
+    }
   }
   snapshot(){
     return {kind:'world',tick:this.tickNumber,size:this.size,
