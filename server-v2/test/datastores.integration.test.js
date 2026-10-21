@@ -29,6 +29,10 @@ test('actual PostgreSQL persists administration and imports JSON only into an em
       publicRegistration:false},bans:{abcd:{reason:'test'}},
     announcements:[],audit:[]};
   atomicJSON(path.join(dir,'var','config.json'),legacy);
+  await assert.rejects(
+    ()=>new PostgresStorage(dir,{pool,importLegacy:false}).init(),
+    /MOO_IMPORT_JSON/,
+    'existing owner must never disappear because migration was not requested');
   const first=await new PostgresStorage(dir,{pool,importLegacy:true}).init();
   assert.equal(first.data.owner.username,'OldOwner');
   assert.equal(first.data.settings.maxPlayers,42);
