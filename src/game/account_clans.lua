@@ -140,7 +140,13 @@ function C:run(action,data)
   self.lastError=nil
   self:refresh()
   if self.lastError then return false end
-  self.message="Operacao confirmada pelo servidor Node."
+  -- Player.clanTag is captured by Node on WebSocket join; an existing
+  -- in-game session must rejoin before it receives the new permanent tag.
+  local membershipChanged=action=="create" or action=="leave" or
+    action=="disband" or (action=="answer" and data and data.accept)
+  self.message=membershipChanged
+    and "Cla salvo no Node. Reentre na partida para atualizar a tag."
+    or "Operacao confirmada pelo servidor Node."
   self.confirmDisband=false;self.confirmTransfer=nil
   return true
 end
@@ -154,7 +160,7 @@ function C:claim()
   self.accountName=confirmed
   self.inputs.name=""
   self:refresh()
-  self.message="Nome registrado: "..confirmed
+  self.message="Nome registrado: "..confirmed..". Aparece na proxima entrada na partida."
   return true
 end
 function C:create()
