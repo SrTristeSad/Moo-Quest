@@ -64,3 +64,11 @@ jobs:
           SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
             MOOQUEST_UI_E2E=1 \
             timeout 35s xvfb-run -a -s "-screen 0 1280x720x24" love .
+          echo "Run login UI -> account-bound join -> gameplay graphics"
+          SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
+            MOOQUEST_UI_E2E=account \
+            timeout 35s xvfb-run -a -s "-screen 0 1280x720x24" love .
+          echo "Run registration UI -> account-bound join -> gameplay graphics"
+          SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
+            MOOQUEST_UI_E2E=register \
+            timeout 35s xvfb-run -a -s "-screen 0 1280x720x24" love .
