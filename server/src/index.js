@@ -27,6 +27,7 @@ import { Chat } from "./api/chat.js";
 import { ModerationStore } from "./anticheat/index.js";
 import { createConnectionHandler } from "./network/connection.js";
 import { AdminConsole } from "./admin/console.js";
+import { createServerLifecycle, installShutdownSignals } from "./lifecycle/serverLifecycle.js";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -156,6 +157,7 @@ const adminConsole = new AdminConsole({ games, accounts, moderation, build, data
 // ---------------------------------------------------------------- http
 const app = express();
 app.disable("x-powered-by");
+let lifecycle = null;
 
 app.post("/admin/console", express.json({ limit: "8kb" }), (req, res) => {
     // Tunnels (ngrok, cloudflared) and reverse proxies connect from localhost too, so also
@@ -215,11 +217,25 @@ app.get("/s/:key/ping", (req, res) => {
 });
 
 app.get("/ping", (_req, res) => {
+    res.set("Cache-Control", "no-store");
     res.json({
-        status: "ok",
+        status: lifecycle?.isStopping() ? "stopping" : "ok",
         build: build.BUILD_ID,
         servers: servers.list()
     });
+});
+
+// BrowserQuest-Revived operational endpoints, adapted to this game.
+// /health reports process liveness; /ready indicates whether NEW sessions
+// can be accepted. Neither exposes the build secret, admin token or accounts.
+app.get("/health", (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.json({ status: "ok", project: "Moo-Quest", stopping: Boolean(lifecycle?.isStopping()) });
+});
+app.get("/ready", (_req, res) => {
+    const ready = !lifecycle?.isStopping();
+    res.set("Cache-Control", "no-store");
+    res.status(ready ? 200 : 503).json({ ready, project: "Moo-Quest" });
 });
 
 // Moo-Quest-added local identity. Avoid accidentally connecting the native
@@ -242,6 +258,8 @@ const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
 const onConnection = createConnectionHandler({ build, bundle, accounts, moderation, log, chat });
 
 server.on("upgrade", (req, socket, head) => {
+    // Do not allow new guests or social sessions after announcing a restart.
+    if (lifecycle?.isStopping()) { socket.destroy(); return; }
     const pathname = new URL(req.url, "http://localhost").pathname;
     if (pathname === "/api/social/ws") return social.handleUpgrade(req, socket, head);
     const match = /^\/s\/([A-Za-z0-9]+)\/?$/.exec(pathname);
@@ -253,21 +271,16 @@ server.on("upgrade", (req, socket, head) => {
     wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, req, game));
 });
 
+// The original Z/B restart packets remain unchanged, but shutdown now
+// waits for the advertised countdown, stops simulation ticks and flushes
+// pending permanent-clan/account mutations before the process exits.
+lifecycle = createServerLifecycle({
+    games, accounts, httpServer: server, websocketServer: wss, log
+});
+installShutdownSignals(lifecycle, { log });
+
 server.listen(PORT, HOST, () => {
     log(`MooMoo.io private server on http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
     log(`protocol build ${build.BUILD_ID} (${build.publicPath}), servers: ${GAME_SERVERS.map(s => s.key + (s.membersOnly ? " (members)" : "")).join(", ")}`);
     if (!fs.existsSync(indexFile)) log("official client is not built yet - run `npm run build`");
 });
-
-// Graceful shutdown: the client's "Server restarting in 0:03" notice, then
-// "Server is restarting - pick another" so open pages look for another server.
-let stopping = false;
-const shutdown = () => {
-    if (stopping) process.exit(0);
-    stopping = true;
-    games.forEach(g => g.announceShutdown(3));
-    setTimeout(() => games.forEach(g => g.closeAll()), 1100);
-    setTimeout(() => process.exit(0), 1500);
-};
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
