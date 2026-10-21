@@ -569,6 +569,12 @@ function love.keypressed(key)
     end
     return
   end
+  -- The original browser closes or traps focus in the Store/Tribe
+  -- overlay. Enter must NEVER create a chat box behind an open modal.
+  if panels:isOpen() then
+    panels:keypressed(key,world)
+    return
+  end
   if (key=="return" or key=="kpenter") and client
     and client.state=="spawn_confirmed" and not died then
     chatOpen=true;chatDraft=""
@@ -580,10 +586,6 @@ function love.keypressed(key)
     mouseAttack=false;spaceAttack=false
     client:send("e",{})
     client:send("F",{0,Pack.null})
-    return
-  end
-  if panels:isOpen() then
-    panels:keypressed(key,world)
     return
   end
   input:keypressed(key)
@@ -757,6 +759,14 @@ function love.mousepressed(x,y,button)
       mouseAttack=true
       if not spaceAttack then client:send("F",{1,currentAttackDir()}) end
     end
+  end
+end
+-- Browser storeDisplay uses mouseover/mouseout for live item details.
+-- Only presentation changes; no purchase, equip or Node packet on hover.
+function love.mousemoved(x,y)
+  if phase=="playing" and panels:isOpen() and love.graphics then
+    local w,h=love.graphics.getDimensions()
+    panels:hover(x,y,w,h)
   end
 end
 function love.wheelmoved(dx,dy)
