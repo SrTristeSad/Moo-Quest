@@ -1,6 +1,6 @@
 package.path="./?.lua;./?/init.lua;"..package.path
 local J=require("src.net.json")
-local raw='{"clan":null,"invites":[{"clan":"ABCD","by":"Player"}],"role":"owner","closed":true,"count":12,"message":"a\\nb","name":"\u00E9"}'
+local raw='{"clan":null,"invites":[{"clan":"ABCD","by":"Player"}],"role":"owner","closed":true,"count":12,"message":"a\\nb","name":"\\u00E9"}'
 local data=assert(J.decode(raw))
 assert(data.clan==J.null and data.invites[1].clan=="ABCD")
 assert(data.closed==true and data.role=="owner" and data.count==12)
