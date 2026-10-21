@@ -15,7 +15,9 @@ local Input=require("src.input")
 local Pack=require("src.protocol.msgpack")
 local client=nil
 local integration=nil
-local uiSmoke=os.getenv("MOOQUEST_UI_E2E")=="1"
+local uiSmokeMode=os.getenv("MOOQUEST_UI_E2E")
+local uiSmoke=uiSmokeMode~=nil and #uiSmokeMode>0
+local uiAuthStarted=false
 local uiSmokeTime=0
 local uiSmokeClicked=false
 local uiSmokeDrawn=false
@@ -172,15 +174,41 @@ function love.update(dt)
   if phase=="menu" then menu.world:update(dt) end
   -- Use the actual menu click handler, not Original:spawn(), so CI verifies
   -- the user's Play button and the real Node connection together.
-  if uiSmoke and not uiSmokeClicked and phase=="menu"
-    and client.state=="keyed_transport" then
-    uiSmokeClicked=true
-    print("UI E2E: clicking actual Play button")
-    love.mousepressed(410,488,1)
-    if client.state~="joining" then
-      print("UI E2E FAIL: Play click did not send M; state="..
-        tostring(client.state).." menu status="..tostring(menu.status))
-      love.event.quit(1);uiSmoke=false;return
+  if uiSmoke and phase=="menu" and client.state=="keyed_transport" then
+    local authRequired=uiSmokeMode=="account" or uiSmokeMode=="register"
+    if authRequired and not uiAuthStarted then
+      uiAuthStarted=true
+      local loginX=uiSmokeMode=="account" and 870 or 1045
+      love.mousepressed(loginX,460,1)
+      if not menu.authMode then
+        print("UI E2E FAIL: account form did not open")
+        love.event.quit(1);uiSmoke=false;return
+      end
+      love.textinput("ci-ui-"..uiSmokeMode.."@localhost.invalid")
+      love.mousepressed(880,493,1)
+      if menu.authStep~="code" then
+        print("UI E2E FAIL: account email form: "..tostring(menu.authMessage))
+        love.event.quit(1);uiSmoke=false;return
+      end
+      love.textinput("123456")
+      love.mousepressed(880,493,1)
+      if not menu.accountEmail or not client.authToken then
+        print("UI E2E FAIL: account verification: "..tostring(menu.authMessage))
+        love.event.quit(1);uiSmoke=false;return
+      end
+      print("UI E2E: account form submitted through actual UI; rejoining as account")
+      return
+    end
+    if not uiSmokeClicked and
+      (not authRequired or uiAuthStarted and menu.accountEmail) then
+      uiSmokeClicked=true
+      print("UI E2E: clicking actual Play button")
+      love.mousepressed(410,488,1)
+      if client.state~="joining" then
+        print("UI E2E FAIL: Play click did not send M; state="..
+          tostring(client.state).." menu status="..tostring(menu.status))
+        love.event.quit(1);uiSmoke=false;return
+      end
     end
   end
   local localPlayer=world:localPlayer()
