@@ -58,3 +58,9 @@ jobs:
           SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
             MOOQUEST_INTEGRATION=account \
             xvfb-run -a -s "-screen 0 1280x720x24" love .
+          echo "Install original client PNGs locally for UI render (never committed or uploaded)"
+          node tools/sync-reference-art.mjs
+          echo "Run real opening-menu Play button -> native C/D -> graphics/HUD"
+          SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
+            MOOQUEST_UI_E2E=1 \
+            timeout 35s xvfb-run -a -s "-screen 0 1280x720x24" love .
