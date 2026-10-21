@@ -104,6 +104,32 @@ Esta etapa não equivale a paridade 1:1 do jogo inteiro.
   não é prova de paridade total** das interfaces, do mapa, da economia
   ou da jogabilidade no Windows.
 
+## Progresso subsequente — geometria da região secreta a oeste (PR #13)
+
+**Defeito comprovado:** o Node executa `secretDistance` e permite entrar
+pelo desfiladeiro (a partir de `x = -1500`), por cinco piscinas e pelo
+corredor da cachoeira a oeste. O `View.ground` original só reproduzia a
+planície/rios dentro do quadrado `x >= 0` e a função `boundaries`
+escurecia indistintamente toda a área secreta.
+
+- `reference_secret_map.lua` usa **os mesmos parâmetros** da configuração
+  do Node (`gorgeX0=-1500`, `gorgeHalf=520`, cinco círculos, `waterfall`).
+  O cálculo da união geométrica é portado de
+  `server/src/moomoo/modules/effects.js::secretDistance`.
+- A representação é feita **sem PNG novo ou textura genérica**: terreno
+  verde, margem arenosa e água azul, exatamente com a paleta já existente no
+  mapa. A água do desfiladeiro acompanha a oscilação do rio original.
+- A região oeste fora da geometria continua escura; a região de jogo
+  `x >= 0` não é redesenhada pelo módulo. Renderização de personagens,
+  animais, recursos, Crab King, projéteis e indicadores visuais permanece
+  sem alterações.
+- Adicionados testes de limites geométricos, acesso do Crab King aos
+  lagos, margens, cachoeira e amostragem de pixels num Canvas real do LÖVE.
+- **Limite da afirmação 1:1:** o cliente JavaScript fixado no upstream
+  **não possui um renderizador para a área secreta adicionada ao Node**.
+  Esta implementação reproduz as coordenadas/regras reais desse Node, não
+  uma suposta imagem oficial pixel a pixel dessa região.
+
 ## Critério objetivo para chamar 1:1
 
 Todos os fluxos do escopo original aplicável têm controle correspondente, visual correspondente, evento Node validado, teste automatizado específico e evidência de execução manual lado a lado. **Um PR com 7 workflows verdes não é equivalente a paridade 1:1.**

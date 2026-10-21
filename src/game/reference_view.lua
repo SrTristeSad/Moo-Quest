@@ -9,6 +9,7 @@ local Objects=require("src.game.reference_objects")
 local Assets=require("src.game.reference_assets")
 local CombatText=require("src.game.reference_combat_text")
 local BossEffects=require("src.game.reference_boss_effects")
+local SecretMap=require("src.game.reference_secret_map")
 local View={}
 -- client/src/index.js updateGame waterMult / waterPlus (Canvas only).
 local waterMult=1
@@ -72,6 +73,10 @@ local function ground(camera,w,h)
       h-math.max(0,desert))
   end
   river(camera,w)
+  -- The running Node server adds a valid west-of-map secret region absent
+  -- from the archived browser renderer. Draw the Node-configured geography
+  -- without altering original river, snow or desert east of x=0.
+  SecretMap.draw(camera,w,h,waterMult)
 end
 local function grid(camera,w,h)
   -- Same transparent grid and spacing used by the reference Canvas client.
@@ -96,7 +101,11 @@ local function boundaries(camera,w,h)
   local x0,y0=camera:worldToScreen(0,0)
   local x1,y1=camera:worldToScreen(C.mapScale,C.mapScale)
   love.graphics.setColor(0,0,0,0.09)
-  if x0>0 then love.graphics.rectangle("fill",0,0,math.min(w,x0),h) end
+  if x0>0 then
+    -- Preserve the 9% reference edge shade everywhere EXCEPT inside the
+    -- Node-authoritative west gorge / basins / waterfall.
+    SecretMap.shadeOutside(camera,w,h)
+  end
   if x1<w then love.graphics.rectangle("fill",math.max(0,x1),0,w-math.max(0,x1),h) end
   if y0>0 then love.graphics.rectangle("fill",0,0,w,math.min(h,y0)) end
   if y1<h then love.graphics.rectangle("fill",0,math.max(0,y1),w,h-math.max(0,y1)) end
