@@ -213,8 +213,9 @@ export class World {
     // them as potentially corrupted data before reintroducing collision.
     if(p.accountId&&Array.isArray(data.structures)){
       for(const saved of data.structures.slice(0,150)){
-        const recipe=RECIPES[saved?.id];
-        if(!recipe||!Number.isFinite(saved.x)||!Number.isFinite(saved.y)||
+        if(!Number.isSafeInteger(saved?.id)||!Object.hasOwn(RECIPES,saved.id))continue;
+        const recipe=RECIPES[saved.id];
+        if(!Number.isFinite(saved.x)||!Number.isFinite(saved.y)||
           !Number.isSafeInteger(saved.hp)||saved.hp<1||saved.hp>recipe.hp)continue;
         const {x,y}=saved,scale=recipe.scale;
         if(x<scale||x>this.size-scale||y<scale||y>this.size-scale||
