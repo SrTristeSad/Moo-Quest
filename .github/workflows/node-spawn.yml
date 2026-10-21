@@ -49,6 +49,14 @@ jobs:
             sleep 0.2
           done
           test "$ready" -eq 1
+          echo "Resolve original live build even when MOOQUEST_BUILD_FILE is wrong"
+          live_build=$(node tools/resolve-local-build.mjs)
+          test -f "$live_build"
+          fallback_build=$(MOOQUEST_BUILD_FILE=/tmp/old-missing-build.json node tools/resolve-local-build.mjs)
+          test "$fallback_build" = "$live_build"
+          printf '{"buildId":"stale-other-server","constants":[1,2,3,4,5,6,7,8]}' > /tmp/stale-protocol-build.json
+          stale_build=$(MOOQUEST_BUILD_FILE=/tmp/stale-protocol-build.json node tools/resolve-local-build.mjs)
+          test "$stale_build" = "$live_build"
           node tools/check-node-spawn.mjs
           echo "Run REAL Lua guest connection to Node via LÖVE"
           SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1 \
