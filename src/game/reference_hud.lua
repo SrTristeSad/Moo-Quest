@@ -7,6 +7,7 @@ local Objects=require("src.game.reference_objects")
 local Icons=require("src.game.reference_icons")
 local Assets=require("src.game.reference_assets")
 local Upgrades=require("src.game.reference_upgrades")
+local ItemInfo=require("src.game.reference_item_info")
 local H={}
 local fontSmall,fontMedium,fontLarge
 local function fonts()
@@ -214,7 +215,30 @@ function H.hitTest(world,w,h,x,y)
   end
   return nil
 end
-function H.draw(world,chatActive,chatText)
+-- The browser attaches showItemInfo() to every actionBarItem and upgradeItem
+-- onmouseover, hiding it on mouseout. This is the same hit geometry.
+function H.hoveredItem(world,w,h,x,y)
+  if type(x)~="number" or type(y)~="number" then return nil end
+  local offers=Upgrades.offers(world)
+  if #offers>0 then
+    local start=(w-(#offers*66+(#offers-1)*10))/2
+    if y>=10 and y<76 then
+      for i,entry in ipairs(offers) do
+        local left=start+(i-1)*76
+        if x>=left and x<left+66 then return entry end
+      end
+    end
+  end
+  local entries=actionBarEntries(world)
+  if #entries==0 or y<h-83 or y>=h-17 then return nil end
+  local left=(w-(#entries*76-10))/2
+  for i,entry in ipairs(entries) do
+    local sx=left+(i-1)*76
+    if x>=sx and x<sx+66 then return entry end
+  end
+  return nil
+end
+function H.draw(world,chatActive,chatText,suppressItemInfo)
   fonts()
   local w,h=love.graphics.getDimensions()
   leaderboard(world,w)
@@ -232,5 +256,10 @@ function H.draw(world,chatActive,chatText)
   actionBar(world,w,h)
   chatBox(chatActive,chatText,w,h)
   Upgrades.draw(world,w)
+  if not suppressItemInfo and love.mouse and love.mouse.getPosition then
+    local x,y=love.mouse.getPosition()
+    local entry=H.hoveredItem(world,w,h,x,y)
+    if entry then ItemInfo.draw(entry,world) end
+  end
 end
 return H
