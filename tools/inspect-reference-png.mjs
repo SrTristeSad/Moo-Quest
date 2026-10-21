@@ -10,7 +10,7 @@ const base=path.resolve(process.argv[2]||path.join(
   process.env.MOOQUEST_SERVER_DIR||path.join(root,"node-runtime"),
   "client/public/img"));
 const signature=Buffer.from("89504e470d0a1a0a","hex");
-function verify(buffer){
+export function verifyPNG(buffer){
   if(buffer.length<45)throw Error("arquivo pequeno demais para PNG");
   if(!buffer.subarray(0,8).equals(signature))
     throw Error("assinatura PNG incorreta (arquivo nao e PNG)");
@@ -40,6 +40,7 @@ function verify(buffer){
   catch{throw Error("IDAT comprimido invalido");}
   return width+"x"+height;
 }
+async function audit(){
 let checked=0,failed=0;
 for(const category of ["animals","weapons","hats","accessories","resources","icons"]){
   let entries;
@@ -50,7 +51,7 @@ for(const category of ["animals","weapons","hats","accessories","resources","ico
     const location=path.join(base,category,file);
     try{
       const data=await fs.readFile(location);
-      verify(data);
+      verifyPNG(data);
     }catch(err){
       failed++;
       console.error("[PNG] INVALIDO: "+category+"/"+file+" - "+err.message);
@@ -59,3 +60,5 @@ for(const category of ["animals","weapons","hats","accessories","resources","ico
 }
 console.log("[PNG] Verificados "+checked+" arquivos; invalidos "+failed+".");
 if(failed>0)process.exitCode=1;
+}
+if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) await audit();
