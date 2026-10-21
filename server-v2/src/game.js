@@ -238,6 +238,17 @@ export class GameServer {
       }else if(evt.kind==='income'){
         const state=[...this.nativeClients.values()].find(s=>s.p?.id===evt.player);
         state?.send('N',['points',state.p.resources.points,1]);
+      }else if(evt.kind==='projectile_spawn'){
+        // X is the existing Lua renderer's projectile creation message.
+        // The client never chooses its speed, range, position or damage.
+        this._nativeBroadcast('X',[evt.x,evt.y,evt.dir,evt.range,evt.speed,
+          evt.type,evt.layer,evt.sid]);
+        const state=[...this.nativeClients.values()].find(s=>s.p?.id===evt.player);
+        if(state)for(const key of Object.keys(evt.ammo))state.send('N',[key,state.p.resources[key],1]);
+      }else if(evt.kind==='projectile_end'){
+        // Y sets the remaining range to zero, allowing the LÖVE state
+        // updater to discard the sprite after an actual server collision.
+        this._nativeBroadcast('Y',[evt.sid,0]);
       }else if(evt.kind==='tribe_created') {
         this._nativeBroadcast('g',[{sid:evt.name,owner:evt.sid,clan:false}]);
       }else if(evt.kind==='tribe_deleted')this._nativeBroadcast('1',[evt.name]);
@@ -280,6 +291,15 @@ export class GameServer {
     let last = Date.now();
     this.loop = setInterval(() => {
       const now = Date.now(); const dt = Math.min(0.1, (now - last) / 1000); last = now;
+      // The original client sends F(1) on mouse-down and F(0) on release.
+      // Sustained gathering/firing must be driven by the authoritative
+      // server cooldown; no repeated Lua F frames are required.
+      for(const state of this.nativeClients.values()){
+        if(!state.held||!state.p||state.p.hp<=0)continue;
+        if(this.room.attack(state.p.id)&&state.p.buildIndex<0)
+          this._nativeBroadcast('K',[state.p.sid,1,state.p.weaponIndex]);
+        if(state.p.buildIndex>=0)state.held=false;
+      }
       this.room.tick(dt);
       this.counter++;
       if (this.counter % 3 !== 0) return;
