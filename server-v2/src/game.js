@@ -6,20 +6,9 @@ import { WebSocketServer } from 'ws';
 import { createHmac, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { isIP } from 'node:net';
+import { requestIdentity } from './request-identity.js';
 import { World } from './world.js';
 import { NativeSession } from './native-protocol.js';
-function requestIdentity(req){
-  const peer=req.socket.remoteAddress||'unknown';
-  const loopback=['127.0.0.1','::1','::ffff:127.0.0.1'].includes(peer);
-  const forwarded=process.env.MOO_TRUST_PROXY==='1'&&loopback?
-    String(req.headers['x-real-ip']||''):'';
-  return {
-    address:forwarded&&isIP(forwarded)?forwarded:peer,
-    trustedOrigin:!(loopback&&process.env.MOO_TRUST_PROXY==='1'&&!isIP(forwarded))
-  };
-}
-
 export class GameServer {
   constructor(httpServer, storage, ticketStore=null, {accounts=null,reservedClanTags=[]}={}) {
     this.ticketStore=ticketStore;
