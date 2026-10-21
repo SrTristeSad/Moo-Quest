@@ -182,3 +182,69 @@ test('invalid legacy DID does not become an authenticated account; dead characte
   assert.equal(reloaded.resources.wood,0);
   assert.equal(reloaded.hat,57);
 });
+
+test('persistent registered clan membership survives logout and only its real owner can disband it',async t=>{
+  if(!pgURL||!redisURL)return t.skip('live PostgreSQL + Redis only');
+  const {base,accounts,game,post,cleanupUsers}=await launch(t);
+  const ownerName='Owner'+randomUUID().slice(0,8);
+  const memberName='Member'+randomUUID().slice(0,8);
+  cleanupUsers.push(ownerName,memberName);
+  const owner=await accounts.register(ownerName,'password-long-owner-123');
+  const member=await accounts.register(memberName,'password-long-member-123');
+  const ownerSession=await (await post('/api/account/login',{
+    username:ownerName,password:'password-long-owner-123'})).json();
+  const memberSession=await (await post('/api/account/login',{
+    username:memberName,password:'password-long-member-123'})).json();
+  const request={host:base+'/s/LC',captcha:true};
+  const login=async token=>{
+    const ticket=await (await post('/api/join',request,
+      {authorization:'Bearer '+token})).json();
+    return enter(base,ticket.ticket);
+  };
+  const a=await login(ownerSession.token),b=await login(memberSession.token);
+  t.after(()=>{a.ws.terminate();b.ws.terminate();});
+  const ownerPlayer=[...game.room.players.values()].find(p=>p.accountId===owner.id);
+  const memberPlayer=[...game.room.players.values()].find(p=>p.accountId===member.id);
+  assert.ok(ownerPlayer&&memberPlayer);
+  const tag='C'+randomUUID().slice(0,6).toUpperCase();
+  a.send('L',[tag],2);
+  const until=Date.now()+3500;
+  while(!(await accounts.clanOf(owner.id))&&Date.now()<until)await sleep(15);
+  assert.equal((await accounts.clanOf(owner.id))?.tag,tag);
+  assert.equal(ownerPlayer.team,tag);
+  b.send('b',[tag],2);
+  while(!game.room.tribes.get(tag)?.requests.has(memberPlayer.id)&&Date.now()<until)
+    await sleep(15);
+  assert.ok(game.room.tribes.get(tag)?.requests.has(memberPlayer.id));
+  a.send('P',[memberPlayer.sid,true],3);
+  while(!(await accounts.clanOf(member.id))&&Date.now()<until)await sleep(15);
+  assert.equal((await accounts.clanOf(member.id))?.tag,tag);
+  assert.equal(memberPlayer.team,tag);
+  assert.equal(game.room.tribes.get(tag)?.owner,ownerPlayer.id);
+  a.ws.close();
+  await new Promise(resolve=>a.ws.once('close',resolve));
+  while(game.activeAccounts.has(owner.id)&&Date.now()<until)await sleep(15);
+  assert.equal(game.room.tribes.get(tag)?.owner,null,'offline owner never yields leadership');
+  assert.equal(memberPlayer.team,tag,'membership persists while leader is offline');
+  // Reserved tags cannot be claimed by an unrelated guest.
+  const guest=game.room.join(null,'Unrelated');
+  assert.equal(game.room.createTribe(guest.id,tag),false);
+  game.room.leave(guest.id);
+  const restoredConnection=await login(ownerSession.token);
+  t.after(()=>restoredConnection.ws.terminate());
+  const restoredOwner=[...game.room.players.values()].find(p=>p.accountId===owner.id);
+  assert.ok(restoredOwner);
+  assert.equal(restoredOwner.team,tag);
+  assert.equal(game.room.tribes.get(tag)?.owner,restoredOwner.id);
+  assert.equal((await accounts.clanOf(member.id))?.tag,tag);
+  restoredConnection.send('N',[],2);
+  const untilDisband=Date.now()+3500;
+  while(await accounts.clanOf(member.id)){
+    if(Date.now()>untilDisband)break;
+    await sleep(15);
+  }
+  assert.equal(await accounts.clanOf(member.id),null,'owner can disband SQL clan');
+  assert.equal(await accounts.clanOf(owner.id),null);
+  assert.equal(memberPlayer.team,null);
+  assert.ok(!game.room.tribes.has(tag));
+});
