@@ -42,9 +42,9 @@ export function createServerLifecycle({
             // Player.kick sends the original B packet and closes after 100ms.
             // Allow its data frame to leave before terminating lingering peers.
             await phase("socket grace", () => wait(socketGraceMs));
-            await phase("accounts and clans", () => {
-                if (accounts && typeof accounts.flush === "function") accounts.flush();
-            });
+            // Closing sockets triggers Game.removePlayer -> recordLife ->
+            // AccountStore.save(). Flush only AFTER those close handlers finish,
+            // or the last lifetime stats and clan updates are lost.
             await phase("websocket", () => new Promise((resolve, reject) => {
                 if (!websocketServer) return resolve();
                 for (const ws of websocketServer.clients || []) {
@@ -52,6 +52,9 @@ export function createServerLifecycle({
                 }
                 websocketServer.close(error => error ? reject(error) : resolve());
             }));
+            await phase("accounts and clans", () => {
+                if (accounts && typeof accounts.flush === "function") accounts.flush();
+            });
             await phase("http", () => new Promise((resolve, reject) => {
                 if (!httpServer || !httpServer.listening) return resolve();
                 httpServer.close(error => error ? reject(error) : resolve());
