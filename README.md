@@ -139,3 +139,48 @@ de dados visuais presumidos pelo Lua para nomes e dimensoes de animais.
 **Status:** arquivos publicados no repositorio, mas ainda nao houve teste
 de ponta a ponta executado nesta sessao no computador Windows. O teste
 `VERIFICAR-PARTIDA-NODE.bat` valida Node separadamente, nao o Lua.
+
+## Correcao da interface mostrada na captura de 20/10/2026
+
+O cliente Lua **nao envia mais o nascimento automaticamente**. Ele inicia
+a conexao autenticada ao Node e exibe a tela de entrada inspirada diretamente
+em `client/public/html/play.html` e `client/public/css/main.css`:
+abas `Game`, `Info`, `Settings`, campo de nome (ate 15 caracteres),
+selecao das dez cores originais e botao **Play**. O clique ou Enter na
+aba Game envia o pacote de nascimento `M` pela conexao real e aguarda
+a confirmacao `C`. A interface ainda nao reproduz todos os cards,
+abas e controles secundarios do navegador.
+
+O fundo da tela inicial e construido pelas posicoes **exatamente da rotina
+`prepareMenuBackground` da referencia JavaScript** e a camera fica no
+centro do mapa (rio Y=7200). Estes objetos pertencem **somente ao menu**,
+nao sao entidades inventadas para a partida. Ao jogar, o Node faz o
+nascimento em coordenada real aleatoria; portanto o rio nao estara
+necessariamente visivel perto de todo jogador, como na referencia.
+
+`INICIAR-WINDOWS.bat` agora confirma **os 180 PNGs existentes** do
+cliente original em `node-runtime/client/public/img` e os copia para
+`assets/reference/img` antes de iniciar o LÖVE, evitando a barra de arma
+vazia por falta de `hammer_1.png` ou outras imagens. Se uma arte
+especifica continuar ausente ou invalida, o overlay mostra **seu nome
+exato**, sem substitui-la por desenho novo.
+
+Os recursos no HUD agora aparecem por extenso, como
+`updateStatusDisplay()` do JavaScript; o cliente nao abrevia
+`1000000` como `1.0m`. O servidor de referencia usa o modo
+`unlimitedResources`, podendo iniciar a partida em `1000000`;
+**essa e uma configuracao do Node e nao um erro dos contadores**.
+O HUD tambem recebe `N: kills`, mostra aumentos positivos reais
+de recursos depois da leitura inicial de cada total e mostra quantidades
+de estruturas baseadas em `S` / `group.limit`, sem inventar coleta local.
+
+Arquivos principais atualizados:
+`src/game/reference_menu.lua`, `src/net/original_client.lua`,
+`src/game/reference_hud.lua`, `src/game/world_state.lua`,
+`src/game/reference_assets.lua` e `INICIAR-WINDOWS.bat`.
+
+**Ainda nao foi validado executando no Windows nesta sessao:** use
+`TESTAR-WINDOWS.bat` para verificar os testes e depois
+`INICIAR-WINDOWS.bat` para conferir menu, Play, PNGs, rios, arma e
+contadores numa partida. Envie o texto `RELATORIO-TESTES-LUA.txt`
+se os testes indicarem falhas. O porte completo 1:1 segue em andamento.
