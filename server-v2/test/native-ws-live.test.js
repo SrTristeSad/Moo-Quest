@@ -118,9 +118,14 @@ test('actual current Lua binary wire: /ping + /api/join + io-init + M -> C,D,H,a
   const projectile=packets.find(pkt=>pkt.name==='X'&&pkt.args[5]===0);
   assert.equal(projectile.args.length,8);
   assert.equal(projectile.args[4],1.6);
-  await waitFor(()=>packets.some(pkt=>pkt.name==='N'&&pkt.args[0]==='wood'&&pkt.args[1]===4));
-  assert.equal(p.resources.wood,4);
+  await waitFor(()=>packets.some(pkt=>pkt.name==='N'&&pkt.args[0]==='wood'&&pkt.args[1]===16));
+  await waitFor(()=>packets.filter(pkt=>pkt.name==='X'&&pkt.args[5]===0).length>=2);
+  assert.equal(p.resources.wood,12,'holding F fires again only after server cooldown');
   ws.send(session.makeTestRequest('F',[0,null],seq+13));
+  const shotCount=packets.filter(pkt=>pkt.name==='X'&&pkt.args[5]===0).length;
+  await pause(800);
+  assert.equal(packets.filter(pkt=>pkt.name==='X'&&pkt.args[5]===0).length,shotCount,
+    'releasing F stops server-controlled auto-fire');
   await waitFor(()=>packets.some(pkt=>pkt.name==='Y'&&pkt.args[0]===projectile.args[7]&&pkt.args[1]===0));
   ws.close();
   await new Promise(resolve=>ws.once('close',resolve));
