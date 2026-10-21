@@ -4,10 +4,11 @@
 local Original=require("src.net.original_client")
 local Auth=require("src.net.local_auth")
 local World=require("src.game.world_state")
+local Panels=require("src.game.reference_panels")
 local I={}
 I.__index=I
 function I.new(mode)
-  if mode~="guest" and mode~="account" then
+  if mode~="guest" and mode~="account" and mode~="store_tribe" then
     error("unknown Node integration mode")
   end
   local token=nil
@@ -27,7 +28,8 @@ function I.new(mode)
   if not ok then error("Node connection: "..tostring(err)) end
   return setmetatable({
     client=client,world=World.new(),mode=mode,
-    elapsed=0,spawned=false,hasC=false,hasD=false,done=false
+    elapsed=0,spawned=false,hasC=false,hasD=false,done=false,
+    panels=Panels.new(),stage=nil
   },I)
 end
 function I:stop(ok,reason)
