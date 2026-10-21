@@ -27,6 +27,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "npm failed" }
           npm run test:node
           if ($LASTEXITCODE -ne 0) { throw "original packet tests failed" }
+      - name: Recover 180 original images and convert WebP on Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if (Test-Path 'node-runtime') { throw "CI must start without old art folders" }
+          node tools/sync-reference-art.mjs
+          if ($LASTEXITCODE -ne 0) { throw "Windows art download / WEBP conversion failed" }
+          node --input-type=module -e "import fs from 'node:fs';const m=JSON.parse(fs.readFileSync('support/reference-image-manifest.json'));let n=0;for(const [cat,names] of Object.entries(m)){for(const f of names){const b=fs.readFileSync('assets/reference/img/'+cat+'/'+f);if(b.subarray(0,8).toString('hex')!=='89504e470d0a1a0a')throw Error(cat+'/'+f+' not PNG');n++}}if(n!==180)throw Error('Expected 180 real PNG files');console.log('PASS: 180 valid-signature PNG sprites on Windows');"
+          if ($LASTEXITCODE -ne 0) { throw "Windows art validation failed" }
+          $env:MOOQUEST_ART_OFFLINE = '1'
+          node tools/sync-reference-art.mjs
+          if ($LASTEXITCODE -ne 0) { throw "Offline Windows restart failed" }
       - name: Test actual bundled server, local economy and authenticated spawn
         shell: pwsh
         run: |
