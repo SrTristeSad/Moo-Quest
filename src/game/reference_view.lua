@@ -40,14 +40,19 @@ local function see(e,camera,w,h,scale)
   local s=(scale or e.scale or 120)*camera.zoom
   return x+s>=0 and x-s<=w and y+s>=0 and y-s<=h
 end
-local function river(camera,w,delta)
-  local mid=C.mapScale/2
-  local y=camera:worldToScreen(0,mid)
+function View.riverGeometry(camera)
+  -- World Y, not player Y or mouse dragging. This is the exact map centre
+  -- used by client/src/index.js::renderWaterBodies.
+  local _,y=camera:worldToScreen(0,C.mapScale/2)
   local bank=(C.riverWidth+C.riverPadding)*camera.zoom
+  local water=(C.riverWidth+(waterMult-1)*250)*camera.zoom
+  return y,bank,water
+end
+local function river(camera,w)
+  local y,bank,water=View.riverGeometry(camera)
   Shapes.color("#dbc666")
   love.graphics.rectangle("fill",0,y-bank/2,w,bank)
   Shapes.color("#91b2db")
-  local water=(C.riverWidth+(waterMult-1)*250)*camera.zoom
   love.graphics.rectangle("fill",0,y-water/2,w,water)
 end
 local function ground(camera,w,h)
