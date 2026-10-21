@@ -136,9 +136,8 @@ function P:click(world,x,y,w,h)
   if inside(x,y,tribeX,top,size,size) then
     self:toggle("tribe");return {consumed=true}
   end
-  -- Notifications are drawn behind an open overlay; they are not click targets
-  -- until the panel closes.
-  if not self.opened and world.tribeOwner and #world.joinRequests>0 then
+  -- Join request notifications are independent of the open window.
+  if world.tribeOwner and #world.joinRequests>0 then
     local request=world.joinRequests[1]
     local acceptX,denyX=w-330,w-388
     if inside(x,y,acceptX,94,52,37) then
