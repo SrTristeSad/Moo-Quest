@@ -33,7 +33,8 @@ local function center(str,x,y,w,s,color)
   love.graphics.printf(tostring(str),x,y,w,"center")
 end
 local function hot(x,y,px,py,w,h)
-  return px>=x and py>=y and px<x+w and py<y+h
+  -- x/y = pointer, px/py = element origin (same order as Menu:click).
+  return x>=px and y>=py and x<px+w and y<py+h
 end
 local function menuView()
   local world=World.new()
