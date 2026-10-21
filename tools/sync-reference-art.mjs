@@ -190,7 +190,7 @@ async function sync(){
   notes.push("Prontos: "+(allowlisted.length-pending.length));
   notes.push("WebP convertidos para PNG: "+metrics.converted);
   notes.push("Variante de arco diamante fornecida: "+
-    (optionalVariants and "SIM" or "NAO (imagem base original usada)"));
+    (optionalVariants > 0 ? "SIM" : "NAO (imagem base original usada)"));
   if(recovered.length){
     notes.push("");
     notes.push("WEBP CONVERTIDOS (nao estavam corrompidos):");
