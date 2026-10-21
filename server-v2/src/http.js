@@ -118,7 +118,7 @@ export function createHTTP({ root, storage, auth, updates, game = null, stopStat
           return respond(res, 401, { error: 'invalid_login' });
         }
         await auth.clearFailure(ip);
-        const session = auth.issue();
+        const session = await auth.issue();
         res.setHeader('Set-Cookie', cookieHeader(session.token, httpsCookies));
         return redirect(res, '/admin');
       }
