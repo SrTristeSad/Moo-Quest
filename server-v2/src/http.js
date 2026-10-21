@@ -81,6 +81,7 @@ export function createHTTP({ root, storage, auth, updates, game = null,
       });
       if(req.method==='GET' && pathname==='/api/capabilities')return respond(res,200,{
         build:'mqv2native',registeredAccounts:true,
+        accountAPI:'v2-session-1',tokenRefresh:true,logoutAll:true,
         persistentClans:true,
         guestAdmission:guestVerifier.publicMode?'verified_challenge':'direct_loopback_only',
         tlsRequiredForRemote:true,
@@ -127,9 +128,61 @@ export function createHTTP({ root, storage, auth, updates, game = null,
           const session=await playerTokens.issue(result.id);
           return respond(res,200,{...session,id:result.id,username:result.username});
         }
+        if(req.method==='POST'&&pathname==='/api/account/refresh'){
+          const key='refresh:'+rateKey(req);
+          if(await auth.loginBlocked(key))
+            return respond(res,429,{error:'too_many_attempts'});
+          const body=await readBody(req);
+          const session=await playerTokens.refresh(body.refreshToken);
+          if(!session){
+            await auth.recordFailure(key);
+            return respond(res,401,{error:'invalid_refresh_token'});
+          }
+          await auth.clearFailure(key);
+          const {accountId,...credentials}=session;
+          const user=await accounts.load(accountId);
+          if(!user){
+            await playerTokens.revokeAll(accountId);
+            return respond(res,401,{error:'account_unavailable'});
+          }
+          return respond(res,200,{...credentials,id:user.id,username:user.username});
+        }
         const bearer=/^Bearer ([a-f0-9]{64})$/.exec(req.headers.authorization||'');
         const token=bearer?.[1],accountId=token?await playerTokens.get(token):null;
+        if(req.method==='POST'&&pathname==='/api/account/logout'){
+          // Logout with refresh token remains possible after the 8-hour
+          // access token expires. Invalid Bearer must not bypass auth.
+          let owner=accountId;
+          if(!owner&&!req.headers.authorization){
+            const body=await readBody(req);
+            owner=await playerTokens.revokeRefresh(body.refreshToken);
+          }else if(owner)await playerTokens.revoke(token);
+          if(!owner)return respond(res,401,{error:'invalid_player_token'});
+          gameRef?.disconnectAccount?.(owner);
+          return respond(res,200,{ok:true});
+        }
         if(!accountId)return respond(res,401,{error:'invalid_player_token'});
+        if(req.method==='POST'&&pathname==='/api/account/logout-all'){
+          await playerTokens.revokeAll(accountId);
+          gameRef?.disconnectAccount?.(accountId);
+          return respond(res,200,{ok:true});
+        }
+        if(req.method==='POST'&&pathname==='/api/account/change-password'){
+          const key='change-password:'+rateKey(req);
+          if(await auth.loginBlocked(key))
+            return respond(res,429,{error:'too_many_attempts'});
+          const body=await readBody(req);
+          const updated=await accounts.changePassword(
+            accountId,body.currentPassword,body.newPassword);
+          if(!updated){
+            await auth.recordFailure(key);
+            return respond(res,401,{error:'invalid_credentials'});
+          }
+          await auth.clearFailure(key);
+          await playerTokens.revokeAll(accountId);
+          gameRef?.disconnectAccount?.(accountId);
+          return respond(res,200,{ok:true,reloginRequired:true});
+        }
         if(req.method==='GET'&&
             (pathname==='/api/account/me'||pathname==='/api/account/progress')){
           const user=await accounts.load(accountId);
@@ -149,11 +202,6 @@ export function createHTTP({ root, storage, auth, updates, game = null,
               .map(key=>[key,Number(resources[key])||0])),
             ownedWeapons:Array.isArray(p.inventory?.weapons)?p.inventory.weapons:[],
             buildingCount:Array.isArray(p.structures)?p.structures.length:0});
-        }
-        if(req.method==='POST'&&pathname==='/api/account/logout'){
-          await playerTokens.revoke(token);
-          gameRef?.disconnectAccount?.(accountId);
-          return respond(res,200,{ok:true});
         }
         return respond(res,404,{error:'not_found'});
       }

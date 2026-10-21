@@ -168,7 +168,9 @@ export class RedisPlayerTokens{
       typeof record?.accessHash!=='string')return null;
     await this.client.del(this.prefix+'player-session:'+record.accessHash);
     if(record.generation!==await this.generation(record.accountId))return null;
-    return this.issue(record.accountId);
+    const session=await this.issue(record.accountId);
+    await this.invalidateTickets(record.accountId);
+    return {...session,accountId:record.accountId};
   }
   async invalidateTickets(accountId){
     // A 90s revision covers the complete 30s join-ticket lifetime.
