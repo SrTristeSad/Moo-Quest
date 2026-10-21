@@ -323,7 +323,8 @@ function love.draw()
   if client and client.state=="spawn_confirmed" and not died
     and p and p.x and p.y then
     View.draw(world,camera,frameDelta,{showGrid=menu.grid})
-    Hud.draw(world,chatOpen,chatDraft)
+    Hud.draw(world,chatOpen,chatDraft,
+      chatOpen or panels:isOpen() or clans:isOpen())
     panels:draw(world)
     clans:draw(true)
     if uiSmoke and uiSmokeClicked and not uiSmokeDrawn then
