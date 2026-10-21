@@ -201,7 +201,7 @@ mas sem acesso a conta e sem uma forma comprovada de passar para a partida.
   protocolo original. Mensagens de aguardando conexao/partida sao visiveis.
 - O workflow `.github/workflows/node-spawn.yml` instala o Node original
   fixado, o LÖVE 11.5 e os PNGs apenas no runner temporario; em seguida
-  verifica **cinco jornadas reais**: autenticacao e spawn Node via JS,
+  verifica **seis jornadas reais**: autenticacao e spawn Node via JS,
   Lua convidado direto, Lua conta direta, Play via interface,
   Entrar->Play via interface e Cadastrar->Play via interface.
   Os testes exigem `M -> C -> D` verdadeiros e executam o
