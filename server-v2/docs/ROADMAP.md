@@ -96,7 +96,13 @@ Implementado na fundação experimental:
 - Contas de jogadores com credenciais scrypt, sessão Redis e armazenamento
   PostgreSQL de inventário, recursos, XP, progressão, equipamentos e cosméticos;
   recuperação apenas com token autenticado e ticket vinculado, nunca por did;
-  integração de login na UI LÖVE e estruturas/clãs persistentes ainda pendentes;
+- Primeira fase de construções persistentes por personagem registrado:
+  objetos salvos com HP, restaurados com limites/colisão; desaparecem offline;
+- Clãs registrados persistem em tabelas próprias PostgreSQL, com único dono
+  autenticado, associação de membros e nome reservado durante desconexão;
+  convidados mantêm somente clãs transitórios; transferência de propriedade,
+  gestão avançada e interação offline permanecem pendentes;
+- Integração da autenticação na UI LÖVE ainda pendente;
 - PostgreSQL obrigatório para o estado administrativo durável; Redis obrigatório\n  para sessões, limitação de login e tickets de entrada de uso único. O estado\n  em tempo real da partida permanece em RAM; não há ainda persistência de contas\n  de jogadores, inventários ou construções entre reinicializações;\n- testes unitários de codecs, entrada, inventário, compras, construção,
   recursos, retorno após coleta, cura, XP e escolhas de equipamentos. O teste
   WebSocket de ponta a ponta inclui loja, cura e upgrades, além da entrada.
