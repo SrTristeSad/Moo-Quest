@@ -163,6 +163,24 @@ async function sync(){
     }
     if(!copied)pending.push(key);
   }
+  // The pinned archive is missing exactly bow_1_d.png. This optional
+  // user-provided variant must still be copied and take priority if supplied
+  // later; never synthesize the diamond artwork from other pictures.
+  let optionalVariants=0;
+  for(const key of ["weapons/bow_1_d.png"]){
+    const output=path.join(target,key);
+    const personalized=await readSafe(path.join(custom,key));
+    if(personalized && await tryCandidate(key,personalized,"custom",output)){
+      optionalVariants++;continue;
+    }
+    if(await tryCandidate(key,await readSafe(output),"existing",output)){
+      optionalVariants++;continue;
+    }
+    for(const folder of sources){
+      if(await tryCandidate(key,await readSafe(path.join(folder,key)),
+        "local",output)){optionalVariants++;break}
+    }
+  }
   const notes=[];
   notes.push("Moo-Quest - Relatorio de artes locais");
   notes.push("Esta lista diferencia arquivo AUSENTE de formato de imagem invalido.");
@@ -171,6 +189,8 @@ async function sync(){
   notes.push("Total esperado: "+allowlisted.length);
   notes.push("Prontos: "+(allowlisted.length-pending.length));
   notes.push("WebP convertidos para PNG: "+metrics.converted);
+  notes.push("Variante de arco diamante fornecida: "+
+    (optionalVariants and "SIM" or "NAO (imagem base original usada)"));
   if(recovered.length){
     notes.push("");
     notes.push("WEBP CONVERTIDOS (nao estavam corrompidos):");
