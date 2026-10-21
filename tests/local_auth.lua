@@ -26,10 +26,10 @@ local http={
     body=table.concat(chunks)
     assert(opts.headers["Content-Type"]=="application/json")
     assert(tonumber(opts.headers["Content-Length"])==#body)
-    if route:sub(-10)=="auth/code" then
+    if route:sub(-10)=="/auth/code" then
       assert(body:find('"email":"player@example.com"',1,true))
       opts.sink('{"flow":"'..flow..'"}')
-    elseif route:sub(-12)=="auth/verify" then
+    elseif route:sub(-12)=="/auth/verify" then
       assert(body:find('"flow":"'..flow..'"',1,true))
       assert(body:find('"code":"123456"',1,true))
       opts.sink('{"token":"'..token..'","email":"player@example.com","id":"abcdef012345abcdef012345"}')
