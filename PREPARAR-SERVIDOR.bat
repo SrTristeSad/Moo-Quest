@@ -41,18 +41,20 @@ if errorlevel 1 (
   exit /b 1
 )
 echo [OK] Motor de jogo e coleta normal preparados.
-echo [3/3] Conferindo imagens locais. PNGs quebrados do upstream serao rejeitados...
+echo [3/3] Recuperando as imagens de referencia e convertendo WebP para PNG...
+echo [INFO] Algumas imagens do upstream sao WebP com extensao .png.
+echo [INFO] O conversor preserva os pixels, sem redesenhar nada.
 node "%~dp0tools\sync-reference-art.mjs"
 if errorlevel 1 (
   echo.
-  echo [ARTE] O servidor esta instalado, mas faltam sprites validos.
-  echo Consulte ARTES-PENDENTES.txt. O martelo original no upstream e INVALIDO.
-  echo Coloque seu arquivo PNG em assets\custom\img\weapons\hammer_1.png
-  echo O Moo-Quest NAO vai gerar uma imagem diferente ou fingir que existe.
+  echo [ARTE] Nao foi possivel recuperar algum sprite.
+  echo Confira ARTES-PENDENTES.txt para descobrir se falta a pasta
+  echo ou se o download da referencia nao foi concluido.
+  echo Se possui outra pasta de imagens, use MOOQUEST_ART_SOURCE_DIR.
   pause
   exit /b 1
 )
-echo [OK] Servidor proprio e artes verificadas.
+echo [OK] Servidor preparado e artes convertidas para PNG real.
 echo Execute INICIAR-WINDOWS.bat para jogar.
 pause
 exit /b 0
