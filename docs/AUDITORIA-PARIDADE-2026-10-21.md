@@ -130,6 +130,32 @@ escurecia indistintamente toda a área secreta.
   Esta implementação reproduz as coordenadas/regras reais desse Node, não
   uma suposta imagem oficial pixel a pixel dessa região.
 
+## Progresso subsequente — pilha dos objetos e projéteis (PR #14)
+
+A auditoria de `client/src/index.js` mostrou que os objetos são
+acumulados em **baldes por layer na ordem do array `gameObjects`**
+(`prepareObjectRenderLists`). O cliente Lua usava `pairs(world.objects)`,
+que percorre o mapa hash sem uma ordem de desenho garantida e altera as
+sobreposições de construções, paredes e recursos.
+
+- `World:apply("H")` agora mantém a **posição de cada objeto** na
+  lista do cliente; `Q` e `R` liberam seu slot. Novos objetos
+  reutilizam o primeiro slot livre, como `objectManager.add` do JS.
+- `View.draw` consome uma ordem de objetos determinística para as
+  camadas `-1, 0, 1, 2, 3`, sem mudar as artes, transparências,
+  rotação, recuo ou sobreposição dos efeitos W/8.
+- Os seis índices de projéteis do catálogo real foram auditados:
+  três flechas (`0/2/3`), dois projéteis circulares (`1/4`),
+  e o projétil visual do mosquete (`5`). A resolução dos sprites
+  vem apenas do catálogo de referência; o raio de visibilidade é o
+  raio real, substituindo o culling genérico de 180 unidades.
+- Testes verificam H/Q/R, reutilização de slots, ausência de
+  ordenação arbitrária por SID, tipos e camadas de projéteis e
+  desenhos em Canvas LÖVE, inclusive PNGs quando instalados.
+- **Limitação:** isso corrige uma divergência demonstrável de
+  renderização; ainda faltam avaliações manuais lado a lado de
+  animação, colisão visível e efeitos na partida completa.
+
 ## Critério objetivo para chamar 1:1
 
 Todos os fluxos do escopo original aplicável têm controle correspondente, visual correspondente, evento Node validado, teste automatizado específico e evidência de execução manual lado a lado. **Um PR com 7 workflows verdes não é equivalente a paridade 1:1.**
