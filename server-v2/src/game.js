@@ -295,7 +295,7 @@ export class GameServer {
     if(!this.accounts||!p.accountId)return null;
     const snapshot=this.room.persistentProfile(p);
     let task;
-    task=this.accounts.save(p.accountId,snapshot)
+    task=Promise.resolve().then(()=>this.accounts.save(p.accountId,snapshot))
       .then(()=>{
         this.unsavedProfiles.delete(p.accountId);
         return true;
