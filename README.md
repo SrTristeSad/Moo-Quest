@@ -72,6 +72,36 @@ convites, cargos e persistencia em disco.
 Veja [docs/CLAS-PERMANENTES.md](docs/CLAS-PERMANENTES.md) para uso,
 limites e seguranca.
 
+## Tela de morte original e detalhes dos itens (21/10/2026)
+
+O cliente agora reage ao **pacote original `P`** do Node com a mesma
+sequencia de `killPlayer()` da referencia: encerra os controles da
+partida, fecha Chat/Shop/Tribe/Clan, conserva o mapa ao fundo e
+mostra **YOU DIED**, branco e centralizado, com fundo preto translucido
+de 25%. A fonte cresce a 0,1px por milissegundo ate 120px. Depois de
+**3 segundos** (`shared/config.js deathFadeout=3000`), o menu original
+com **Play** reaparece; clicar Play ou pressionar R envia um novo `M`
+ao **mesmo servidor Node autenticado**, sem inventar o renascimento.
+A posicao da morte permanece marcada no minimapa, como no cliente JS.
+
+Tambem foi portado `showItemInfo()`/`#itemInfoHolder`: ao passar
+o mouse sobre armas e itens da barra inferior ou sobre opcoes de
+evolucao, aparece o painel superior esquerdo original com **nome,
+descricao, materiais/custos, tipo da arma e limite de construcoes**.
+A quantidade construida vem do pacote real `S` do Node, e os dados dos
+**23 itens e 16 armas** vem de `shared/config/items.js`.
+O item nao aparece artificialmente caso o Node nao o tenha colocado
+no inventario; a barra usa apenas os pacotes autoritativos `V`.
+A folha de estilo do painel segue `client/public/css/main.css`
+(30px titulo, 22px descricao).
+
+Os testes `tests/reference_death.lua`,
+`tests/reference_item_info.lua` e `tests/reference_render.lua`
+validam essas mudancas nos runtimes Lua 5.1, Lua 5.4 e LÖVE 2D;
+o LÖVE testa tambem a renderizacao efetiva das caixas de informacao
+e da animacao de morte. Teste manual completo na versao Windows e
+comparacao pixel a pixel com o navegador ainda sao pendentes.
+
 ## Status real
 
 - **Implementado em codigo:** cliente LÖVE, MessagePack, WebSocket RFC6455, consulta `GET /ping`, **POST /api/join (ticket guest valido emitido pelo proprio Node local)**, conexao direta com `?b=<build>&token=tk:<ticket>`, leitura do `io-init`, chave/tabelas autenticadas e envio do pacote original `M` (spawn). Eventos `C` e `a` sao processados para exibir ID e coordenadas autoritativas; WASD, mira e clique enviam comandos reais. **O Windows foi validado para o servidor Node e o cliente Lua foi testado no runner Linux com LÖVE; a interface grafica completa ainda exige teste manual no Windows.**
