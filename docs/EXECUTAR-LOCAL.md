@@ -18,13 +18,16 @@ Requisitos: [Node.js 20+](https://nodejs.org/) com npm e
    do nosso próprio `server/`. Se a pasta `server/data/` estiver vazia,
    copia para ela as contas e parâmetros antigos de `node-runtime/server/data/`
    **sem apagar a instalação original**.
-4. **Artes do jogo:** seis arquivos da fonte original são PNGs inválidos.
-   Não é defeito do LÖVE nem do seu Windows. O arquivo
-   `ARTES-PENDENTES.txt` contém a lista. A arma inicial
-   `weapons/hammer_1.png` precisa ser uma imagem PNG real da sua autoria,
-   colocada em `assets/custom/img/weapons/hammer_1.png`.
-   O importador preserva seus desenhos, jamais os substitui pelos seis
-   arquivos corrompidos e não cria artes genéricas.
+4. **Artes do jogo:** o upstream tem **seis imagens WebP com extensao
+   `.png`**, e nao PNGs quebrados. O preparador reconhece o formato pelos
+   bytes e converte todos os seis **sem modificar o desenho nem os pixels**.
+   Se a pasta antiga de sprites `node-runtime/client/public/img` nao existir,
+   o preparador recupera automaticamente os 180 arquivos da referencia
+   congelada no GitHub, exclusivamente para a sua instalacao local.
+   Nao e necessario desenhar outro `hammer_1.png`. As artes suas que voce
+   colocar em `assets/custom/img/` tem prioridade.
+   `ARTES-PENDENTES.txt` so lista erros reais quando a origem nao puder
+   ser recuperada.
 5. Execute `INICIAR-WINDOWS.bat`. O iniciador usa o nosso Node
    `server/src/index.js`, checa `/mooquest/status` e só abre o Lua
    depois de confirmar a compatibilidade do `protocol-build.json`.
@@ -48,9 +51,13 @@ e use nosso iniciador; não desative a verificação `/mooquest/status`.
 - **Servidor antigo na porta 8080:** feche a janela antiga do Node.
 - **Arquivo `protocol-build.json` ausente:** verifique o console do
   `INICIAR-WINDOWS.bat`, que compara o arquivo com o build da sessão ativa.
-- **Arte `hammer_1.png` inválida:** forneça um PNG válido em
-  `assets/custom/img/weapons/hammer_1.png`. Não renomeie um arquivo
-  quebrado para `.png`, pois isso não muda seu formato.
+- **Artista não precisa refazer o martelo:** os arquivos WebP com nome
+  `.png` são convertidos automaticamente pelo preparador.
+- **`ARTES-PENDENTES.txt` lista muitas imagens:** a instalação pode estar
+  sem a pasta antiga de recursos. O preparador baixa o ZIP de referência
+  do GitHub. Se não houver acesso à Internet, preserve
+  `node-runtime/client/public/img` ou indique uma pasta por
+  `MOOQUEST_ART_SOURCE_DIR`.
 - **Erro no cliente Lua:** execute `TESTAR-WINDOWS.bat` e abra
   `RELATORIO-TESTES-LUA.txt`.
 
