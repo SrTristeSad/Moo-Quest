@@ -5,6 +5,7 @@ local Original=require("src.net.original_client")
 local World=require("src.game.world_state")
 local View=require("src.game.reference_view")
 local Menu=require("src.game.reference_menu")
+local Auth=require("src.net.local_auth")
 local Config=require("src.game.config")
 local Hud=require("src.game.reference_hud")
 local Upgrades=require("src.game.reference_upgrades")
@@ -112,6 +113,7 @@ function love.update(dt)
       serverPackets=serverPackets+1
       if packet.name=="C" then
         phase="playing"
+        menu.status=""
         latestEvent="SPAWN CONFIRMADO pelo Node original. SID "..tostring(client.sid)
         movementClock=0
         lastMove=false
@@ -209,8 +211,9 @@ function love.draw()
   local p=world:localPlayer()
   if phase=="menu" then
     View.draw(menu.world,menuCamera,frameDelta,{showGrid=menu.grid})
-    menu:draw(client and client.state,
-      (client and (client.error or client.status)) or startupError or menu.status)
+    local status=menu.status~="" and menu.status or
+      (client and (client.error or client.status)) or startupError
+    menu:draw(client and client.state,status)
     return
   end
   if client and client.state=="spawn_confirmed" and not died
@@ -271,6 +274,7 @@ function love.draw()
     36,h-115,w-72)
 end
 
+local menuAction
 local function requestPlay()
   if not client then
     menu.status=startupError or "Cliente de rede indisponivel."
@@ -278,7 +282,9 @@ local function requestPlay()
   end
   if client.state~="keyed_transport" and
     not (died and client.state=="spawn_confirmed") then
-    menu.status="Aguardando conexao com Node. Estado: "..tostring(client.state)
+    menu.status=client.state=="joining"
+      and "Play enviado; aguardando confirmacao C do servidor..."
+      or "Aguardando conexao com Node. Estado: "..tostring(client.state)
     return false
   end
   local ok,why=client:spawn({name=menu.name,skin=menu.skin})
@@ -290,14 +296,69 @@ local function requestPlay()
   menu.status="Entrando na partida; aguardando confirmacao do Node..."
   return true
 end
+local function accountAction(action)
+  if action=="auth_request" then
+    local flow,err=Auth.requestCode(menu.authEmail)
+    if not flow then
+      menu.authMessage=err;return
+    end
+    menu.authFlow=flow.flow
+    menu.authStep="code"
+    menu.authCode=""
+    menu.authFocus="code"
+    menu.authMessage="Este servidor local aceita QUALQUER codigo de 6 digitos. Nao ha envio de email."
+    return
+  elseif action=="auth_verify" then
+    local account,err=Auth.verifyCode(menu.authFlow,menu.authCode)
+    if not account then menu.authMessage=err;return end
+    if not client then menu.authMessage="Cliente Node indisponivel";return end
+    client.authToken=account.token
+    menu.accountEmail=menu.authEmail
+    menu.authMode=nil
+    menu.authFlow=nil
+    menu.authCode=""
+    menu.authMessage=""
+    menu.status="Conta local conectada. Reabrindo sessao de jogo..."
+    -- The original API issues account-bound join tickets. The old guest
+    -- WebSocket cannot be retroactively converted to a registered session.
+    world=World.new()
+    local ok,why=client:connect()
+    if not ok then menu.status="Falha ao conectar conta: "..tostring(why) end
+    return
+  elseif action=="auth_logout" then
+    if not client then return end
+    client.authToken=nil
+    menu.accountEmail=nil
+    menu.status="Conta local desconectada. Reabrindo como convidado..."
+    world=World.new()
+    local ok,why=client:connect()
+    if not ok then menu.status="Falha na conexao guest: "..tostring(why) end
+  end
+end
+menuAction=function(action)
+  if action=="play" then return requestPlay() end
+  if action=="auth_request" or action=="auth_verify" or
+    action=="auth_logout" then
+    accountAction(action)
+    return true
+  end
+  if action=="auth_open" or action=="auth_back" then
+    menu.status=""
+  end
+  return false
+end
+
 function love.keypressed(key)
   if key=="escape" then
+    if phase=="menu" and menu.authMode then
+      menuAction(menu:keypressed(key));return
+    end
     if chatOpen then chatOpen=false;chatDraft="";return end
     love.event.quit();return
   end
   if diagnostic then return end
   if phase=="menu" then
-    if key=="r" and client and
+    if key=="r" and not menu.authMode and client and
       (client.state=="failed" or client.state=="closed") then
       world=World.new()
       local ok,why=client:connect()
@@ -305,7 +366,7 @@ function love.keypressed(key)
       return
     end
     local action=menu:keypressed(key)
-    if action=="play" then requestPlay() end
+    menuAction(action)
     return
   end
   if chatOpen then
@@ -420,7 +481,7 @@ function love.mousepressed(x,y,button)
     if button==1 then
       local width,height=love.graphics.getDimensions()
       local action=menu:click(x,y,width,height)
-      if action=="play" then requestPlay() end
+      menuAction(action)
     end
     return
   end
