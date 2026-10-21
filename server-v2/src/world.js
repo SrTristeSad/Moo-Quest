@@ -9,8 +9,12 @@ const TYPE={tree:0,bush:1,stone:2,ore:3};
 const RECIPES={
   3:{cost:{wood:10},scale:50,hp:350,group:1,limit:30},
   4:{cost:{stone:25},scale:50,hp:800,group:1,limit:30},
+  5:{cost:{stone:35},scale:52,hp:1500,group:1,limit:30},
   6:{cost:{wood:20,stone:5},scale:49,hp:300,group:2,limit:15},
   7:{cost:{wood:30,stone:10},scale:52,hp:400,group:2,limit:15},
+  8:{cost:{wood:35,stone:15},scale:52,hp:600,group:2,limit:15,
+    spikeDamage:30,poison:{damage:5,seconds:6}},
+  9:{cost:{wood:30,stone:20},scale:52,hp:500,group:2,limit:15,spikeDamage:45},
   10:{cost:{wood:50,stone:10},scale:45,hp:350,group:3,limit:20,pps:1},
   11:{cost:{wood:60,stone:20},scale:47,hp:450,group:3,limit:20,pps:1.5},
   12:{cost:{wood:100,stone:50},scale:47,hp:750,group:3,limit:20,pps:2},
@@ -27,7 +31,8 @@ const RECIPES={
   // Player-built automatic defense. Static only: no NPC or editable map.
   17:{cost:{wood:200,stone:150},scale:43,hp:800,group:7,limit:2,turret:true}
 };
-const FOOD={0:{cost:10,heal:20},1:{cost:15,heal:40}};
+const FOOD={0:{cost:10,heal:20},1:{cost:15,heal:40},
+  2:{cost:25,heal:30,regen:10,seconds:5}};
 const WEAPONS={0:{damage:15,reach:85,cooldown:500},
   1:{damage:23,reach:95,cooldown:550},3:{damage:30,reach:115,cooldown:650},
   5:{damage:37,reach:150,cooldown:750},6:{damage:16,reach:120,cooldown:450},
@@ -56,9 +61,13 @@ const UPGRADES=new Map([
   [2,{kind:'weapon',id:2,age:8,pre:1}], [4,{kind:'weapon',id:4,age:8,pre:3}],
   [12,{kind:'weapon',id:12,age:8,pre:9}],
   // Index for the Lua item upgrade = number of weapon IDs (16) + item ID.
+  [18,{kind:'item',id:2,age:7}],
+  [21,{kind:'item',id:5,age:7,pre:4}],
   [33,{kind:'item',id:17,age:7}], [35,{kind:'item',id:19,age:7}],
   [37,{kind:'item',id:21,age:7}], [38,{kind:'item',id:22,age:7}],
   [28,{kind:'item',id:12,age:8,pre:11}],
+  [24,{kind:'item',id:8,age:9,pre:7}],
+  [25,{kind:'item',id:9,age:9,pre:7}],
   [36,{kind:'item',id:20,age:9}],
   [13,{kind:'weapon',id:13,age:9,pre:12}],
   [15,{kind:'weapon',id:15,age:9,pre:12}]
@@ -144,7 +153,7 @@ export class World {
       ownedHats:new Set([0,51]),ownedAccessories:new Set([0]),
       resources:{wood:0,stone:0,food:0,points:0,kills:0},
       inventory:{weapons:[0],items:[0,3,6,10]},weaponIndex:0,buildIndex:-1,score:0,
-      rootedUntil:0,nextHealAt:0,nextTeleportAt:0,
+      rootedUntil:0,nextHealAt:0,nextTeleportAt:0,poison:null,regen:null,
        lastGeneratorAt:this.now(),generatorRemainder:0};
     this.players.set(p.id,p);
     this.events.push({kind:'join',id:p.id,sid:p.sid,name:p.name});return p;
@@ -261,6 +270,11 @@ export class World {
     p.resources.food-=food.cost;
     const amount=Math.min(food.heal,p.maxHp-p.hp);
     p.hp+=amount;
+    // A new serving refreshes the duration instead of stacking heal ticks.
+    if(food.regen){
+      const now=this.now();
+      p.regen={nextAt:now+1000,until:now+food.seconds*1000,amount:food.regen};
+    }
     this.events.push({kind:'heal',player:id,sid:p.sid,amount,hp:p.hp,x:p.x,y:p.y});
     return true;
   }
@@ -367,6 +381,8 @@ export class World {
     let farm=null,farmDistance=205;
     for(const obj of this.structures.values()){
       if(!RECIPES[obj.id]?.harvest)continue;
+      const farmOwner=[...this.players.values()].find(other=>other.sid===obj.owner);
+      if(obj.owner!==p.sid&&!(p.team&&farmOwner?.team===p.team))continue;
       const d=Math.hypot(obj.x-p.x,obj.y-p.y);
       if(d>=farmDistance)continue;
       const direction=Math.atan2(obj.y-p.y,obj.x-p.x);
@@ -469,6 +485,7 @@ export class World {
     p.inventory={weapons:[0],items:[0,3,6,10]};p.xp=0;p.age=1;
     p.maxXp=LEVEL_XP(1);p.upgradePoints=0;p.upgradeAge=2;
     p.vx=0;p.vy=0;p.lastAttack=0;p.rootedUntil=0;p.nextHealAt=0;
+    p.poison=null;p.regen=null;
     p.nextTeleportAt=this.now()+3000;
     p.lastGeneratorAt=this.now();p.generatorRemainder=0;
     this.events.push({kind:'respawn',id:p.id,sid:p.sid,x:p.x,y:p.y});return true;
@@ -521,23 +538,31 @@ export class World {
         Math.hypot(x-o.x,y-o.y)<o.scale+30);
       if(!blocking){p.x=x;p.y=y;}
       for(const trap of this.structures.values()){
-        if(![6,7].includes(trap.id))continue;
+        if(![6,7,8,9].includes(trap.id))continue;
         const owner=[...this.players.values()].find(other=>other.sid===trap.owner);
         if(trap.owner===p.sid || (p.team && owner?.team===p.team))continue;
         if(Math.hypot(p.x-trap.x,p.y-trap.y)>trap.scale+24)continue;
         if(at<(trap.nextDamage?.[p.id]||0))continue;
         if(!trap.nextDamage)trap.nextDamage=Object.create(null);
         trap.nextDamage[p.id]=at+850;
-        const amount=trap.id===7?15:10;
+        const recipe=RECIPES[trap.id];
+        // The existing V2 basic spikes retain their balancing.
+        const amount=recipe.spikeDamage??(trap.id===7?15:10);
         p.hp=Math.max(0,p.hp-amount);
+        if(p.hp>0&&recipe.poison){
+          p.poison={until:at+recipe.poison.seconds*1000,nextAt:at+1000,
+            damage:recipe.poison.damage,from:owner?.id||null};
+        }
         this.events.push({kind:'hit',from:owner?.id||null,to:p.id,
           damage:amount,hp:p.hp,x:p.x,y:p.y});
         if(p.hp===0){
           p.deadUntil=at+3000;p.vx=0;p.vy=0;
+          p.poison=null;p.regen=null;
           this.events.push({kind:'death',id:p.id,killer:owner?.id||null});
         }
         break;
       }
+      if(p.hp<=0)continue;
       // Healing pads only affect living owners and tribe allies. Pit traps
       // immobilize hostile players for a bounded interval; per-trap cooldown
       // prevents repeated activation every simulation tick.
@@ -560,6 +585,41 @@ export class World {
           p.hp+=amount;p.nextHealAt=at+1000;
           this.events.push({kind:'heal',player:p.id,sid:p.sid,amount,hp:p.hp,x:p.x,y:p.y});
         }
+      }
+      // Periodic status effects use elapsed wall-clock seconds, not tick
+      // counts. Missed ticks can recover at most the fixed effect duration.
+      if(p.poison){
+        const dot=p.poison;
+        const until=Math.min(at,dot.until);
+        const pulses=Math.max(0,Math.min(6,Math.floor((until-dot.nextAt)/1000)+1));
+        if(pulses){
+          const damage=Math.min(p.hp,pulses*dot.damage);
+          p.hp-=damage;dot.nextAt+=pulses*1000;
+          this.events.push({kind:'hit',from:dot.from,to:p.id,
+            damage,hp:p.hp,x:p.x,y:p.y});
+          if(p.hp===0){
+            p.deadUntil=at+3000;p.vx=0;p.vy=0;
+            this.events.push({kind:'death',id:p.id,killer:dot.from});
+            p.poison=null;p.regen=null;
+          }
+        }
+        if(p.poison&&at>=dot.until)p.poison=null;
+      }
+      if(p.hp<=0)continue;
+      if(p.regen){
+        const regen=p.regen;
+        const until=Math.min(at,regen.until);
+        const pulses=Math.max(0,Math.min(5,Math.floor((until-regen.nextAt)/1000)+1));
+        if(pulses){
+          regen.nextAt+=pulses*1000;
+          const amount=Math.min(p.maxHp-p.hp,pulses*regen.amount);
+          if(amount>0){
+            p.hp+=amount;
+            this.events.push({kind:'heal',player:p.id,sid:p.sid,
+              amount,hp:p.hp,x:p.x,y:p.y});
+          }
+        }
+        if(at>=regen.until||p.hp>=p.maxHp)p.regen=null;
       }
       // The Node server decides destination; cooldown prevents portal loops.
       if(at>=p.nextTeleportAt){
