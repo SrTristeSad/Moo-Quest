@@ -113,11 +113,26 @@ export class AccountStore {
         return remap;
     }
 
+    // Account and permanent-clan mutations are buffered to avoid writing
+    // on every packet. Explicit flush is used on SIGINT/SIGTERM, as in the
+    // BrowserQuest-Revived persistence lifecycle. A same-directory rename
+    // prevents a crash during a write from truncating the previous JSON.
+    flush() {
+        clearTimeout(this.saveTimer);
+        this.saveTimer = null;
+        const temp = this.file + "." + process.pid + "." + randomBytes(6).toString("hex") + ".tmp";
+        try {
+            fs.writeFileSync(temp, JSON.stringify(this.data, null, 2), { mode: 0o600 });
+            fs.renameSync(temp, this.file);
+        } catch (error) {
+            try { fs.unlinkSync(temp); } catch {}
+            throw error;
+        }
+    }
+
     save() {
         clearTimeout(this.saveTimer);
-        this.saveTimer = setTimeout(() => {
-            fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2));
-        }, 250);
+        this.saveTimer = setTimeout(() => this.flush(), 250);
     }
 
     // AUTH TOKENS (JWT, HS256) - mimics FRVR access tokens: payload.extra.{verified, identifier}
