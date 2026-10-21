@@ -30,12 +30,14 @@ Implementação nova, independente, em
 3. Parar os ticks das partidas antes de começar a desconectar jogadores.
 4. Enviar `B` pelo fluxo existente `Game.closeAll()`; deixar o frame
    sair antes de forçar fechamento de conexões restantes.
-5. Encerrar WebSockets e aguardar `Game.removePlayer/recordLife` para
+5. Encerrar WebSockets do jogo e aguardar `Game.removePlayer/recordLife`
    contabilizar os pontos, conquistas e tempo da última partida.
-6. **Depois da desconexão**, gravar todas as alterações de contas, clãs,
+6. Encerrar também a conexão WebSocket social e os fluxos SSE do site,
+   evitando deixar conexões de página penduradas durante reinícios na VPS.
+7. **Depois da desconexão**, gravar todas as alterações de contas, clãs,
    preferências e estatísticas em arquivo temporário + rename na mesma pasta.
    Encerrar HTTP. Em falha de disco, saída com erro, não um sucesso falso.
-7. Pedidos de encerramento repetidos compartilham a mesma operação.
+8. Pedidos de encerramento repetidos compartilham a mesma operação.
    Existe limite externo de 10 segundos caso recursos travem.
 
 `GET /health` → HTTP 200 enquanto o processo puder responder;
