@@ -610,6 +610,9 @@ function love.mousepressed(x,y,button)
   if button==1 then
     local w,h=love.graphics.getDimensions()
     if clans:click(x,y,w,h,true,client and client.authToken) then
+      if clans:isOpen() and panels:isOpen() then panels:close() end
+      -- Keep the permanent Clan window exclusive with Shop and Tribe,
+      -- matching how the original client hides competing overlays.
       -- The account overlay must not cause attacks or movement while typing.
       input.keys={};lastMove=false
       chatOpen=false;chatDraft=""
