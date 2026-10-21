@@ -31,6 +31,15 @@ test("BrowserQuest-inspired lifecycle keeps Moo-Quest Z/B countdown and flush or
             clients: new Set(players),
             close: cb => { trace.push("close websocket"); trace.push("record last player life"); cb(); }
         },
+        social: {
+            wss: {
+                clients: new Set([{ terminate: () => trace.push("terminate social") }]),
+                close: cb => { trace.push("close social websocket"); cb(); }
+            }
+        },
+        stream: {
+            pages: new Set([{ res: { end: () => trace.push("end SSE stream") } }])
+        },
         httpServer: {
             listening: true,
             close: cb => { trace.push("close http"); cb(); },
@@ -54,8 +63,9 @@ test("BrowserQuest-inspired lifecycle keeps Moo-Quest Z/B countdown and flush or
         "LC stop tick", "MB stop tick",
         "LC B kick", "MB B kick", "wait 200",
         "terminate A", "terminate B", "close websocket",
-        "record last player life", "flush accounts and clans",
-        "close http", "drain HTTP keepalives"
+        "record last player life", "terminate social",
+        "close social websocket", "end SSE stream",
+        "flush accounts and clans", "close http", "drain HTTP keepalives"
     ]);
 });
 
