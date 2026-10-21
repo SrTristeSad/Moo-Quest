@@ -127,10 +127,11 @@ function Original:update()
           self.handshake=handshake
           self.state="handshake_received"
           self.events[#self.events+1]={kind="io-init",data=handshake}
-          local params,buildError=Build.load()
+          local params,buildError=Build.load(self.build)
           if handshake.pinned and not params then
             self.state="blocked"
-            self.status="Handshake recebido; falta build original para derivar as chaves: "..tostring(buildError)
+            self.error=tostring(buildError)
+            self.status="Build do protocolo indisponivel: "..self.error
           elseif handshake.pinned and params.buildId~=self.build then
             self.state="blocked"
             self.status="Build local diferente do servidor remoto; parametros rejeitados."
