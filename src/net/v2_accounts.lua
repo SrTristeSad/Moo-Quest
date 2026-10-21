@@ -89,11 +89,30 @@ function M.login(name,password,options)
   end
   local value,err=request("login","POST",{username=name,password=password},nil,options)
   if not value then return nil,err end
-  if not M.validToken(value.token) or type(value.username)~="string" then
+  if not M.validToken(value.token) or not M.validToken(value.refreshToken)
+    or type(value.username)~="string" or type(value.id)~="string" then
     return nil,"Token ou conta V2 invalida na resposta"
   end
-  return {token=value.token,id=value.id,username=value.username,
-    expiresIn=value.expiresIn}
+  return {token=value.token,refreshToken=value.refreshToken,
+    id=value.id,username=value.username,
+    expiresIn=value.expiresIn,refreshExpiresIn=value.refreshExpiresIn}
+end
+-- Rotate refresh tokens once, discarding the previous pair. The API enforces
+-- one-use renewal atomically in Redis; never log or persist either token.
+function M.refresh(refreshToken,options)
+  if not M.validToken(refreshToken) then
+    return nil,"Token de renovacao V2 invalido"
+  end
+  local value,err=request("refresh","POST",
+    {refreshToken=refreshToken},nil,options)
+  if not value then return nil,err end
+  if not M.validToken(value.token) or not M.validToken(value.refreshToken)
+    or type(value.username)~="string" or type(value.id)~="string" then
+    return nil,"Resposta de renovacao V2 invalida"
+  end
+  return {token=value.token,refreshToken=value.refreshToken,
+    id=value.id,username=value.username,
+    expiresIn=value.expiresIn,refreshExpiresIn=value.refreshExpiresIn}
 end
 function M.me(token,options)
   local result,err=request("me","GET",nil,token,options)
@@ -101,8 +120,24 @@ function M.me(token,options)
   if type(result.username)~="string" then return nil,"Resposta de perfil invalida" end
   return result
 end
-function M.logout(token,options)
-  local result,err=request("logout","POST",{},token,options)
+function M.logout(token,options,refreshToken)
+  -- An expired access token can still be revoked via the refresh token.
+  -- Do not bypass errors other than an explicit expired/invalid access token.
+  if token~=nil and not M.validToken(token) then
+    return nil,"Token de conta V2 invalido"
+  end
+  if refreshToken~=nil and not M.validToken(refreshToken) then
+    return nil,"Token de renovacao V2 invalido"
+  end
+  if not token and not refreshToken then
+    return nil,"Nenhuma sessao para encerrar"
+  end
+  local result,err
+  if token then result,err=request("logout","POST",{},token,options) end
+  if (not token or (not result and err=="invalid_player_token"))
+    and refreshToken then
+    result,err=request("logout","POST",{refreshToken=refreshToken},nil,options)
+  end
   if not result then return nil,err end
   return result.ok==true or nil,result.ok==true and nil or "Logout nao confirmado"
 end
