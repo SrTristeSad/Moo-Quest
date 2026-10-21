@@ -40,6 +40,18 @@ assert(Objects.layer({id=3,type=0})==0,"wood walls belong to group 1 / layer 0")
 assert(Objects.layer({id=10,type=0})==1,"windmills belong to group 3 / layer 1")
 assert(Objects.layer({id=15,type=0})==-1,"pit traps belong to group 5 / layer -1")
 assert(C.itemById(22).name=="teleporter","all original build items available")
+local trapAlpha,trapBlocker=Objects.renderStyle({id=15,owner=7})
+assert(trapAlpha==0.6 and trapBlocker==nil,
+  "owner-visible pit trap must retain reference 60% alpha")
+local blockerAlpha,blockerRadius=Objects.renderStyle({id=21,owner=7})
+assert(blockerAlpha==1 and blockerRadius==300,
+  "building blocker must show its original 300-world-unit circle")
+local standardAlpha,standardRadius=Objects.renderStyle({id=3})
+assert(standardAlpha==1 and standardRadius==nil,
+  "ordinary walls must not receive visual effects")
+local treeAlpha,treeRadius=Objects.renderStyle({type=0,scale=80})
+assert(treeAlpha==1 and treeRadius==nil,
+  "world resources must remain fully opaque")
 if love and love.graphics and love.graphics.newCanvas then
   -- Rendering is tested for real only when launched inside LÖVE 11.5.
   for typ=0,3 do
@@ -54,5 +66,30 @@ if love and love.graphics and love.graphics.newCanvas then
     assert(icon and icon:typeOf("Canvas"),"missing original unrotated icon "..id)
     assert(icon~=spr,"icon must not reuse world-oriented sprite")
   end
+  -- The item draw calls must actually paint the reference overlays,
+  -- not merely return a Canvas handle. Check the pixels in a headless
+  -- software-OpenGL context without needing third-party artwork.
+  local gfx=love.graphics
+  local canvas=gfx.newCanvas(900,900)
+  local function sampleItem(id,px,py)
+    gfx.push("all")
+    gfx.setCanvas(canvas)
+    gfx.clear(0,0,0,0)
+    local item=C.itemById(id)
+    assert(Objects.draw({id=id,scale=item.scale,dir=0},450,450,1))
+    gfx.setCanvas()
+    gfx.pop()
+    local data=canvas:newImageData()
+    return data:getPixel(px,py)
+  end
+  local red,green,blue,ringAlpha=sampleItem(21,750,450)
+  assert(ringAlpha>0.12 and ringAlpha<0.55 and red>green,
+    "blocker must render a translucent red radius, not just a normal icon")
+  local _,_,_,faded=sampleItem(15,450,450)
+  assert(faded>0.35 and faded<0.75,
+    "owner-visible trap sprite must be faded in the actual framebuffer")
+  local _,_,_,opaque=sampleItem(3,450,450)
+  assert(opaque>0.9,
+    "ordinary wall sprite should remain opaque")
 end
 print("reference client Canvas mappings verified for available Lua runtime")
