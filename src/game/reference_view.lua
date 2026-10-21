@@ -348,11 +348,13 @@ local function labels(world,camera,w,h)
     end
   end
 end
-function View.draw(world,camera,dt)
+function View.draw(world,camera,dt,options)
   local w,h=love.graphics.getDimensions()
   View.advanceWater(dt or 0)
   ground(camera,w,h)
-  grid(camera,w,h)
+  if not options or options.showGrid~=false then
+    grid(camera,w,h)
+  end
   drawObjectLayer(world,camera,w,h,-1)
   drawProjectiles(world,camera,w,h,0)
   for _,p in pairs(world.players) do
