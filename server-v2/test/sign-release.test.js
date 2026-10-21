@@ -23,6 +23,7 @@ test('publisher creates a valid signed manifest from new first-party source only
   const v=validateSignedRelease(json, publicKey, 'https://updates.example.com/manifest.json');
   assert.equal(v.version,'0.1.0');
   assert.ok(v.files.some(f=>f.path==='src/world.js'));
+  assert.ok(v.files.some(f=>f.path==='src/native-protocol.js'));
   assert.ok(v.files.every(f=>f.path.startsWith('src/')||f.path.startsWith('public/')));
   assert.equal(fs.existsSync(path.join(temp,'out','releases','0.1.0','src','index.js')),true);
 });

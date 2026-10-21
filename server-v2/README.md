@@ -1,71 +1,107 @@
-# MooQuest Own Server V2 — implementação independente (alfa)
+# Servidor Moo-Quest V2 — Node.js independente (desenvolvimento)
 
-Este servidor foi escrito do zero em Node.js e **não incorpora** o motor do MooMoo,
-protocolos FRVR, código do BrowserQuest ou imagens/sons de terceiros. A arquitetura
-operacional foi inspirada no projeto do usuário, BrowserQuest-Revived, sem copiar
-os módulos. A ausência de arte não é, sozinha, garantia de ausência de riscos de
-propriedade intelectual: faça revisão jurídica de nome, marcas, assets, licenças
- e protocolos antes de comercializar.
+Este diretório contém o **servidor novo**, não um clone de código do servidor
+MooMoo e não o código do BrowserQuest-Revived. O BrowserQuest foi utilizado
+como referência apenas para instalação e administração.
 
-## Instalação aaPanel
+**Escopo do jogo:** partidas multiplayer de sobrevivência e PvP, movimento,
+recursos, animais, objetos, inventário, armas, loja, tribos e construções do
+jogador. **Não haverá NPC, sistema de missões ou editor de mapa.**
 
-1. Na sua VPS com **Node.js 22+**, clone o repositório e entre em `server-v2/`.
-2. Execute `npm install --omit=dev` no diretório `server-v2` (ou `bash scripts/install-aapanel.sh`).
-3. No aaPanel → Node.js Project, configure projeto com raiz `.../Moo-Quest/server-v2`,
-   startup **`node bootstrap.js`**, porta **8100**, variáveis:
-   `MOO_PORT=8100`, `MOO_HOST=127.0.0.1`, `MOO_PUBLIC_HTTPS=1` e
-   `MOO_TRUST_PROXY=1` (quando Nginx sobrescreve X-Real-IP).
-4. Configure o domínio público com certificado HTTPS e **reverse proxy no aaPanel**
-   encaminhando ao processo local `127.0.0.1:8100`. Não exponha a porta 8100.
-5. Abra `https://seu-dominio/setup`, encontre o **código de instalação nos logs
-   do projeto Node.js no aaPanel** e crie o proprietário com senha de pelo menos
-   12 caracteres. O código não é disponibilizado por HTTP.
-6. O painel está em `/admin`. Após reiniciar, use a mesma conta; a senha fica
-   armazenada como hash scrypt em `server-v2/var/config.json`.
+**Estado:** trabalho em andamento. A base de instalação/painel funciona nos
+testes, e existe uma primeira implementação do formato binário do cliente Lua,
+mas ainda não foi validada uma partida completa no LÖVE. Os efeitos e itens
+ainda não foram implementados integralmente. NÃO usar em produção pública.
 
-Por padrão o processo escuta só em `127.0.0.1:8100`. Isso evita conflito com
-`8080` do servidor antigo, que permanece intacto. O instalador visual é parte
-do próprio servidor e o script Shell é opcional.
+## aaPanel (somente ambiente de testes)
 
-## Painel administrativo
+1. Use **Node.js 22 ou superior**.
+2. No diretório `server-v2`, execute `npm install --omit=dev`.
+3. No aaPanel → Node.js Project, configure a raiz `server-v2`, entrada
+   `node bootstrap.js`, porta `8100`, host `127.0.0.1`. Configure HTTPS
+   pelo proxy reverso, e, se necessário, `MOO_TRUST_PROXY=1` apenas quando
+   o Nginx **sobrescreve** `X-Real-IP` e impede acesso público direto à porta.
+4. Abra `/setup`, use o código impresso **somente nos logs** e crie a conta
+   proprietária (senha longa). Admin em `/admin`.
+5. O teste local do **cliente Lua atual** usa, em vez de 8100, o endereço
+   fixo `127.0.0.1:8080`. Encerre o servidor antigo e inicie o V2 com
+   `MOO_HOST=127.0.0.1 MOO_PORT=8080 npm start`. Instale via `/setup`
+   nesse mesmo servidor. Execute o cliente diretamente pelo LÖVE, e **não**
+   pelo antigo BAT que inicia o servidor antigo. Teste experimental.
 
-A interface atual oferece: instalação, login seguro, sessão com cookie HttpOnly,
-proteção CSRF, status e monitoramento, limite de jogadores, modo manutenção,
-MOTD, anúncios em tempo real, jogadores online, expulsão, bloqueio por origem,
-registro de operações, verificação/download/ativação/rollback de atualizações
-**assinadas**. Não é ainda um painel completo de editor de mundo, missões ou
-contas, e novas ferramentas serão implementadas por etapas.
+O aplicativo Lua atual não possui configuração de endereço remoto/HTTPS para
+apontar diretamente ao domínio aaPanel. Isto exige uma pequena configuração
+de transporte ou inicialização futura **sem redesenhar o cliente**.
 
-## Atualizações produzidas pelo nosso projeto
+## Protocolo do cliente Lua
 
-Jamais cole uma URL arbitrária no painel para executar código. Para permitir
-atualizações configure as variáveis de ambiente:
+A implementação V2 tem seu próprio módulo `src/native-protocol.js`: handshake
+MessagePack `io-init`, pacotes autenticados HMAC, IDs embaralhados por sessão
+no modo legado não fixado, ticket de uso único e eventos compatíveis de
+mundo no WebSocket `/s/LC`.
 
-- `MOO_UPDATE_MANIFEST_URL=https://updates.seu-dominio/releases/manifest.json`
-- `MOO_UPDATE_PUBLIC_KEY_FILE=/caminho/fora/do-git/release-public.pem`
+- `GET /ping`: identifica a instalação V2.
+- `POST /api/join`: tickets de curta duração limitados por origem.
+- `WS /s/LC`: autenticação do ticket, spawn e eventos.
+- `/play` JSON da antiga demonstração só fica disponível se
+  `MOO_DEV_JSON=1` (não é o protocolo do cliente Lua).
 
-O administrador do projeto publica um manifesto assinado com chave privada
-Ed25519, mantendo a chave **fora do Git, do aaPanel público e da VPS do jogo**.
-O servidor verifica a assinatura e hash SHA-256 de cada arquivo e baixa apenas
-arquivos `src/*.js` ou `public/*` do mesmo domínio HTTPS configurado.
+Não há cópia do protocolo proprietário de autenticação do navegador nem
+simulação de provas de integridade. Os pacotes estendidos ainda não estão
+implementados. A entrada de convidados não substitui CAPTCHA ou contas
+seguras para uma instalação pública.
 
-Use `node scripts/make-release.mjs` com a chave privada offline para preparar
-um release. No painel: **Verificar → Baixar e verificar → Preparar ativação**.
-**Reinicie o processo pelo aaPanel**: `bootstrap.js` carrega a versão ativada
-sem sobrescrever `var/`. Se a versão cair logo após iniciar, o bootstrap tenta
-reverter automaticamente para a anterior. Há também botão Reverter no painel.
+## Administração e atualizações
 
-## Protocolo e próximo trabalho
+O painel oferece, nesta fase: sessões HttpOnly, scrypt, CSRF, limites de
+login, status, manutenção, configurações, lista de jogadores, expulsão,
+banimentos por origem, trilha de auditoria, catálogo de atualizações próprio
+assinado Ed25519, verificação SHA-256, ativação após reinício e rollback.
 
-- WebSocket próprio em `/play`, mensagens JSON autenticadas apenas para o
-  canal de jogo de teste; `join`, `input`, `attack`, eventos e snapshots são
-  processados no servidor. O jogador **não escolhe coordenadas ou dano**.
-- A arena simples é **alfa de infraestrutura**: faltam colisões do mundo,
-  NPCs, mobs, biomas, itens, inventário e persistência de progresso.
-- **O cliente Lua antigo não conecta a V2 ainda.** Um adaptador de protocolo
-  autoral e os testes de integração serão desenvolvidos separadamente.
-- As rotas `/health`, `/ready` e `/api/status` não exigem login;
-  `/api/admin/*` requer sessão e CSRF para mutações.
+- `MOO_UPDATE_MANIFEST_URL=https://.../manifest.json`
+- `MOO_UPDATE_PUBLIC_KEY_FILE=/caminho/fora/do-repositorio/public.pem`
 
-Rode `npm test` para testes de autenticação, armazenamento, atualizações,
-instalação HTTP e simulação de mundo. Nenhuma arte de jogo está incluída.
+**Nunca hospede a chave privada de assinatura no servidor de jogo.**
+O manifesto de release pode ser preparado fora da VPS com
+`node scripts/make-release.mjs`. Detalhes em `docs/RELEASE-PUBLISHING.md`.
+
+Os testes de contrato e simulação (sem `ws`) usam:
+
+```bash
+node --test test/native-protocol.test.js test/survival-contract.test.js test/world.test.js
+```
+
+Após instalar as dependências execute `npm test`, incluindo o E2E HTTP/WS.
+Critérios completos de conclusão e limitações estão em `docs/ROADMAP.md`.
+
+## Propriedade intelectual
+
+Servidor escrito independentemente não significa que o produto completo está
+juridicamente liberado. O cliente que já existe possui materiais e decisões
+de apresentação derivados da referência, sujeitos a conferência de direitos,
+licenças e marcas. Distribua apenas código e ativos sobre os quais tenha
+os direitos necessários. Uma revisão especializada deve preceder a publicação.
+
+## Avanços da etapa seguinte (21/10/2026)
+
+- Cura autoritativa por alimento: o servidor confere slot, recursos disponíveis,
+  vida restante e cooldown; clientes recebem `N` (comida) e `O` (vida).
+- XP e escolhas de equipamento nos estágios implementados: o Node emite
+  `T`, `U` e `V` após validar cada operação `H`. Parte dos itens continua
+  indisponível nesta versão.
+- Construções próprias: paredes podem ser destruídas por inimigos; espinhos
+  causam dano periodicamente, com proteção contra dano a membros da tribo;
+  custo, limite por grupo e posição são avaliados no Node.
+- Recursos esgotados reaparecem após 30 segundos se não houver jogador ou
+  estrutura ocupando o local. O Node notifica os clientes com `Q`/`H`.
+- Compra de acessórios/chapéus: os códigos de solicitação e confirmação da
+  loja **não são iguais** (`c: 1=compra, 0=equipar`, `5: 0=desbloqueado,
+  1=equipado`); o mapeamento invertido é intencional e foi testado.
+- Uma suíte nova valida dano direcional, limites de tempo, recursos, cura,
+  upgrades, construções, espinhos e retorno de recursos. O teste WebSocket
+  end-to-end foi estendido para loja, cura e evolução.
+
+**Permanece em desenvolvimento**, não é ainda apropriado para partidas públicas:
+sem prova de conexão com o executável LÖVE em Windows e faltam partes do
+catálogo de armas, projéteis, animais, biomecânica, administração e verificações
+jurídicas do cliente e de seus recursos visuais.

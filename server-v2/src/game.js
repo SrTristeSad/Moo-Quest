@@ -1,12 +1,25 @@
-// Native MooQuest V2 wire protocol: JSON messages over /play WebSocket.
-// Explicitly NOT the copied MooMoo transport; existing Lua client requires
-// a separately audited V2 protocol adapter in a future phase.
+// First-party Moo-Quest V2 server. Binary interop with the EXISTING LÖVE
+// client is enabled on /s/LC; JSON /play remains disabled by default and
+// is retained only for internal development tests.
+// Does not import legacy gameplay/server modules.
 import { WebSocketServer } from 'ws';
 import { createHmac, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isIP } from 'node:net';
 import { World } from './world.js';
+import { NativeSession } from './native-protocol.js';
+function requestIdentity(req){
+  const peer=req.socket.remoteAddress||'unknown';
+  const loopback=['127.0.0.1','::1','::ffff:127.0.0.1'].includes(peer);
+  const forwarded=process.env.MOO_TRUST_PROXY==='1'&&loopback?
+    String(req.headers['x-real-ip']||''):'';
+  return {
+    address:forwarded&&isIP(forwarded)?forwarded:peer,
+    trustedOrigin:!(loopback&&process.env.MOO_TRUST_PROXY==='1'&&!isIP(forwarded))
+  };
+}
+
 export class GameServer {
   constructor(httpServer, storage) {
     this.storage = storage;
@@ -15,6 +28,10 @@ export class GameServer {
     this.banKey = fs.readFileSync(keyFile);
     this.room = new World({ maxPlayers: storage.data.settings.maxPlayers });
     this.wss = new WebSocketServer({ noServer: true, maxPayload: 2048, perMessageDeflate: false });
+    this.nativeWss = new WebSocketServer({ noServer: true, maxPayload: 2048, perMessageDeflate: false });
+    this.nativeClients = new Map();
+    this.tickets = new Map();
+    this.ticketRate = new Map();
     this.online = new Map();
     this.loop = null;
     this.counter = 0;
@@ -22,25 +39,214 @@ export class GameServer {
       let location;
       try { location = new URL(req.url, 'http://localhost'); }
       catch { socket.destroy(); return; }
-      if (location.pathname !== '/play' || this.storage.data.settings.maintenance ||
+      if (!['/play','/s/LC'].includes(location.pathname) ||
+          (location.pathname==='/play' && process.env.MOO_DEV_JSON!=='1') || this.storage.data.settings.maintenance ||
           this.room.players.size >= this.room.maxPlayers) { socket.destroy(); return; }
       const origin = req.headers.origin;
       if (origin) {
         try { if (new URL(origin).host !== req.headers.host) { socket.destroy(); return; } }
         catch { socket.destroy(); return; }
       }
-      const peer = req.socket.remoteAddress || 'unknown';
-      const loopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer);
-      // aaPanel/Nginx must explicitly overwrite X-Real-IP. Ignore forwarded
-      // headers from any non-loopback peer, even if a caller forges them.
-      const forwarded = process.env.MOO_TRUST_PROXY === '1' && loopback ?
-        String(req.headers['x-real-ip'] || '') : '';
-      const address = forwarded && isIP(forwarded) ? forwarded : peer;
-      const trustedOrigin = !(loopback && process.env.MOO_TRUST_PROXY === '1' && !isIP(forwarded));
+      const {address,trustedOrigin}=requestIdentity(req);
       const ipHash = createHmac('sha256', this.banKey).update(address).digest('hex');
       if (this.storage.data.bans[ipHash]) { socket.destroy(); return; }
+      if (location.pathname === '/s/LC') {
+        if (location.searchParams.get('b') !== 'mqv2native') { socket.destroy(); return; }
+        const ticket=location.searchParams.get('token');
+        if (!ticket || !ticket.startsWith('tk:') || !this.consumeTicket(ticket.slice(3), ipHash)) {
+          socket.destroy(); return;
+        }
+        this.nativeWss.handleUpgrade(req,socket,head,ws=>this.connectNative(ws,ipHash,trustedOrigin));
+        return;
+      }
       this.wss.handleUpgrade(req, socket, head, ws => this.connect(ws, ipHash, trustedOrigin));
     });
+  }
+  issueTicket(req, body) {
+    if (this.storage.data.settings.maintenance || this.room.players.size >= this.room.maxPlayers)
+      return null;
+    if (!body || body.captcha !== true || typeof body.host !== 'string' ||
+        !/\/s\/LC\/?$/.test(body.host)) return null;
+    // Browser auto-verification is not claimed here: this is an explicit
+    // development guest ingress with independent IP rate limiting.
+    const ipHash=createHmac('sha256',this.banKey).update(requestIdentity(req).address).digest('hex');
+    const now=Date.now(), previous=this.ticketRate.get(ipHash)||[];
+    const recent=previous.filter(ts=>now-ts<10000);
+    if(recent.length>=8) {this.ticketRate.set(ipHash,recent);return null;}
+    recent.push(now);this.ticketRate.set(ipHash,recent);
+    const ticket=randomBytes(18).toString('hex');
+    const did=(typeof body.did==='string'&&/^[a-f0-9]{16,64}$/.test(body.did))?body.did:randomBytes(16).toString('hex');
+    this.tickets.set(ticket,{at:now,ipHash});
+    if(this.tickets.size>1024){for(const [t,x] of this.tickets)if(now-x.at>30000)this.tickets.delete(t);}
+    return {ticket,did};
+  }
+  consumeTicket(token,ipHash){
+    const grant=this.tickets.get(token);this.tickets.delete(token);
+    return !!grant && Date.now()-grant.at<30000 && grant.ipHash===ipHash;
+  }
+  connectNative(ws,ipHash,trustedOrigin) {
+    const session=new NativeSession();
+    const state={ws,session,p:null,held:false,lastSnapshotAt:0};
+    this.nativeClients.set(ws,state);
+    ws.send(session.handshake());
+    const send=(name,args=[])=>{
+      if(ws.readyState!==ws.OPEN)return;
+      try{ws.send(session.encode(name,args),{binary:true});}
+      catch{ws.close(1008,'packet_error');}
+    };
+    state.send=send;
+    let count=0,windowAt=Date.now();
+    ws.on('message',(raw,isBinary)=>{
+      if(!isBinary){ws.close(1003,'binary_only');return;}
+      const now=Date.now();if(now-windowAt>=1000){windowAt=now;count=0;}
+      if(++count>32){ws.close(1008,'rate_limit');return;}
+      let request;
+      try{request=session.decode(raw);}catch{ws.close(1008,'invalid_packet');return;}
+      const {name,args}=request;
+      if(name==='M'){
+        if(!state.p){
+          const profile=args[0];
+          if(!profile||typeof profile.name!=='string'){ws.close(1008,'bad_spawn');return;}
+          try{state.p=this.room.join(ws,profile.name);}catch{send('B',['server is full']);ws.close();return;}
+          state.p.native=true;state.p.skinColor=Number.isInteger(profile.skin)?Math.max(0,Math.min(9,profile.skin)):0;
+          state.p.ipHash=ipHash;state.p.trustedOrigin=trustedOrigin;
+          this.online.set(state.p.id,ws);
+        }else if(!this.room.respawn(state.p.id))return;
+        // Actual Lua client requires C before its own D on EVERY spawn.
+        for(const [packet,values] of this.room.initialPackets(state.p))send(packet,values);
+        for(const other of this.nativeClients.values()) {
+          if(other!==state&&other.p)other.send('D',[this.room.playerData(state.p),false]);
+        }
+        return;
+      }
+      const p=state.p;if(!p)return;
+      if(name==='9')this.room.direction(p.id,args[0]);
+      else if(name==='D')this.room.aim(p.id,args[0]);
+      else if(name==='e'){p.vx=0;p.vy=0;}
+      else if(name==='F'){
+        state.held=args[0]===1;
+        if(Number.isFinite(args[1]))this.room.aim(p.id,args[1]);
+        if(state.held && this.room.attack(p.id) && p.buildIndex<0)
+          this._nativeBroadcast('K',[p.sid,1,p.weaponIndex]);
+        if(p.buildIndex>=0)state.held=false; // placement is a single action
+      }
+      else if(name==='z')this.room.select(p.id,args[0],args[1]===true);
+      else if(name==='c'){
+        // The Lua shop REQUEST uses 0=equipment and 1=purchase, but its
+        // incoming packet 5 uses 0=unlocked purchase and 1=equipped item.
+        // That mapping is intentionally inverted by the client's contract.
+        if(this.room.shop(p.id,args[0],args[1],args[2]===1)){
+          send('5',[args[0]===1?0:1,args[1],args[2]===1?1:0]);
+          if(args[0]===1)send('N',['points',p.resources.points,1]);
+        }
+      }
+      else if(name==='H')this.room.upgrade(p.id,args[0]);
+      else if(name==='L'){if(this.room.createTribe(p.id,args[0]))this._syncTribes();}
+      else if(name==='N'){if(this.room.leaveTribe(p.id))this._syncTribes();}
+      else if(name==='b')this.room.requestTribe(p.id,args[0]);
+      else if(name==='P'){if(this.room.answerTribe(p.id,args[0],args[1]===true))this._syncTribes();}
+      else if(name==='6'&&typeof args[0]==='string'){
+        const txt=args[0].replace(/[\x00-\x1f]/g,'').slice(0,30);
+        if(txt)this._nativeBroadcast('6',[p.sid,txt]);
+      }
+      else if(name==='S')this._nativeBroadcast('9',[Math.round(p.x),Math.round(p.y)]);
+      else if(name==='0')send('0',[]);
+    });
+    ws.on('close',()=>{
+      this.nativeClients.delete(ws);
+      if(state.p){this.online.delete(state.p.id);this.room.leave(state.p.id);this._nativeBroadcast('E',[state.p.id]);this._nativeBroadcast('R',[state.p.sid]);this._syncTribes();}
+    });
+    ws.on('error',()=>{});
+  }
+  _nativeBroadcast(name,args){
+    for(const state of this.nativeClients.values())if(state.p)state.send(name,args);
+  }
+  _syncTribes(){
+    for(const state of this.nativeClients.values()) {
+      if(!state.p)continue;
+      const p=state.p;
+      const tribe=p.team&&this.room.tribes.get(p.team);
+      state.send('3',[p.team,tribe?tribe.owner===p.id:false]);
+      if(tribe)state.send('4',[[...tribe.members].flatMap(id=>{
+        const member=this.room.players.get(id);return member?[member.sid,member.name]:[];
+      })]);
+    }
+  }
+  _nativeEvents(events) {
+    for(const evt of events){
+      if(evt.kind==='gather'){
+        const p=this.room.players.get(evt.player);
+        const state=[...this.nativeClients.values()].find(s=>s.p===p);
+        if(state){state.send('N',[evt.key,p.resources[evt.key],1]);state.send('N',['points',p.resources.points,1]);}
+        this._nativeBroadcast('L',[p.angle,evt.sid]);
+      }else if(evt.kind==='animal_hit'){
+        this._nativeBroadcast('8',[evt.x,evt.y,-evt.damage,1]);
+      }else if(evt.kind==='animal_down'){
+        const state=[...this.nativeClients.values()].find(s=>s.p?.id===evt.player);
+        if(state){state.send('N',['food',state.p.resources.food,1]);state.send('N',['points',state.p.resources.points,1]);}
+        this._nativeBroadcast('I',this.room.animalPacket());
+      }else if(evt.kind==='animal_attack'){
+        const victim=this.room.players.get(evt.to);
+        this._nativeBroadcast('J',[evt.sid]);
+        if(victim)this._nativeBroadcast('O',[victim.sid,victim.hp]);
+        this._nativeBroadcast('8',[evt.x,evt.y,-evt.damage,1]);
+      }else if(evt.kind==='hit'){
+        const p=this.room.players.get(evt.to);
+        if(p)this._nativeBroadcast('O',[p.sid,p.hp]);
+        this._nativeBroadcast('8',[evt.x,evt.y,-evt.damage,1]);
+      }else if(evt.kind==='death'){
+        const state=[...this.nativeClients.values()].find(s=>s.p?.id===evt.id);
+        state?.send('P',[]);
+        const player=this.room.players.get(evt.id);
+        if(player)this._nativeBroadcast('E',[player.id]);
+        if(evt.killer){
+          const killer=[...this.nativeClients.values()].find(s=>s.p?.id===evt.killer);
+          killer?.send('N',['kills',killer.p.resources.kills,1]);
+        }
+      }else if(evt.kind==='structure_hit'){
+        this._nativeBroadcast('L',[evt.dir,evt.sid]);
+        this._nativeBroadcast('8',[evt.x,evt.y,-evt.damage,1]);
+      }else if(evt.kind==='heal'){
+        const owner=[...this.nativeClients.values()].find(s=>s.p?.id===evt.player);
+        owner?.send('N',['food',owner.p.resources.food,1]);
+        this._nativeBroadcast('O',[evt.sid,evt.hp]);
+        this._nativeBroadcast('8',[evt.x,evt.y,evt.amount,2]);
+      }else if(evt.kind==='progress'){
+        const owner=[...this.nativeClients.values()].find(s=>s.p?.id===evt.player);
+        owner?.send('T',[evt.xp,evt.maxXp,evt.age]);
+        owner?.send('U',[evt.points,evt.upgradeAge]);
+      }else if(evt.kind==='upgrade'){
+        const owner=[...this.nativeClients.values()].find(s=>s.p?.id===evt.player);
+        if(owner){
+          owner.send('V',[evt.equipmentKind==='weapon'?owner.p.inventory.weapons:owner.p.inventory.items,
+            evt.equipmentKind==='weapon'?1:0]);
+          owner.send('U',[evt.points,evt.upgradeAge]);
+        }
+      }else if(evt.kind==='resource_return'){
+        const obj=this.room.resources.get(evt.sid);
+        if(obj)this._nativeBroadcast('H',[[obj.sid,obj.x,obj.y,0,obj.scale,obj.type,null,null]]);
+      }else if(evt.kind==='destroy')this._nativeBroadcast('Q',[evt.sid]);
+      else if(evt.kind==='build'){
+        const obj=this.room.structures.get(evt.sid);
+        if(obj)this._nativeBroadcast('H',[[obj.sid,obj.x,obj.y,0,obj.scale,obj.type,obj.id,obj.owner]]);
+        const state=[...this.nativeClients.values()].find(s=>s.p?.sid===evt.owner);
+        if(state){
+          for(const key of ['wood','stone'])state.send('N',[key,state.p.resources[key],1]);
+          const count=[...this.room.structures.values()].filter(o=>o.owner===state.p.sid && o.id===evt.id).length;
+          state.send('S',[evt.id,count]);
+        }
+      }else if(evt.kind==='income'){
+        const state=[...this.nativeClients.values()].find(s=>s.p?.id===evt.player);
+        state?.send('N',['points',state.p.resources.points,1]);
+      }else if(evt.kind==='tribe_created') {
+        this._nativeBroadcast('g',[{sid:evt.name,owner:evt.sid,clan:false}]);
+      }else if(evt.kind==='tribe_deleted')this._nativeBroadcast('1',[evt.name]);
+      else if(evt.kind==='tribe_request'){
+        const target=[...this.nativeClients.values()].find(s=>s.p?.id===evt.to);
+        const applicant=[...this.room.players.values()].find(p=>p.sid===evt.from);
+        target?.send('2',[evt.from,applicant?.name||'unknown']);
+      }
+    }
   }
   connect(ws, ipHash, trustedOrigin) {
     let me = null;
@@ -78,8 +284,21 @@ export class GameServer {
       this.counter++;
       if (this.counter % 3 !== 0) return;
       const world = JSON.stringify(this.room.snapshot());
-      const events = JSON.stringify({ kind: 'events', list: this.room.takeEvents() });
+      const allEvents=this.room.takeEvents();
+      const events = JSON.stringify({ kind: 'events', list: allEvents });
+      this._nativeEvents(allEvents);
+      // Binary native transport sends Lua-compatible logical packet records.
+      const positions=this.room.playerUpdates(),board=this.room.leaderboard();
+      for(const state of this.nativeClients.values())if(state.p && state.ws.readyState===state.ws.OPEN){
+        if(state.ws.bufferedAmount>512_000){state.ws.terminate();continue;}
+        state.send('a',positions);
+        state.send('I',this.room.animalPacket());
+        if(this.counter%30===0)state.send('G',[board]);
+      }
+      // A connection tracked for admin moderation may use either protocol.
+      // Native Lua clients accept ONLY authenticated binary game packets.
       for (const ws of this.online.values()) {
+        if (this.nativeClients.has(ws)) continue;
         if (ws.readyState !== ws.OPEN) continue;
         if (ws.bufferedAmount > 512_000) { ws.terminate(); continue; }
         ws.send(world); ws.send(events);
@@ -88,12 +307,17 @@ export class GameServer {
   }
   announce(message) {
     const text = JSON.stringify({ kind: 'announcement', message: String(message).slice(0, 240) });
-    for (const ws of this.online.values()) if (ws.readyState === ws.OPEN) ws.send(text);
+    for (const ws of this.online.values()) {
+      if (this.nativeClients.has(ws)) continue;
+      if (ws.readyState === ws.OPEN) ws.send(text);
+    }
   }
   kick(id, reason = 'admin') { const ws = this.online.get(id); if (!ws) return false; ws.close(1008, String(reason).slice(0, 100)); return true; }
   async stop() {
-    clearInterval(this.loop); this.loop = null;
-    for (const ws of this.wss.clients) ws.terminate();
-    await new Promise(resolve => this.wss.close(() => resolve()));
+    clearInterval(this.loop);this.loop=null;
+    for(const server of [this.wss,this.nativeWss]) {
+      for(const ws of server.clients)ws.terminate();
+      await new Promise(resolve=>server.close(()=>resolve()));
+    }
   }
 }
