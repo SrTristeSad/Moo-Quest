@@ -2,6 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { requestIdentity } from './request-identity.js';
+import { createGuestVerifier } from './guest-verification.js';
 import { passwordHash, passwordMatches, cookieToken, cookieHeader } from './auth.js';
 const MIME = { css: 'text/css; charset=utf-8', js: 'application/javascript; charset=utf-8',
   html: 'text/html; charset=utf-8' };
@@ -58,7 +59,7 @@ function sanitizeSettings(existing, patch) {
   return next;
 }
 export function createHTTP({ root, storage, auth, updates, game = null,
-  accounts=null,playerTokens=null,stopStatus = () => false,
+  accounts=null,playerTokens=null,guestVerifier=createGuestVerifier(),stopStatus = () => false,
   httpsCookies = process.env.MOO_PUBLIC_HTTPS === '1' }) {
   const publicDir = path.join(root, 'public');
   const rateKey = req => requestIdentity(req).address;
@@ -88,6 +89,11 @@ export function createHTTP({ root, storage, auth, updates, game = null,
           accountId=match&&playerTokens?await playerTokens.get(match[1]):null;
           if(!accountId)return respond(res,401,{error:'invalid_player_token'});
         }
+        // A boolean captcha field from an untrusted client is not proof.
+        // In public mode, the guest must pass provider-side verification
+        // before any single-use WebSocket admission ticket is issued.
+        if(!accountId && !await guestVerifier.verify(req,body))
+          return respond(res,403,{error:'guest_verification_failed'});
         const token=await gameRef.issueTicket(req,body,accountId);
         return token?respond(res,200,token):respond(res,429,{error:'join_rejected'});
       }
