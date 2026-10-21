@@ -452,8 +452,39 @@ export class World {
         if(amount){p.resources.points+=amount;p.score+=amount;this.events.push({kind:'income',player:p.id,amount});}
       }
     }
+    this.fireTurrets(at);
     this.advanceProjectiles(step,at);
     this.tickNumber++;
+  }
+  // Turrets are player-built structures, not NPCs. Targets, attack cadence,
+  // team protection and projectile damage are all computed by the server.
+  fireTurrets(at){
+    for(const turret of this.structures.values()){
+      if(turret.id!==17||at<(turret.nextFire||0))continue;
+      const owner=[...this.players.values()].find(p=>p.sid===turret.owner);
+      if(!owner)continue;
+      let victim=null,best=700;
+      for(const p of this.players.values()){
+        if(p.id===owner.id||p.hp<=0||owner.team&&p.team===owner.team)continue;
+        const distance=Math.hypot(p.x-turret.x,p.y-turret.y);
+        if(distance>=best)continue;
+        best=distance;victim=p;
+      }
+      for(const a of this.animals.values()){
+        if(a.health<=0||a.damage<=0)continue;
+        const distance=Math.hypot(a.x-turret.x,a.y-turret.y);
+        if(distance>=best)continue;
+        best=distance;victim=a;
+      }
+      if(!victim)continue;
+      const dir=Math.atan2(victim.y-turret.y,victim.x-turret.x);
+      turret.nextFire=at+2200;
+      const x=turret.x+Math.cos(dir)*55,y=turret.y+Math.sin(dir)*55;
+      this.events.push({kind:'turret_shot',sid:turret.sid,dir});
+      this.spawnProjectile({owner:owner.id,ownerSid:owner.sid,team:owner.team,
+        x,y,dir,range:700,speed:1.7,damage:18,type:1,layer:1,
+        sourceSid:turret.sid});
+    }
   }
   advanceProjectiles(step,at){
     for(const [sid,arrow] of this.projectiles){
