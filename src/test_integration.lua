@@ -72,6 +72,10 @@ local function testStoreTribe(self)
     self.stage="tribe"
     print("E2E TRIBE: sent L create CITest")
   elseif self.stage=="tribe" and self.world.tribe=="CITest" then
+    -- The original Node enforces a 200ms tribe cooldown; an immediate
+    -- Leave packet after Create is intentionally ignored by the server.
+    if not self.joinedAt then self.joinedAt=self.elapsed;return end
+    if self.elapsed-self.joinedAt<0.4 then return end
     local left,y,_,height=panel:position(w,h)
     local cmd=panel:click(self.world,left+40,y+height-50,w,h)
     if not cmd or cmd.packet~="N" then
