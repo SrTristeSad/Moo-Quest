@@ -138,6 +138,9 @@ function I:update(dt)
       end
     end
   end
+  if self.mode=="persistent_clan" and self.hasC and self.hasD then
+    return require("src.test_clan_integration")(self)
+  end
   if self.mode=="store_tribe" and self.hasC and self.hasD then
     return testStoreTribe(self)
   end
