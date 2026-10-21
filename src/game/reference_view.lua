@@ -226,6 +226,15 @@ local function playerBody(p,dt)
 end
 -- The browser uses getAttackDir() for the LOCAL player and the server's
 -- direction for everyone else. Neither choice changes combat authority.
+-- Both gameplay aim updates and local rendering use this same rule.
+-- The server's K(0) locks direction; drawing must not keep tracking
+-- the mouse after it has stopped receiving new direction packets.
+function View.localAim(locked,cursor,lastSent)
+  if locked then
+    return type(lastSent)=="number" and lastSent or 0
+  end
+  return type(cursor)=="number" and cursor or 0
+end
 function View.playerDrawAngle(player,localAim)
   local direction=type(localAim)=="number" and localAim or (player.dir or 0)
   return direction+(player.dirPlus or 0)
