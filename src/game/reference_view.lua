@@ -386,7 +386,9 @@ local function labels(world,camera,w,h)
   local previous=love.graphics.getFont()
   -- Original Canvas lists all players before animals, in creation order.
   for _,p in ipairs(world:orderedPlayers()) do
-    if p.x and p.y and p.invisible~=1 and see(p,camera,w,h) then
+    -- The reference draws all server-visible bodies and labels, even when
+    -- the centre is outside the viewport; broad cosmetics can cross an edge.
+    if p.x and p.y and p.invisible~=1 then
       if View.playerNameVisible(world,p) then
         local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
         local s=p.scale or C.playerScale
@@ -412,7 +414,7 @@ local function labels(world,camera,w,h)
     end
   end
   for _,a in ipairs(world:orderedAnimals()) do
-    if a.x and a.y and see(a,camera,w,h) then
+    if a.x and a.y then
       local kind=world and world:animalKind(a.index) or Animals.byId(a.index)
       if kind then
         local x,y=camera:worldToScreen(a.visualX or a.x,a.visualY or a.y)
@@ -431,7 +433,7 @@ local function labels(world,camera,w,h)
   CombatText.draw(world.combatText,camera)
   -- In client/src/index.js speech bubbles come after all world name/HP labels.
   for _,p in ipairs(world:orderedPlayers()) do
-    if p.x and p.y and p.invisible~=1 and see(p,camera,w,h) then
+    if p.x and p.y and p.invisible~=1 then
       local x,y=camera:worldToScreen(p.visualX or p.x,p.visualY or p.y)
       drawChatBubble(p,x,y,(p.scale or C.playerScale)*camera.zoom)
     end
@@ -462,18 +464,18 @@ function View.draw(world,camera,dt,options)
   drawProjectiles(world,camera,w,h,0)
   for _,p in ipairs(players) do
     if (p.zIndex or 0)==0 and p.x and p.y and p.invisible~=1
-      and see(p,camera,w,h) then drawPlayer(p,camera,dt or 0,aimFor(p)) end
+      then drawPlayer(p,camera,dt or 0,aimFor(p)) end
   end
   for _,a in ipairs(animals) do
     local kind=world and world:animalKind(a.index) or Animals.byId(a.index)
-    if kind and see(a,camera,w,h,kind.scale*2.4) then renderAnimal(a,camera,world) end
+    if kind and a.x and a.y then renderAnimal(a,camera,world) end
   end
   drawObjectLayer(objects,camera,w,h,0)
   drawProjectiles(world,camera,w,h,1)
   drawObjectLayer(objects,camera,w,h,1)
   for _,p in ipairs(players) do
     if (p.zIndex or 0)==1 and p.x and p.y and p.invisible~=1
-      and see(p,camera,w,h) then drawPlayer(p,camera,dt or 0,aimFor(p)) end
+      then drawPlayer(p,camera,dt or 0,aimFor(p)) end
   end
   drawObjectLayer(objects,camera,w,h,2)
   drawObjectLayer(objects,camera,w,h,3)

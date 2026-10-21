@@ -183,6 +183,31 @@ a ordem podia variar de forma diferente da referência.
 vistos pelo cliente. Ainda falta auditoria manual da imagem final
 de partidas simultâneas no Windows, antes de afirmar paridade 1:1.
 
+## Progresso subsequente — acessórios/armas parcialmente fora da tela (PR #16)
+
+**Defeito concreto:** o `renderPlayers` e `renderAI` de
+`client/src/index.js` desenham cada entidade marcada como visível
+pela rede, sem teste de posição do centro. O cliente LÖVE ainda aplicava
+`see(p,camera,w,h)` para jogadores e rótulos, que só considerava a
+escala do corpo (normalmente 35 unidades), e `see(...,kind.scale*2.4)`
+para animais. Asas originais de grande escala, armas longas e nomes
+podiam desaparecer enquanto parte da arte ainda estava na tela.
+
+- `reference_view.lua`: elimina **somente esse corte prematuro de entidades**
+  de rede nos passes de jogadores, animais e rótulos/balões. A GPU LÖVE
+  recorta os pixels realmente fora da tela, como faz o Canvas original.
+  Objetos de cenário e projéteis continuam usando o culling específico
+  já auditado.
+- `tests/reference_cosmetic_edges.lua`: comprova que o desenho de
+  `Blood Wings` (acessório 18) é solicitado mesmo quando o centro do
+  jogador está à direita da janela; com PNGs importados, compara pixels
+  reais em uma margem visível. Também verifica camadas reais de
+  `Sawblade` rotativo, martelo, mãos, corpo, Windmill Hat e topSprite,
+  besta `aboveHand`, plataforma (`zIndex=1`) e invisibilidade.
+- Nenhuma geometria, sprite, tinta, animação ou propriedade de combate
+  foi modificada. **Os testes gráficos não substituem uma comparação
+  manual integral do cliente original no Windows.**
+
 ## Critério objetivo para chamar 1:1
 
 Todos os fluxos do escopo original aplicável têm controle correspondente, visual correspondente, evento Node validado, teste automatizado específico e evidência de execução manual lado a lado. **Um PR com 7 workflows verdes não é equivalente a paridade 1:1.**
