@@ -11,6 +11,7 @@ local Hud=require("src.game.reference_hud")
 local Panels=require("src.game.reference_panels")
 local Clans=require("src.game.account_clans")
 local Death=require("src.game.reference_death")
+local Notices=require("src.game.reference_notices")
 local Upgrades=require("src.game.reference_upgrades")
 local Assets=require("src.game.reference_assets")
 local Camera=require("src.camera")
@@ -303,6 +304,7 @@ function love.draw()
     -- instead of instantly replacing it with the game entry card.
     View.draw(world,camera,frameDelta,{showGrid=menu.grid})
     death:draw(w,h)
+    Notices.draw(world,w,h)
     return
   end
   if phase=="menu" then
@@ -318,6 +320,7 @@ function love.draw()
     end
     menu:draw(state,status)
     clans:draw(false)
+    Notices.draw(world,w,h)
     return
   end
   if client and client.state=="spawn_confirmed" and not died
@@ -331,6 +334,7 @@ function love.draw()
       chatOpen or panels:isOpen() or clans:isOpen())
     panels:draw(world)
     clans:draw(true)
+    Notices.draw(world,w,h)
     if uiSmoke and uiSmokeClicked and not uiSmokeDrawn then
       uiSmokeDrawn=true
       print("UI E2E PASS: Play click -> original C/D -> graphical View + HUD rendered")
