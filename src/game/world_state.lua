@@ -22,7 +22,7 @@ end
 function World.new()
   return setmetatable({
     sid=nil,spawned=false,dead=false,players={},objects={},animals={},projectiles={},
-    resources={},itemCounts={},inventory={weapons={},items={}},leaderboard={},
+    resources={},resourceGain={},itemCounts={},inventory={weapons={},items={}},leaderboard={},
     xp=0,maxXP=0,age=1,upgradePoints=0,upgradeAge=0,
     minimapData={},mapPings={},mapMarker=nil,lastDeath=nil,
     serverAnimals={},teams={},
@@ -67,7 +67,8 @@ function World:apply(name,args)
     self.inventory={weapons={0},items={0,3,6,10}}
     self.xp=0;self.maxXP=300;self.age=1
     self.upgradePoints=0;self.upgradeAge=2
-    self.resources={}
+    self.resources={kills=0}
+    self.resourceGain={}
     self.itemCounts={}
     return true
   elseif name=="D" then
@@ -228,10 +229,16 @@ function World:apply(name,args)
     self.dead=true;self.spawned=false
     return true
   elseif name=="N" then
-    -- Resource type is a string; the server sends an absolute value when flag=1.
-    if type(args[1])=="string" and number(args[2]) then
-      if args[3]==1 then self.resources[args[1]]=args[2]
-      else self.resources[args[1]]=(self.resources[args[1]] or 0)+args[2] end
+    -- Absolute counts are sent with flag 1. Only display "gained" when
+    -- the Node actually increased a known prior quantity (not initial 1m).
+    local key,value=args[1],args[2]
+    if type(key)=="string" and number(value) then
+      local previous=self.resources[key]
+      local nextValue=(args[3]==1) and value or ((previous or 0)+value)
+      self.resources[key]=nextValue
+      if number(previous) and nextValue>previous then
+        self.resourceGain[key]={amount=nextValue-previous,remaining=1.5}
+      end
     end
     return true
   elseif name=="V" then
@@ -265,6 +272,10 @@ function World:apply(name,args)
 end
 function World:update(dt)
   if type(dt)~="number" or dt<=0 then return end
+  for key,gain in pairs(self.resourceGain) do
+    gain.remaining=gain.remaining-dt
+    if gain.remaining<=0 then self.resourceGain[key]=nil end
+  end
   for i=#self.mapPings,1,-1 do
     local ping=self.mapPings[i]
     ping.scale=ping.scale+dt*1000*0.05
