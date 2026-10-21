@@ -55,6 +55,12 @@ local function menuView()
     world.objects[e[1]]={sid=e[1],x=e[2],y=e[3],
       dir=0,scale=C.bushScales[#C.bushScales],type=1}
   end
+  -- The two windmills are the original prepareMenuBackground() entries
+  -- using items.list[4].scale and items.list[10] as sprite data.
+  world.objects[10]={sid=10,x=mid-800,y=mid+300,
+    dir=0,scale=50,type=4,id=10}
+  world.objects[11]={sid=11,x=mid+650,y=mid-390,
+    dir=0,scale=50,type=4,id=10}
   world.objects[12]={sid=12,x=mid-400,y=mid-450,
     dir=0,scale=C.rockScales[3],type=2}
   return world
