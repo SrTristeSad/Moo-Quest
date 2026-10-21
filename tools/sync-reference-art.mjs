@@ -14,7 +14,11 @@ const source=path.resolve(process.env.MOOQUEST_ART_SOURCE_DIR||
   path.join(project,"node-runtime","client","public","img"));
 const target=path.join(project,"assets","reference","img");
 const userArt=path.join(project,"assets","custom","img");
-const expected={animals:17,weapons:81,hats:55,accessories:21,resources:4,icons:2};
+// Non-proprietary filename-only manifest from the pinned reference.
+const manifest=JSON.parse(await fs.readFile(
+  path.join(project,"support","reference-image-manifest.json"),"utf8"));
+const expected=Object.fromEntries(
+  Object.entries(manifest).map(([category,files])=>[category,files.length]));
 const required=["weapons/hammer_1.png"];
 const pending=[],count={valid:0,imported:0,reused:0,user:0};
 
@@ -41,7 +45,7 @@ async function synchronize(){
       console.warn("[ARTE] "+category+": encontrados "+names.length+
         " de "+n+" nomes esperados no arquivo de origem.");
     }
-    const extras=new Set(names);
+    const extras=new Set([...(manifest[category]||[]),...names]);
     // Reuse existing artwork even when the source folder was removed.
     for(const dir of [path.join(userArt,category),path.join(target,category)]){
       try{
