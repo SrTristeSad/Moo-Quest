@@ -175,6 +175,7 @@ function love.update(dt)
     end
   end
   if client.state=="failed" or client.state=="closed" then
+    phase="menu"
     reconnectSeconds=reconnectSeconds+dt
     -- Retry only on explicit R to avoid connection-throttling.
   end
@@ -205,6 +206,12 @@ function love.draw()
   end
   local w,h=love.graphics.getDimensions()
   local p=world:localPlayer()
+  if phase=="menu" then
+    View.draw(menu.world,menuCamera,frameDelta)
+    menu:draw(client and client.state,
+      (client and (client.error or client.status)) or startupError or menu.status)
+    return
+  end
   if client and client.state=="spawn_confirmed" and not died
     and p and p.x and p.y then
     View.draw(world,camera,frameDelta)
@@ -407,4 +414,5 @@ end
 
 function love.resize(w,h)
   if camera then camera:resize(w,h) end
+  if menuCamera then menuCamera:resize(w,h) end
 end
