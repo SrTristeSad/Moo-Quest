@@ -82,11 +82,21 @@ function P.star(spikes,outer,inner,fillColor,strokeColor,width)
   local pts={}
   local angle=3*pi/2
   local step=pi/spikes
-  for _=1,spikes do
-    pts[#pts+1]=cos(angle)*outer;pts[#pts+1]=sin(angle)*outer
-    angle=angle+step
-    pts[#pts+1]=cos(angle)*inner;pts[#pts+1]=sin(angle)*inner
-    angle=angle+step
+  if math.abs(inner-outer)<0.001 then
+    -- client/src/index.js renderStar: equal radii are a regular 2*spike
+    -- polygon; repeating inner vertices distorted original rocks/walls.
+    for i=0,spikes*2-1 do
+      local a=angle+i*step
+      pts[#pts+1]=cos(a)*outer
+      pts[#pts+1]=sin(a)*outer
+    end
+  else
+    for _=1,spikes do
+      pts[#pts+1]=cos(angle)*outer;pts[#pts+1]=sin(angle)*outer
+      angle=angle+step
+      pts[#pts+1]=cos(angle)*inner;pts[#pts+1]=sin(angle)*inner
+      angle=angle+step
+    end
   end
   P.path(pts,fillColor,strokeColor,width)
 end
