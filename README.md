@@ -1,5 +1,21 @@
 # Moo-Quest
 
+## Migração para servidor independente V2 (experimental)
+
+O servidor novo esta em [server-v2/](server-v2/) e NAO depende do motor
+`server/src/` reconstruido. Para testar somente o V2 em Windows, use
+`INICIAR-V2-WINDOWS.bat` (Node.js 22+, PostgreSQL e Redis configurados).
+Esse inicializador identifica `mqv2native` antes de executar o cliente,
+nao inicia o motor antigo e nao baixa sprites de terceiros.
+
+**Importante:** `INICIAR-WINDOWS.bat` e as instrucoes antigas abaixo
+ainda dizem respeito ao backend de referencia, mantido temporariamente
+para validacao e migracao. Nao devem ser usados como instalador comercial.
+A compatibilidade integral entre cliente Lua e V2, os direitos de sprites
+e a substituicao definitiva do legado ainda NAO foram certificados.
+A fronteira do pacote assinado e as pendencias estao em
+[LEGAL-CLEANUP-PHASE1.md](server-v2/docs/LEGAL-CLEANUP-PHASE1.md).
+
 **Arquitetura atual (2026-10-21):** cliente **Lua + LÖVE 2D** e
 servidor **Node.js reconstruido, agora versionado neste proprio GitHub**
 (`server/src/` e `shared/`). O jogo continua usando o protocolo real da

@@ -26,6 +26,19 @@ local function fakeOpts()
     random=function(nbytes) return string.rep("a",nbytes) end,
     sha1=function() return string.rep("\0",20) end}
 end
+local guardedOpts=fakeOpts()
+guardedOpts.expectedBuild="mqv2native"
+local guarded=O.new(guardedOpts)
+assert(not guarded:connect() and guarded.state=="failed")
+assert(guarded.error:find("Servidor inesperado",1,true))
+assert(n==0,"a different backend must be rejected before requesting a ticket")
+local matchingOpts=fakeOpts()
+matchingOpts.expectedBuild="abc123def"
+local matching=O.new(matchingOpts)
+assert(matching:connect())
+matching:close()
+assert(n==1,"correct backend accepted")
+n=0
 local c=O.new(fakeOpts())
 assert(c:connect() and c.build=="abc123def")
 assert(c.state=="connecting")

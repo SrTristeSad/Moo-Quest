@@ -45,6 +45,8 @@ jobs:
           test ! -d server-v2/assets
           ! find server-v2 -type f \( -iname '*.png' -o -iname '*.webp' -o -iname '*.jpg' \) | grep .
           ! grep -R -E 'moomoo-clone|al007ex/moomoo' server-v2/src server-v2/public
+      - name: Enforce standalone release file/import boundary
+        run: node server-v2/scripts/check-release-boundary.mjs
       - name: Install independent Node server dependencies
         run: npm install --prefix server-v2 --no-audit --no-fund
       - name: Run security, game and live WebSocket integration tests

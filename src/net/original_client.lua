@@ -41,6 +41,7 @@ function Original.new(options)
     name=options.name or "Jogador",
     autoSpawn=options.autoSpawn~=false,
     authToken=options.authToken,
+    expectedBuild=options.expectedBuild,
     join=options.join or Join,
     ltn12=options.ltn12,
     did=nil,ticket=nil,spawnSent=false,sid=nil,packetCount=0,
@@ -66,6 +67,12 @@ function Original:connect()
     self.state="failed";self.error=reason
     self.status="Servidor original indisponivel: "..reason
     return false,reason
+  end
+  if self.expectedBuild and build~=self.expectedBuild then
+    self.state="failed"
+    self.error="Servidor inesperado: esperado build "..self.expectedBuild..", recebido "..build
+    self.status=self.error
+    return false,self.error
   end
   self.build=build
   -- /api/join is the exact API used by the author's local client. Its guest
