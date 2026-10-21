@@ -99,10 +99,22 @@ test('actual Redis persists sessions across Auth instances, throttles logins and
   assert.equal(await tickets.consumeDetails(accountTicket,'d'.repeat(64)),null,
     'logout invalidates pending account entry tickets');
   const nextToken=await playerTokens.issue(accountId);
+  assert.match(nextToken.refreshToken,/^[a-f0-9]{64}$/);
+  const rotated=await playerTokens.refresh(nextToken.refreshToken);
+  assert.notEqual(rotated.token,nextToken.token);
+  assert.equal(await playerTokens.get(nextToken.token),null);
+  assert.equal(await playerTokens.refresh(nextToken.refreshToken),null);
+  assert.equal(await playerTokens.get(rotated.token),accountId);
   const renewed=await tickets.issue('d'.repeat(64),accountId);
   assert.deepEqual(await tickets.consumeDetails(renewed,'d'.repeat(64)),
     {accountId},'a freshly authenticated ticket uses the new revision');
-  await playerTokens.revoke(nextToken.token);
+  await playerTokens.revoke(rotated.token);
+  assert.equal(await playerTokens.get(rotated.token),null);
+  assert.equal(await playerTokens.refresh(rotated.refreshToken),null);
+  const another=await playerTokens.issue(accountId);
+  await playerTokens.revokeAll(accountId);
+  assert.equal(await playerTokens.get(another.token),null);
+  assert.equal(await playerTokens.refresh(another.refreshToken),null);
   const rkey=prefix+'ticket-rate:'+(await import('node:crypto')).createHash('sha256').update(ipHash).digest('hex');
   assert.ok((await client.ttl(rkey))>0);
   // Delete only namespaced integration keys; never flush a shared Redis DB.
