@@ -115,6 +115,15 @@ export class NativeSession {
     const tableSeed=(this.seed^0x9e3779b1)>>>0;
     this.incoming=tableFor(REQUEST_NAMES,tableSeed);
     this.outgoing=tableFor(RESPONSE_NAMES,(tableSeed^0x85ebca6b)>>>0);
+    // Extension-only IDs: old names keep their original shuffled numbers.
+    // Adding names to REQUEST_NAMES/RESPONSE_NAMES would reshuffle ALL IDs
+    // and silently break clients already running on the public server.
+    this.incoming.forward.set('V',REQUEST_NAMES.length);
+    this.incoming.reverse.set(REQUEST_NAMES.length,'V');
+    this.outgoing.forward.set('p',RESPONSE_NAMES.length);
+    this.outgoing.reverse.set(RESPONSE_NAMES.length,'p');
+    this.outgoing.forward.set('F',RESPONSE_NAMES.length+1);
+    this.outgoing.reverse.set(RESPONSE_NAMES.length+1,'F');
   }
   handshake(){return pack(['io-init',[this.socketId,this.seed,this.key.toString('hex'),1,0,0]]);}
   encode(name,args=[]){

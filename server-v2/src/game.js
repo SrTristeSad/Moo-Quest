@@ -108,7 +108,8 @@ export class GameServer {
   connectNative(ws,ipHash,trustedOrigin,accountId=null) {
     const session=new NativeSession();
     const state={ws,session,p:null,held:false,lastSnapshotAt:0,spawning:false,
-      accountId:null,grantedAccountId:accountId,clanBusy:false};
+      accountId:null,grantedAccountId:accountId,clanBusy:false,
+      autoAttack:false,lockDir:false,watchSid:null};
     this.nativeClients.set(ws,state);
     ws.send(session.handshake());
     const send=(name,args=[])=>{
@@ -208,7 +209,27 @@ export class GameServer {
       }
       const p=state.p;if(!p)return;
       if(name==='9')this.room.direction(p.id,args[0]);
-      else if(name==='D')this.room.aim(p.id,args[0]);
+      else if(name==='D'){
+        if(!state.lockDir)this.room.aim(p.id,args[0]);
+      }
+      else if(name==='K'){
+        // Original Lua key E toggles auto-hit; X toggles locked direction.
+        // Both are server-owned states and cannot bypass the attack cooldown.
+        if(args[0]===1)state.autoAttack=!state.autoAttack;
+        else if(args[0]===0)state.lockDir=!state.lockDir;
+      }
+      else if(name==='V'){
+        // Profile/card data: this is an outgoing request, not the
+        // similarly named inventory packet sent FROM the server.
+        const sid=args[0];
+        if(sid===-1)state.watchSid=null;
+        else if(Number.isSafeInteger(sid)&&sid>=0&&
+            [...this.room.players.values()].some(other=>other.sid===sid)){
+          state.watchSid=sid;
+          this._sendNativeProfile(state,sid);
+          this._sendNativeStats(state,sid);
+        }
+      }
       else if(name==='e'){p.vx=0;p.vy=0;}
       else if(name==='F'){
         state.held=args[0]===1;
@@ -257,6 +278,24 @@ export class GameServer {
           }catch(error){console.error('[MooQuest] clan leave failed:',error.message);}
           finally{state.clanBusy=false;}
         }else if(this.room.leaveTribe(p.id))this._syncTribes();
+      }
+      else if(name==='Q'){
+        // Native client Tribe/Kick button: only the active owner can remove
+        // an existing member, and persistent membership must change in SQL.
+        const memberSid=args[0];
+        const member=[...this.room.players.values()].find(x=>x.sid===memberSid);
+        const tribe=p.team&&this.room.tribes.get(p.team);
+        if(!member||!tribe||tribe.owner!==p.id||member.id===p.id||
+          member.team!==p.team||state.clanBusy)return;
+        if(tribe.persistent){
+          if(!p.accountId||!member.accountId||!this.accounts)return;
+          state.clanBusy=true;
+          try{
+            if(await this.accounts.kickClanMember(p.accountId,member.accountId,p.team))
+              this.room.kickTribe(p.id,memberSid)&&this._syncTribes();
+          }catch(error){console.error('[MooQuest] clan kick failed:',error.message);}
+          finally{state.clanBusy=false;}
+        }else if(this.room.kickTribe(p.id,memberSid))this._syncTribes();
       }
       else if(name==='b'){
         const target=this.room.tribes.get(args[0]);
@@ -319,6 +358,25 @@ export class GameServer {
       }).finally(()=>this.profileWrites.delete(task));
     this.profileWrites.add(task);
     return task;
+  }
+  _sendNativeProfile(state,sid){
+    const target=[...this.room.players.values()].find(p=>p.sid===sid);
+    if(!target||!state.p)return;
+    // Public display information only. Never disclose account IDs, tokens,
+    // hashes, addresses, DB snapshots or moderator-private identifiers.
+    const profile={name:target.name,guest:!target.accountId,anon:false};
+    if(target.team)profile.clan={name:target.team};
+    state.send('p',[sid,JSON.stringify(profile)]);
+  }
+  _sendNativeStats(state,sid){
+    const target=[...this.room.players.values()].find(p=>p.sid===sid);
+    if(!target||!state.p)return;
+    const x=target.lifeStats||{};
+    const safe=k=>Math.max(0,Math.round(Number(x[k])||0));
+    state.send('F',[sid,safe('kills'),safe('wood'),safe('food'),
+      safe('stone'),safe('gold'),safe('damage'),
+      safe('animalDamage'),safe('healing'),safe('animals'),
+      safe('bosses'),null,Math.max(0,Math.round(target.score||0))]);
   }
   _nativeBroadcast(name,args){
     for(const state of this.nativeClients.values())if(state.p)state.send(name,args);
@@ -484,7 +542,7 @@ export class GameServer {
       // Sustained gathering/firing must be driven by the authoritative
       // server cooldown; no repeated Lua F frames are required.
       for(const state of this.nativeClients.values()){
-        if(!state.held||!state.p||state.p.hp<=0)continue;
+        if(!(state.held||state.autoAttack)||!state.p||state.p.hp<=0)continue;
         if(this.room.attack(state.p.id)&&state.p.buildIndex<0)
           this._nativeBroadcast('K',[state.p.sid,1,state.p.weaponIndex]);
         if(state.p.buildIndex>=0)state.held=false;
@@ -494,6 +552,10 @@ export class GameServer {
       if(this.counter%900===0)
         for(const p of this.room.players.values())this.persistPlayer(p);
       if (this.counter % 3 !== 0) return;
+      if(this.counter%60===0){
+        for(const state of this.nativeClients.values())if(state.watchSid!==null)
+          this._sendNativeStats(state,state.watchSid);
+      }
       const world = JSON.stringify(this.room.snapshot());
       const allEvents=this.room.takeEvents();
       const events = JSON.stringify({ kind: 'events', list: allEvents });
@@ -504,7 +566,16 @@ export class GameServer {
         if(state.ws.bufferedAmount>512_000){state.ws.terminate();continue;}
         state.send('a',positions);
         state.send('I',this.room.animalPacket());
-        if(this.counter%30===0)state.send('G',[board]);
+        if(this.counter%30===0){
+          state.send('G',[board]);
+          // The pre-V2 minimap uses packet 7 for teammates, not guesses
+          // drawn by the client from potentially stale world positions.
+          const team=state.p.team;
+          const visible=team?[...this.room.players.values()]
+            .filter(p=>p!==state.p&&p.hp>0&&p.team===team)
+            .flatMap(p=>[Math.round(p.x),Math.round(p.y)]):[];
+          state.send('7',[visible]);
+        }
       }
       // A connection tracked for admin moderation may use either protocol.
       // Native Lua clients accept ONLY authenticated binary game packets.

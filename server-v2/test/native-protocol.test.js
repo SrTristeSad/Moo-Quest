@@ -31,15 +31,21 @@ test('native binary wire: io-init six fields, keyed MAC, sequence replay rejecti
   assert.throws(()=>session.decode(forged),/MAC/);
   assert.deepEqual(unpack(session.encode('C',[12]))[1],[12]);
   assert.throws(()=>session.encode('q',[5,[]]),/unsupported/);
-  assert.throws(()=>session.makeTestRequest('V',[5]),/unknown test packet/);
+  assert.equal(session.decode(session.makeTestRequest('V',[5],3)).name,'V');
+  assert.deepEqual(unpack(session.encode('p',[5,'{"name":"Lua"}']))[1],
+    [5,'{"name":"Lua"}']);
+  assert.equal(unpack(session.encode('F',[5,0,0,0,0,0,0,0,0,0,0,null,100]))[1].length,13);
 });
 
 test('transport contract: all legacy Lua action names have unique seeded IDs',()=>{
   const a=new NativeSession({seed:777,key:Buffer.alloc(16,1)});
-  assert.equal(a.incoming.forward.size,17);
-  assert.equal(a.outgoing.forward.size,36);
-  assert.equal(new Set(a.incoming.forward.values()).size,17);
-  assert.equal(new Set(a.outgoing.forward.values()).size,36);
+  assert.equal(a.incoming.forward.size,18);
+  assert.equal(a.outgoing.forward.size,38);
+  assert.equal(new Set(a.incoming.forward.values()).size,18);
+  assert.equal(new Set(a.outgoing.forward.values()).size,38);
+  assert.equal(a.incoming.forward.get('V'),17);
+  assert.equal(a.outgoing.forward.get('p'),36);
+  assert.equal(a.outgoing.forward.get('F'),37);
   assert.ok(a.outgoing.forward.has('H'));
   assert.ok(a.outgoing.forward.has('P'));
   assert.ok(a.outgoing.forward.has('5'));

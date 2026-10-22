@@ -100,10 +100,18 @@ function T.new(handshake,_,digest)
     return nil,"Invalid V2 seed"
   end
   local tableSeed=bxor(seed,0x9e3779b1)
+  local c2s=tableFor(C2S,tableSeed)
+  local s2c=tableFor(S2C,bxor(tableSeed,0x85ebca6b))
+  -- Add new V2 functions without changing pre-existing shuffled IDs.
+  c2s.enc["V"]=#C2S
+  c2s.dec[#C2S]="V"
+  s2c.enc["p"]=#S2C
+  s2c.dec[#S2C]="p"
+  s2c.enc["F"]=#S2C+1
+  s2c.dec[#S2C+1]="F"
   return setmetatable({
     key=key,digest=digest,sent=0,received=0,sealMode=0,
-    tables={c2s=tableFor(C2S,tableSeed),
-      s2c=tableFor(S2C,bxor(tableSeed,0x85ebca6b))}
+    tables={c2s=c2s,s2c=s2c}
   },T)
 end
 function T:encode(name,args)
