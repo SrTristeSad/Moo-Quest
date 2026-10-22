@@ -52,7 +52,7 @@ test('update only accepts genuine Ed25519 releases from configured HTTPS origin'
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const origin = 'https://release.example.org/manifest.json';
   const files = ['src/index.js','src/http.js','src/auth.js','src/storage.js',
-    'src/updates.js','src/game.js','src/world.js','src/native-protocol.js',
+    'src/updates.js','src/zip-release.js','src/game.js','src/world.js','src/native-protocol.js',
     'src/store.js','src/database.js','src/redis-services.js','src/player-accounts.js',
     'src/request-identity.js','src/guest-verification.js','public/admin.html',
     'public/login.html','public/setup.html','public/style.css','public/app.js']
