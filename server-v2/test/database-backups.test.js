@@ -53,7 +53,8 @@ function fixture(t){
   const env={...process.env,
     PATH:bin+path.delimiter+process.env.PATH,
     MOO_DATABASE_URL:'postgresql://mooquest:safe-secret@127.0.0.1:5432/mooquest',
-    MOO_BACKUP_DIR:dest,MOO_MOCK_LOG:log,MOO_PORT:'65530'};
+    MOO_BACKUP_DIR:dest,MOO_MOCK_LOG:log,MOO_PORT:'65530',
+    MOO_DATA_DIR:path.join(dir,'private')};
   const cmd=(args,changes={})=>spawnSync(process.execPath,[script,...args],
     {env:{...env,...changes},encoding:'utf8',timeout:7000});
   return {cmd,dir,dest,log};
@@ -116,4 +117,22 @@ test('PostgreSQL backup never accepts dangerous DB URLs or invalid CLI arguments
   const wrongArgs=cmd(['restore']);
   assert.notEqual(wrongArgs.status,0);
   assert.match(wrongArgs.stderr,/Use:/);
+});
+
+test('first-run installer database configuration also powers offline pg_dump backups',t=>{
+  const {cmd,dir}=fixture(t);
+  const privateDir=path.join(dir,'private');
+  fs.mkdirSync(privateDir,{recursive:true,mode:0o700});
+  const stored=path.join(privateDir,'infrastructure.json');
+  fs.writeFileSync(stored,JSON.stringify({schema:1,
+    databaseURL:'postgresql://mooquest:safe-secret@127.0.0.1:5432/mooquest',
+    redisURL:'redis://127.0.0.1:6379/0'}),{mode:0o600});
+  const backup=cmd(['backup'],{MOO_DATABASE_URL:''});
+  assert.equal(backup.status,0,backup.stderr);
+  assert.match(backup.stdout,/BACKUP_OK/);
+  assert.ok(!backup.stdout.includes('safe-secret'));
+  fs.chmodSync(stored,0o644);
+  const blocked=cmd(['backup'],{MOO_DATABASE_URL:''});
+  assert.notEqual(blocked.status,0);
+  assert.match(blocked.stderr,/Unsafe infrastructure file permissions/);
 });
