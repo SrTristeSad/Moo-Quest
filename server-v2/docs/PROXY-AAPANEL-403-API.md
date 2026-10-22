@@ -184,3 +184,39 @@ O teste invalido **nao testa uma entrada autenticada bem-sucedida**:
 depois que /s/LC chegar ao Node, pode aparecer outro erro de
 ticket/IP ou sessao e exigir diagnostico especifico. Consulte os logs
 da VPS caso isso ocorra.
+
+## Conta conectada, mas Play desativado depois do login
+
+O login e o ingresso na partida são operações distintas:
+`POST /api/account/login` autentica o usuário,
+`POST /api/join` cria um ticket de entrada temporário e
+`GET /s/LC?b=mqv2native&token=tk:...` abre o WebSocket.
+
+**Possível erro com Cloudflare e aaPanel:** a CDN pode encaminhar
+o pedido `/api/join` e o handshake `/s/LC` à VPS por
+IPs diferentes. Antes desta revisão, o Redis exigia que o IP
+do ticket fosse **idêntico** ao IP da conexão WebSocket,
+inclusive para contas autenticadas, e destruía a conexão
+se fossem diferentes, sem resposta de erro útil para o
+cliente Windows.
+
+A revisão usa a identidade autenticada já associada ao
+ticket da conta V2. Ela preserva: segredo aleatório com
+144 bits, **uso único por Redis GETDEL**, 30 segundos de
+validade, geração/revogação por conta e política de
+manutenção/lotação. **Tickets de convidados continuam
+vinculados ao endereço IP**.
+
+Aplique o ZIP completo do servidor V2 pelo painel
+**Administração → Atualizações → Enviar ZIP → Ativar**,
+reinicie o Node pelo aaPanel e pressione `R` na tela do
+cliente Windows (sem precisar sair da conta) para tentar
+a entrada de novo.
+
+Se ainda aparecer erro, clique em **Detalhes** no cliente.
+Uma falha de `/api/join` é diferente de erro no
+WebSocket. Se o proxy estiver recusando `/s/LC`, garanta
+que o aaPanel encaminha os cabeçalhos `Upgrade` e
+`Connection: upgrade` por HTTPS e que o Cloudflare
+permite WebSockets para o domínio. Corrija apenas a regra
+necessária, sem desabilitar o WAF inteiro.
