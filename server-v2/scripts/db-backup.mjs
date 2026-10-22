@@ -10,6 +10,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+// Also protects the dump while pg_dump is still writing it.
+process.umask(0o077);
 const FORMAT='mooquest-postgres-backup-v1';
 const TABLES=['mq_admin_state','mq_player_accounts','mq_clans','mq_clan_members'];
 const USAGE='Use: node scripts/db-backup.mjs backup | verify <file.dump> | restore <file.dump>';
