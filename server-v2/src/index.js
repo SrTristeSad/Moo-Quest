@@ -20,14 +20,14 @@ catch(error) { await storage.close(); throw error; }
 const auth = new RedisAuth(redis);
 const playerTokens=new RedisPlayerTokens(redis);
 const accounts=await new PlayerAccounts(storage.pool).init();
-const social=await new SocialService(storage.pool).init();
+const social=await new SocialService(storage.pool,{redis}).init();
 const updates = new Updates(root, storage.dir);
 let stopping = false;
 const app = createHTTP({ root: moduleRoot, storage, auth, updates,
   accounts,playerTokens,social,stopStatus: () => stopping });
 const reservedClanTags=await accounts.listClanTags();
 const game = new GameServer(app.server, storage, new RedisTickets(redis),
-  {accounts,reservedClanTags});
+  {accounts,reservedClanTags,social});
 app.setGame(game);
 const host = process.env.MOO_HOST || '127.0.0.1';
 const port = Number(process.env.MOO_PORT || 8100);

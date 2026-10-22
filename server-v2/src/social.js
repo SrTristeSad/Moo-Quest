@@ -1,15 +1,15 @@
 // Port of the friendship, whisper, clan-chat and invite logic from
 // al007ex/moomoo-clone/server/src/api/{social,chat,store}.js (Apache-2.0).
 // PostgreSQL replaces the upstream JSON files. Authentication comes from V2.
-import {randomUUID} from 'node:crypto';
+import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import {isRude} from './vendor/al007ex/nameFilter.js';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const invalid=(name,status=400)=>Object.assign(new Error(name),{status});
 const pair=(a,b)=>[a,b].sort();
 const check=id=>typeof id==='string'&&UUID.test(id);
 export class SocialService {
- constructor(pool,{clock=()=>Date.now()}={}){
-  this.pool=pool;this.clock=clock;this.sent=new Map();
+ constructor(pool,{clock=()=>Date.now(),redis=null}={}){
+  this.pool=pool;this.clock=clock;this.sent=new Map();this.redis=redis;
  }
  async init(){
   await this.pool.query(`CREATE TABLE IF NOT EXISTS mq_friend_requests (
@@ -183,15 +183,33 @@ export class SocialService {
   }
   throw invalid('invalid_kind');
  }
- async invite(from,toName){
-  const target=await this.byName(toName);
-  if(!target||target.id===from)throw invalid('not_found',404);
-  if(!await this.areFriends(from,target.id))throw invalid('not_friends',403);
+ async inviteId(from,to){
+  if(!check(to)||to===from||!await this.areFriends(from,to))
+   throw invalid('not_friends',403);
   this.rate(from);
   const r=await this.pool.query(`INSERT INTO mq_social_invites
     (id,sender_id,recipient_id,server_key) VALUES($1,$2,$3,'LC')
-    RETURNING id`,[randomUUID(),from,target.id]);
-  return {id:r.rows[0].id,to:target.username,server:'LC'};
+    RETURNING id`,[randomUUID(),from,to]);
+  return {id:r.rows[0].id,server:'LC'};
+ }
+ async invite(from,toName){
+  const target=await this.byName(toName);
+  if(!target||target.id===from)throw invalid('not_found',404);
+  return {...await this.inviteId(from,target.id),to:target.username};
+ }
+ async issueSocketTicket(accountId){
+  if(!this.redis||!check(accountId))throw invalid('social_ws_unavailable',503);
+  const ticket=randomBytes(24).toString('hex');
+  const key='mq:v2:social:ticket:'+createHash('sha256').update(ticket).digest('hex');
+  await this.redis.set(key,accountId,{EX:30,NX:true});
+  return {ticket,expiresIn:30};
+ }
+ async consumeSocketTicket(ticket){
+  if(!this.redis||typeof ticket!=='string'||!/^[a-f0-9]{48}$/.test(ticket))
+    return null;
+  const key='mq:v2:social:ticket:'+createHash('sha256').update(ticket).digest('hex');
+  const id=await this.redis.getDel(key);
+  return check(id)&&await this.account(id)?id:null;
  }
  async inbox(accountId){
   const r=await this.pool.query(`SELECT i.id,a.username AS "from",
