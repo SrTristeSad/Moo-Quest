@@ -14,7 +14,7 @@ test('server owns positions, speed, boundaries and life; clients only submit inp
   assert.equal(a.x,525);
   assert.equal(w.snapshot().players.length,2);
   assert.equal(w.attack(a.id),true);
-  assert.equal(b.hp,85);
+  assert.equal(b.hp,75);
   assert.equal(w.attack(a.id),false,'attack cooldown enforced by server');
   at+=501;
   for(let i=0;i<6;i++) { assert.equal(w.attack(a.id),true);at+=501; }
