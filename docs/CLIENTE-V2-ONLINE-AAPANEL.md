@@ -197,7 +197,7 @@ HTTP comuns, remove o cabeçalho hop-by-hop antes de enviar a requisição
 pela conexão TLS, normaliza `Connection: close` e continua bloqueando
 `Transfer-Encoding`, `TE` diferente, rotas não aprovadas e headers
 forjados. Testes reproduzem a solicitação real padrão do LuaSocket.
-O cliente também diferencia uma resposta `403 Local relay request denied`
+O relay também aceita `Connection: keep-alive` usado pelo Node.js no `/ping` do lançador, normalizando-o para `Connection: close` ao encaminhar via TLS. O cliente também diferencia uma resposta `403 Local relay request denied`
 de erros de 403 emitidos pelo proxy remoto.
 
 **Como usar:** baixe um ZIP completo do cliente desta revisão, extraia em
