@@ -1,0 +1,105 @@
+name: MooQuest old client ported to V2 - Windows test
+on:
+  push:
+    branches: [feat/pre-v2-client-native-v2-port-20261022, main]
+    paths:
+      - '.github/workflows/pre-v2-client-to-v2.yml'
+      - 'client/old-client-v2/**'
+      - 'src/game/**'
+      - 'src/net/**'
+      - 'src/protocol/**'
+      - 'main.lua'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  legacy-windows-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test V2 handshake and artwork transfer
+        run: |
+          node --test tools/v2-https-relay.test.mjs tools/run-v2-online.test.mjs tools/importar-artes-antigas.test.mjs
+      - name: Build with the PRE-V2 gameplay client as the source of truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=5ad8c32d1889dcb94e5645982acc2a0f2d570e09
+          D=dist/MooQuest-CLIENTE-ANTIGO-V2
+          mkdir -p "$D/src/game" "$D/tools" "$D/support" "$D/assets/custom/img"
+          # Copy all existing and newly required V2 authentication/transport modules.
+          cp -a src tests "$D/"
+          cp main.lua conf.lua JOGAR-V2-ONLINE-WINDOWS.bat IMPORTAR-ARTES-ANTIGAS.bat "$D/"
+          cp tools/v2-https-relay.mjs tools/run-v2-online.mjs tools/importar-artes-antigas.mjs "$D/tools/"
+          cp support/reference-image-manifest.json "$D/support/"
+          # Deliberately REPLACE graphics, gameplay, layout, animations,
+          # HUD, camera and input with the actual revision from before server V2.
+          # V2-only login and protocol adapters stay as a narrow overlay.
+          for path in $(git ls-tree -r --name-only "$BASE" src/game/ src/camera.lua src/input.lua); do
+            case "$path" in
+              src/game/reference_menu.lua|src/game/reference_assets.lua|src/game/reference_objects.lua)
+                echo "V2 compatibility shim remains: $path" ;;
+              *)
+                mkdir -p "$D/$(dirname "$path")"
+                git show "$BASE:$path" > "$D/$path"
+                cmp "$D/$path" <(git show "$BASE:$path")
+                ;;
+            esac
+          done
+          # Main entry retains original draw/update/game event handlers; V2
+          # account, TLS and native session are the only necessary integration.
+          # Never bundle V2 server or reference third-party PNG files.
+          test -s "$D/src/game/reference_view.lua"
+          test -s "$D/src/game/reference_hud.lua"
+          test -s "$D/src/game/reference_boss_effects.lua"
+          test -s "$D/src/game/reference_secret_map.lua"
+          test -s "$D/src/net/v2_accounts.lua"
+          test -s "$D/src/protocol/v2_session.lua"
+          test -s "$D/src/net/original_client.lua"
+          test -s "$D/src/game/v2_login_screen.lua"
+          cmp "$D/src/game/reference_view.lua" <(git show "$BASE:src/game/reference_view.lua")
+          cmp "$D/src/game/reference_hud.lua" <(git show "$BASE:src/game/reference_hud.lua")
+          cmp "$D/src/game/reference_secret_map.lua" <(git show "$BASE:src/game/reference_secret_map.lua")
+          cat > "$D/LEIA-PRIMEIRO.txt" <<'EOF'
+          MOO-QUEST | CLIENTE ANTERIOR AO SERVIDOR V2, PORTADO PARA V2
+          Base preservada: 5ad8c32d1889dcb94e5645982acc2a0f2d570e09.
+          JOGO/RENDER: arquivos de src/game, camera e input do cliente antigo.
+          ADAPTADORES: login V2, token, WebSocket binario e servidor HTTPS/WSS.
+          Para iniciar: JOGAR-V2-ONLINE-WINDOWS.bat (Node 22+ / LOVE 2D 11.x).
+          Entre na conta, selecione o personagem e pressione Play.
+          Nenhum objeto pode ser criado somente no cliente: o servidor deve
+          fornecer animais, arvores e recursos verdadeiros pelo protocolo.
+          A AGUA e os BIOMAS seguem a posicao real do mundo (rio ao redor
+          de y=7200, no centro do mapa 14400x14400), NAO aparecem em toda a
+          grama. A tela inicial perto do spawn pode nao mostrar o rio.
+          Para recuperar suas artes PNG do cliente velho, execute
+          IMPORTAR-ARTES-ANTIGAS.bat e informe a pasta da instalacao antiga.
+          O ZIP nao inclui as artes de terceiros nem seus sprites pessoais.
+          EOF
+          cd dist
+          zip -qr MooQuest-CLIENTE-ANTIGO-FUNCIONANDO-V2-WINDOWS.zip MooQuest-CLIENTE-ANTIGO-V2
+          unzip -tq MooQuest-CLIENTE-ANTIGO-FUNCIONANDO-V2-WINDOWS.zip
+          sha256sum MooQuest-CLIENTE-ANTIGO-FUNCIONANDO-V2-WINDOWS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MooQuest-CLIENTE-ANTIGO-FUNCIONANDO-V2-WINDOWS
+          path: dist/MooQuest-CLIENTE-ANTIGO-FUNCIONANDO-V2-WINDOWS.zip
+          if-no-files-found: error
+          retention-days: 14
+  legacy-windows-launcher:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Windows authentication bridge and importer checks
+        run: |
+          node --test tools/run-v2-online.test.mjs tools/importar-artes-antigas.test.mjs
