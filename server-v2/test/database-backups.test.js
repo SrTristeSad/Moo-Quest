@@ -24,9 +24,9 @@ if [ "$1" = "--list" ]; then
 fi
 if [ "$PGPASSWORD" != "safe-secret" ]; then exit 87; fi
 if [ "$PGDATABASE" != "mooquest" ]; then exit 86; fi
-if [ "${0##*/}" = "pg_dump" ]; then
+if [ "$(basename "$0")" = "pg_dump" ]; then
   for arg in "$@"; do
-    case "$arg" in --file=*) file="${arg#--file=}" ;; esac
+    case "$arg" in --file=*) file="$(printf '%s' "$arg" | sed 's/^--file=//')" ;; esac
   done
   [ -n "$file" ] || exit 85
   printf 'PGDMPmock-archive-content' > "$file"
