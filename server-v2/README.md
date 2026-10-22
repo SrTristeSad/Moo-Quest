@@ -13,6 +13,24 @@ testes, e existe uma primeira implementação do formato binário do cliente Lua
 mas ainda não foi validada uma partida completa no LÖVE. Os efeitos e itens
 ainda não foram implementados integralmente. NÃO usar em produção pública.
 
+## ZIP para instalar e atualizar diretamente pelo painel — 22/10/2026
+
+O **ZIP completo para aaPanel** contém `bootstrap.js`, `src/`,
+`public/`, `node_modules/` Linux e as telas de instalação. Faça o
+primeiro deploy extraindo na raiz do projeto no Gerenciador de
+Arquivos do aaPanel, com o Node parado. **Não apague** `var/`,
+`.env` nem o banco PostgreSQL/Redis; faça backup previamente.
+
+Depois da primeira instalação, atualizações futuras **não exigem
+terminal nem senha sudo**: use **Administração → Atualizações →
+Atualização por arquivo ZIP → Enviar e preparar → Ativar versão
+preparada** e reinicie o Node pelo aaPanel. Pode descartar a versão
+pendente ou reverter após a ativação. O ZIP manual deve vir de uma fonte
+confiável; o envio pelo administrador não exige assinatura, diferentemente
+do canal de releases Ed25519.
+
+[Guia completo: atualização por ZIP no aaPanel](docs/UPDATE-ZIP-AAPANEL.md).
+
 ## Correções de interface e instalação — 22/10/2026
 
 A interface do primeiro acesso foi reconstruída com HTML sem estilos

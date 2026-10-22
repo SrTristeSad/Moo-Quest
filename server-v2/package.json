@@ -3,7 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": {"node": ">=22"},
-  "scripts": {"start": "node bootstrap.js", "start:direct": "node src/index.js", "db:backup": "node scripts/db-backup.mjs backup", "db:verify": "node scripts/db-backup.mjs verify", "db:restore": "node scripts/db-backup.mjs restore", "test": "node --test test/*.test.js", "test:core": "node --test test/native-protocol.test.js test/survival-contract.test.js test/world.test.js test/http.test.js test/security.test.js test/update-flow.test.js test/sign-release.test.js"},
-  "dependencies": {"ws": "^8.21.0", "pg": "^8.13.3", "redis": "^5.0.0"}
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node bootstrap.js",
+    "start:direct": "node src/index.js",
+    "db:backup": "node scripts/db-backup.mjs backup",
+    "db:verify": "node scripts/db-backup.mjs verify",
+    "db:restore": "node scripts/db-backup.mjs restore",
+    "test": "node --test test/*.test.js",
+    "test:core": "node --test test/native-protocol.test.js test/survival-contract.test.js test/world.test.js test/http.test.js test/security.test.js test/update-flow.test.js test/sign-release.test.js"
+  },
+  "dependencies": {
+    "ws": "^8.21.0",
+    "pg": "^8.13.3",
+    "redis": "^5.0.0",
+    "yauzl": "^3.2.0"
+  }
 }
