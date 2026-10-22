@@ -44,6 +44,11 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
   if (installer) installer.server.close();
 });
 async function bootstrap(){
+  // Keep aaPanel's assigned PORT and the game worker on the same port.
+  const assignedPort=Number(process.env.MOO_PORT||process.env.PORT||8100);
+  if(!Number.isSafeInteger(assignedPort)||assignedPort<1||assignedPort>65535)
+    throw new Error('Invalid MOO_PORT/PORT');
+  process.env.MOO_PORT=String(assignedPort);
   // First launch: run the guided setup instead of crashing on absent URLs.
   // Existing installations with explicit environment variables are untouched.
   if(!process.env.MOO_DATABASE_URL||!process.env.MOO_REDIS_URL){
@@ -54,9 +59,7 @@ async function bootstrap(){
     }
   }
   if(!process.env.MOO_DATABASE_URL||!process.env.MOO_REDIS_URL){
-    const port=Number(process.env.MOO_PORT||process.env.PORT||8100);
-    if(!Number.isSafeInteger(port)||port<1||port>65535)
-      throw new Error('Invalid MOO_PORT');
+    const port=assignedPort;
     const host=process.env.MOO_HOST||'127.0.0.1';
     installer=createInfrastructureInstaller({root,onInstalled:urls=>{
       process.env.MOO_DATABASE_URL=urls.databaseURL;
