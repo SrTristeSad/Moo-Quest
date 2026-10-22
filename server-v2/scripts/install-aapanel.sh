@@ -11,4 +11,4 @@ chmod 700 var
 printf '\n[MOOQUEST] Dependências preparadas. Configure no aaPanel:\n'
 printf '  Diretório do projeto: %s\n  Inicialização: node bootstrap.js\n  Porta local: 8100\n' "$(pwd)"
 printf '  Ambiente: MOO_HOST=127.0.0.1, MOO_PORT=8100, MOO_PUBLIC_HTTPS=1, MOO_TRUST_PROXY=1\n'
-printf '  PostgreSQL 17+ e Redis 7+: configure MOO_DATABASE_URL e MOO_REDIS_URL no aaPanel.\n'\nprintf '  Opcional: crie um .env seguro e execute docker compose up -d para os dois serviços.\n'\nprintf '  Use HTTPS no domínio, via reverse proxy, e abra /setup.\n'
+printf '  PostgreSQL 17+ e Redis 7+: prepare os servicos e informe credenciais na pagina /setup.\n'\nprintf '  Opcional: crie um .env seguro e execute docker compose up -d para os dois serviços.\n'\nprintf '  Use HTTPS no domínio, via reverse proxy, e abra /setup.\n'
