@@ -17,8 +17,10 @@ test('first-run input normalizes encoded credentials and rejects unsafe remote p
   const good=normalizeSetup(form());
   assert.ok(good.databaseURL.includes('postgresql://mooquest:'));
   assert.ok(good.redisURL.includes('redis://:'));
-  assert.ok(!good.databaseURL.includes('fake-strong-password@'),
-    'URL password must be escaped where needed');
+  assert.ok(good.databaseURL.includes('fake-strong-password'));
+  const encoded=normalizeSetup({...form(),pgPassword:'s3cret@/a:b'});
+  assert.ok(encoded.databaseURL.includes('s3cret%40%2Fa%3Ab'),
+    'reserved password characters must be percent-encoded');
   const bad={...form(),pgHost:'db.example.com'};
   assert.throws(()=>normalizeSetup(bad),/exige TLS/);
   bad.pgTls=true;bad.redisHost='redis.example.com';
