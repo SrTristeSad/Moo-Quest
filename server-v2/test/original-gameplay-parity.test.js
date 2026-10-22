@@ -82,3 +82,17 @@ test('attack checks target body radius and facing instead of arbitrary center di
  assert.equal(w.attack(p.id),true);
  assert.equal(target.hp,hp,'player behind the attacker must not take damage');
 });
+
+test('old registered profiles with hammer and sword are migrated on login',()=>{
+ const {w}=isolated(26);
+ const p=w.join(null,'Returning player');
+ const snapshot=w.persistentProfile(p);
+ snapshot.age=3;snapshot.hp=100;snapshot.inventory.weapons=[0,3,9];
+ snapshot.weaponIndex=0;
+ const r=w.join(null,'Registered',snapshot,'account-id');
+ assert.deepEqual(r.inventory.weapons,[3,9]);
+ assert.equal(r.weaponIndex,3);
+ const saved=w.persistentProfile(r);
+ assert.deepEqual(saved.inventory.weapons,[3,9],
+   'subsequent saves must not reintroduce the hammer');
+});
