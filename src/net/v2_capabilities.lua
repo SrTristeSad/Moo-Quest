@@ -6,7 +6,7 @@ local M={}
 function M.get(options)
   options=options or {}
   local host=options.host or "127.0.0.1"
-  local port=options.port or 8080
+  local port=options.port or tonumber(os.getenv("MOOQUEST_LOCAL_PORT")) or 8080
   if host~="127.0.0.1" and host~="localhost" then
     return nil,"Consulta V2 exige a ponte HTTPS local."
   end

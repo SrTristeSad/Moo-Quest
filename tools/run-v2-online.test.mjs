@@ -44,6 +44,7 @@ test('launcher starts LÖVE after confirmed V2 HTTPS bridge, without PowerShell'
   assert.equal(entry.options.shell,false);
   assert.equal(entry.options.env.MOOQUEST_REQUIRE_V2,'1');
   assert.equal(entry.options.env.MOOQUEST_V2_ONLINE,'1');
+  assert.equal(entry.options.env.MOOQUEST_LOCAL_PORT,'8080');
   assert.equal(entry.options.env.CUSTOM_SAFE,'1');
   assert.equal(entry.args.length,1);
   assert.equal(closed,true);
@@ -52,7 +53,7 @@ test('launcher starts LÖVE after confirmed V2 HTTPS bridge, without PowerShell'
 test('unexpected remote API refuses to spawn LÖVE, always closes local TLS relay',async()=>{
   let spawns=0,closed=false;
   await assert.rejects(launchOnlineClient({
-    createRelay:()=>({listen:async()=>{},close:async()=>{closed=true;}}),
+    createRelay:()=>({listen:async()=>({port:8080}),close:async()=>{closed=true;}}),
     httpFetch:async()=>({status:200,json:async()=>({build:'wrong-server'})}),
     executable:'/mock/love.exe',
     spawnProcess:()=>{spawns++;throw Error('should not launch');}
@@ -68,7 +69,7 @@ test('missing LÖVE closes the bridge and fails with actionable error',async()=>
   fakeProcess.exitCode=null;
   fakeProcess.kill=()=>{fakeProcess.killed=true;};
   await assert.rejects(launchOnlineClient({
-    createRelay:()=>({listen:async()=>{},close:async()=>{closed=true;}}),
+    createRelay:()=>({listen:async()=>({port:8080}),close:async()=>{closed=true;}}),
     httpFetch:async()=>({status:200,json:async()=>({build:'mqv2native'})}),
     executable:'nonexistent-love.exe',
     spawnProcess:()=>{
@@ -77,4 +78,39 @@ test('missing LÖVE closes the bridge and fails with actionable error',async()=>
     }
   }),/Nao foi possivel abrir LÖVE 2D/);
   assert.equal(closed,true);
+});
+
+test('busy 8080 allocates a different port without killing the existing process',async()=>{
+  const used=[],closed=[],port=34567;
+  const fakeProcess=new EventEmitter();
+  fakeProcess.exitCode=null;fakeProcess.killed=false;fakeProcess.kill=()=>{fakeProcess.killed=true;};
+  let seenPing='',spawnPort='';
+  const code=await launchOnlineClient({
+    createRelay:opts=>{
+      used.push(opts||{});
+      const n=used.length;
+      return {
+        async listen(){
+          if(n===1)throw Object.assign(Error('already running'),{code:'EADDRINUSE'});
+          return {port};
+        },
+        async close(){closed.push(n);}
+      };
+    },
+    executable:'/mock/love.exe',
+    httpFetch:async url=>{
+      seenPing=url;
+      return {status:200,json:async()=>({build:'mqv2native'})};
+    },
+    spawnProcess:(exe,args,options)=>{
+      spawnPort=options.env.MOOQUEST_LOCAL_PORT;
+      process.nextTick(()=>{fakeProcess.exitCode=0;fakeProcess.emit('exit',0,null);});
+      return fakeProcess;
+    }
+  });
+  assert.equal(code,0);
+  assert.deepEqual(used,[{},{listenPort:0}]);
+  assert.deepEqual(closed,[1,2]);
+  assert.equal(seenPing,'http://127.0.0.1:'+port+'/ping');
+  assert.equal(spawnPort,String(port));
 });
