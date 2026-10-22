@@ -32,20 +32,33 @@ try{
       const encoding=res.headers.get('content-encoding')||'identity';
       const server=(res.headers.get('server')||'unknown').replace(/[^a-z0-9./ -]/gi,'').slice(0,60);
       const proxy=(res.headers.has('cf-ray')?'cloudflare':'unspecified');
-      let parsed=false,errorKey=null;
+      let parsed=false,errorKey=null,pageType='none';
+      const body=await res.text();
       try{
-        const data=await res.json();
+        const data=JSON.parse(body);
         parsed=!!data&&typeof data==='object'&&!Array.isArray(data);
         errorKey=typeof data.error==='string'&&/^[a-z0-9_]{1,80}$/.test(data.error)?
           data.error:null;
         if(test.path==='/ping'&&data.build!=='mqv2native')failures++;
-      }catch{}
+      }catch{
+        // Only label recognized public error-template signatures. Never
+        // log full HTML responses, cookies, credentials or opaque tokens.
+        if(/\/cdn-cgi\/challenge-platform|cf-mitigated|Just a moment/i.test(body))
+          pageType='cloudflare_challenge';
+        else if(/Cloudflare Ray ID|Attention Required!.*Cloudflare|Sorry, you have been blocked/i.test(body))
+          pageType='cloudflare_block';
+        else if(/nginx\/\d|<title>403 Forbidden<\/title>/i.test(body))
+          pageType='generic_403';
+        else pageType=body.trim()?'unknown_nonjson':'empty';
+      }
       const redir=[301,302,303,307,308].includes(res.status);
-      if(!parsed||redirected(redir)||!media.includes('json'))failures++;
+      if(!parsed||redir||!media.includes('json'))failures++;
       console.log('V2_PUBLIC_PROBE '+test.method+' '+test.path+
         ' agent='+(test.label||'LuaSocket')+
         ' status='+res.status+' contentType='+media+
         ' contentEncoding='+encoding+' server='+server+' edge='+proxy+' json='+parsed+
+        ' pageType='+pageType+
+        ' mitigated='+(res.headers.get('cf-mitigated')||'none')+
         (errorKey?' error='+errorKey:''));
     }catch(error){
       failures++;
