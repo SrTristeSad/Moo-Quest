@@ -147,6 +147,39 @@ test('actual current Lua binary wire: /ping + /api/join + io-init + M -> C,D,H,a
   await waitFor(()=>packets.some(pkt=>pkt.name==='Y'&&pkt.args[0]===turretX.args[7]));
   assert.ok(game.room.animals.get(918274).health<200,
     'turret bullet must actually damage a live hostile animal on the server');
+  // PRE-V2 native client's profile key P requests V(sid), expecting
+  // a JSON-string p packet and thirteen-element flat F stats.
+  ws.send(session.makeTestRequest('V',[p.sid],seq+14));
+  await waitFor(()=>packets.some(pkt=>pkt.name==='p'&&pkt.args[0]===p.sid));
+  await waitFor(()=>packets.some(pkt=>pkt.name==='F'&&pkt.args.length===13
+    &&pkt.args[0]===p.sid&&pkt.args[9]===0));
+  const publicProfile=JSON.parse(packets.find(pkt=>pkt.name==='p').args[1]);
+  assert.equal(publicProfile.name,'LuaTester');
+  assert.equal(publicProfile.guest,true);
+  assert.equal(publicProfile.token,undefined);
+  assert.equal(publicProfile.accountId,undefined);
+  const life=packets.find(pkt=>pkt.name==='F'&&pkt.args.length===13).args;
+  assert.ok(life[8]>=20,'local client's heal must appear on stats');
+  // Key X sends K(0): freeze aim updates until it is toggled again.
+  ws.send(session.makeTestRequest('K',[0],seq+15));
+  const beforeAim=p.angle;
+  ws.send(session.makeTestRequest('D',[1.2],seq+16));
+  await pause(80);
+  assert.equal(p.angle,beforeAim);
+  ws.send(session.makeTestRequest('K',[0],seq+17));
+  ws.send(session.makeTestRequest('D',[1.2],seq+18));
+  await pause(80);
+  assert.equal(p.angle,1.2);
+  // Key E uses K(1) to toggle server-owned auto attack.
+  ws.send(session.makeTestRequest('K',[1],seq+19));
+  await pause(80);
+  assert.equal([...game.nativeClients.values()][0].autoAttack,true);
+  ws.send(session.makeTestRequest('K',[1],seq+20));
+  await pause(80);
+  assert.equal([...game.nativeClients.values()][0].autoAttack,false);
+  ws.send(session.makeTestRequest('V',[-1],seq+21));
+  await pause(50);
+  assert.equal([...game.nativeClients.values()][0].watchSid,null);
   ws.close();
   await new Promise(resolve=>ws.once('close',resolve));
 });
