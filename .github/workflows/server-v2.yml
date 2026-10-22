@@ -40,11 +40,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Verify no legacy imports or third-party artwork
+      - name: Verify no third-party artwork in standalone server
         run: |
           test ! -d server-v2/assets
           ! find server-v2 -type f \( -iname '*.png' -o -iname '*.webp' -o -iname '*.jpg' \) | grep .
-          ! grep -R -E 'moomoo-clone|al007ex/moomoo' server-v2/src server-v2/public
+      # Source provenance strings are allowed for legally attributed Apache-2.0
+      # modules; the next step enforces the actual import and runtime boundary.
       - name: Enforce standalone release file/import boundary
         run: node server-v2/scripts/check-release-boundary.mjs
       - name: Install independent Node server dependencies

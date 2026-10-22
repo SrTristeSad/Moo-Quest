@@ -7,7 +7,8 @@ import { atomicJSON, loadJSON } from './storage.js';
 import { stageTrustedZip } from './zip-release.js';
 
 const VERSION = /^\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/i;
-const FILE = /^(?:src\/[a-zA-Z0-9_/-]+\.js|public\/[a-zA-Z0-9_.-]+\.(?:html|js|css))$/;
+const FILE = /^(?:src\/[a-zA-Z0-9_/-]+\.js|src\/vendor\/al007ex\/LICENSE|public\/[a-zA-Z0-9_.-]+\.(?:html|js|css))$/;
+const VENDOR_LICENSE = 'src/vendor/al007ex/LICENSE';
 const REQUIRED = ['src/index.js','src/http.js','src/auth.js','src/storage.js',
   'src/updates.js','src/zip-release.js','src/game.js','src/world.js','src/native-protocol.js',
   'src/store.js','src/database.js','src/redis-services.js','src/player-accounts.js',
@@ -46,6 +47,8 @@ export function validateSignedRelease(envelope, publicKey, manifestURL) {
     bytes += file.size;
   }
   if (bytes > MAX_BYTES || REQUIRED.some(f => !seen.has(f))) throw new Error('Incomplete or oversized release');
+  if([...seen].some(f=>f.startsWith('src/vendor/al007ex/')&&f.endsWith('.js'))&&
+     !seen.has(VENDOR_LICENSE))throw new Error('Vendor code requires Apache-2.0 license');
   return payload;
 }
 
