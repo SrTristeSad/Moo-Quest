@@ -13,6 +13,37 @@ testes, e existe uma primeira implementação do formato binário do cliente Lua
 mas ainda não foi validada uma partida completa no LÖVE. Os efeitos e itens
 ainda não foram implementados integralmente. NÃO usar em produção pública.
 
+## Primeira instalação guiada no aaPanel (sem configurar URLs de banco no Node)
+
+**Novo fluxo:** instale e inicie PostgreSQL e Redis na VPS antes do
+primeiro boot. Instale o ZIP completo e configure o projeto Node.js
+(`node bootstrap.js`, Node >=22, `MOO_HOST=127.0.0.1`,
+`MOO_PORT=8100`); configure o domínio em HTTPS apontando ao proxy
+reverso. Sem `MOO_DATABASE_URL` e `MOO_REDIS_URL`, o bootstrap
+**não encerra**: abre uma interface de instalação em `/setup` e
+imprime nos logs do aaPanel um **código temporário de seis dígitos**.
+
+No navegador, informe o código, endereço/porta/usuário/senha do
+PostgreSQL e Redis e clique em **Testar PostgreSQL** e **Testar Redis**.
+A conclusão valida ambos, cria as tabelas necessárias, cadastra o
+administrador se ainda não existir e grava as conexões em
+`MOO_DATA_DIR/infrastructure.json` (ou `var/infrastructure.json`)
+com permissão `0600`. O mesmo bootstrap passa a iniciar o jogo
+automaticamente. Reinicializações posteriores reutilizam a configuração
+privada. Uma base existente **não perde o administrador**.
+
+**Esse assistente configura conexões; não instala executáveis de
+PostgreSQL ou Redis.** Para provisioná-los, há o `compose.yaml`.
+Não coloque `var/` ou `MOO_DATA_DIR` sob uma rota estática do
+Nginx. Recomenda-se `MOO_DATA_DIR` fora do webroot, sob acesso
+restrito. Nunca compartilhe logs com o código de instalação ativo.
+
+Instalações já configuradas por variáveis `MOO_DATABASE_URL` e
+`MOO_REDIS_URL` **continuam usando-as** sem abrir o assistente.
+`MOO_PUBLIC_MODE=1` ainda exige uma interface Turnstile verdadeira no
+cliente Lua, e HTTPS/WSS remoto permanece pendente; não abra o jogo
+ao público antes da homologação.
+
 ## aaPanel (somente ambiente de testes)
 
 1. Use **Node.js 22 ou superior** e prepare PostgreSQL e Redis acessíveis somente na VPS.\n   Há um `compose.yaml` opcional para iniciar ambos em endereços `127.0.0.1`.\n   Copie `.env.example` para `.env`, substitua **as duas senhas** e execute\n   `docker compose up -d` em `server-v2`. Isso inicia somente os bancos;\n   o processo Node.js continua no aaPanel.\n   Configure no ambiente do projeto `MOO_DATABASE_URL` e `MOO_REDIS_URL` com\n   as mesmas credenciais. Nenhuma credencial real deve ir para o GitHub.

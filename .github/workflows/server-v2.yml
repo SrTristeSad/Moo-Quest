@@ -54,6 +54,7 @@ jobs:
       - name: Check syntax, admin pages and signed release publisher
         run: |
           node --check server-v2/bootstrap.js
+          node --check server-v2/setup-server.js
           node --check server-v2/src/index.js
           node --check server-v2/src/http.js
           node --check server-v2/src/updates.js
