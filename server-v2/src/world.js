@@ -12,7 +12,8 @@ import {resolveReferencePlayerPairs} from './reference-player-collision.js';
 import { referenceObjectVisibleToPlayer } from './reference-object-visibility.js';
 import { AI_TYPES } from './vendor/al007ex/aiManager.js';
 import { Projectile } from './vendor/al007ex/projectile.js';
-import { referenceGatherBonus, referenceSnowFactor, referenceCowMultiplier, referenceThornsHeal, referenceBleed } from './reference-bridge.js';
+import { ProjectileManager } from './vendor/al007ex/projectileManager.js';
+import { referenceGatherBonus, referenceSnowFactor, referenceCowMultiplier, referenceThornsHeal, referenceBleed, referenceCapeEffects, triggerDragonCape, triggerSuperCape } from './reference-bridge.js';
 
 const TYPE={tree:0,bush:1,stone:2,ore:3};
 const SNOW_BIOME_TOP=2400;
@@ -146,6 +147,15 @@ const MAX_AGE=100;
 const VARIANT_THRESHOLDS=[0,3000,7000,12000,30000];
 const VARIANT_DAMAGE=Object.freeze([1,1.1,1.18,1.18]);
 const LEVEL_XP=age=>Math.round(300*Math.pow(1.2,Math.max(0,age-1))*10)/10;
+// Original upstream shared/config/items.js projectile data, excluding image files.
+export const PROJECTILE_TYPES=Object.freeze([
+  {dmg:25,scale:103,layer:0,src:'arrow_1'},
+  {dmg:25,scale:20,layer:1},
+  {dmg:35,scale:103,layer:0,src:'arrow_1'},
+  {dmg:30,scale:103,layer:0,src:'arrow_1'},
+  {dmg:16,scale:20,layer:1},
+  {dmg:50,scale:160,layer:0,src:'bullet_1'}
+].map(o=>Object.freeze(o)));
 // Natural trees, rocks, gold nodes and bushes yield on every legal hit.
 // Unlike player-built structures, they are not destructible.
 const PLAYER_RADIUS=35;
@@ -195,6 +205,10 @@ export class World {
     this.reservedTribeTags=new Set();
     this.animals=new Map();this.animalRandom=seededRandom(seed^0xfedcba98);
     this.projectiles=new Map();this.nextProjectileSid=1;
+    this.projectilePool=[];
+    this.projectileManager=new ProjectileManager(Projectile,
+      this.projectilePool,[],[],null,{projectiles:PROJECTILE_TYPES},
+      null,null,null);
     this.nextObjectSid=1;this.nextPlayerSid=0;
     const rng=seededRandom(seed);
     // Preserve the original 7 x 7 area layout: counts are PER AREA,
@@ -272,6 +286,7 @@ export class World {
       hp:100,maxHp:100,vx:0,vy:0,motionX:0,motionY:0,
       angle:0,skinColor:0,accountId,
       lastAttack:0,deadUntil:0,socket,ipHash:null,
+      dragonUntil:0,superUntil:0,
       xp:0,age:1,upgradePoints:0,upgradeAge:2,maxXp:LEVEL_XP(1),
       native:false,team:null,hat:0,tail:0,
       ownedHats:new Set([0,...FREE_HATS]),ownedAccessories:new Set([0]),
@@ -654,8 +669,12 @@ export class World {
     // Use the unmodified original Projectile.init() for the authoritative
     // spawn state, with the same units (speed in world units per ms).
     // The V2 native client expects immediate movement on the next tick.
-    const projectile=new Projectile([],[],null,null,null,null,false);
-    projectile.init(type,x,y,dir,speed,damage,range,20,owner);
+    if(!PROJECTILE_TYPES[type])throw new Error('Invalid projectile type');
+    // The original ProjectileManager selects the type, scale, and pool slot.
+    // The V2 must still assign monotonic wire SIDs and authoritative damage.
+    const projectile=this.projectileManager.addProjectile(x,y,dir,range,
+      speed,type,owner,sourceSid,layer);
+    projectile.dmg=damage;
     projectile.skipMov=false;
     Object.assign(projectile,{sid,ownerSid,team,damage,type,layer,sourceSid});
     this.projectiles.set(sid,projectile);
@@ -703,7 +722,8 @@ export class World {
   // target first caused major combat and harvesting divergence in the V2.
   meleeSwing(p,weapon,hat,tail,time){
     const range=weapon.reach??0,damageMultiplier=(hat.damageDone??1)*
-      (tail.damageDone??1)*(VARIANT_DAMAGE[this.weaponVariant(p)]??1);
+      (tail.damageDone??1)*(VARIANT_DAMAGE[this.weaponVariant(p)]??1)*
+      referenceCapeEffects(p,time).damage;
     const facing=(o,radius)=>{
       const dx=o.x-p.x,dy=o.y-p.y,dist=Math.hypot(dx,dy);
       if(!Number.isFinite(dist)||Math.max(0,dist-radius)>range)return null;
@@ -775,7 +795,10 @@ export class World {
       const applied=this.protectedDamage(victim,raw,p.x,p.y);
       const effective=Math.min(victim.hp,applied);
       victim.hp=Math.max(0,victim.hp-applied);
-      if(effective>0)this.inflictMeleeStatus(p,victim,time);
+      if(effective>0){
+        this.inflictMeleeStatus(p,victim,time);
+        triggerDragonCape(p,time);
+      }
       this.applyMeleeImpulse(victim,angle,weapon,1);
       // The reference thief tool steals points, not arbitrary food/wood.
       if(weapon.steal){
@@ -803,6 +826,7 @@ export class World {
         victim.deadUntil=time+3000;victim.vx=0;victim.vy=0;
         victim.motionX=0;victim.motionY=0;
         p.resources.kills++;p.score+=100;
+        triggerSuperCape(p,time);
         if(p.lifeStats)p.lifeStats.kills++;
         this.events.push({kind:'death',id:victim.id,killer:p.id});
         this.awardXp(p.id,40);
@@ -914,7 +938,7 @@ export class World {
     p.maxXp=LEVEL_XP(1);p.upgradePoints=0;p.upgradeAge=2;
     p.vx=0;p.vy=0;p.motionX=0;p.motionY=0;
     p.lastAttack=0;p.rootedUntil=0;p.nextHealAt=0;
-    p.poison=null;p.regen=null;
+    p.poison=null;p.regen=null;p.dragonUntil=0;p.superUntil=0;
     p.nextTeleportAt=this.now()+3000;
     p.lastGearRegenAt=this.now();p.raisedUntil=0;p.raisedOrigin=null;
     p.lastGeneratorAt=this.now();p.generatorRemainder=0;
@@ -1050,7 +1074,8 @@ export class World {
       const weaponMove=WEAPONS[p.weaponIndex]?.move??1;
       const buildingMove=p.buildIndex>=0?0.5:1;
       const motionScale=(boosted?1.5:1)*(hat.speed??1)*(tail.speed??1)*
-        waterFactor*snowFactor*weaponMove*buildingMove;
+        waterFactor*snowFactor*weaponMove*buildingMove*
+        referenceCapeEffects(p,at).speed;
       p.motionX??=0;p.motionY??=0;
       if(at<p.rootedUntil){
         p.motionX=0;p.motionY=0;
@@ -1175,6 +1200,7 @@ export class World {
             if(killer&&killer!==p&&killer.hp>0&&
                !(p.team&&killer.team===p.team)){
               killer.resources.kills++;killer.score+=100;
+              triggerSuperCape(killer,at);
               if(killer.lifeStats)killer.lifeStats.kills++;
               this.awardXp(killer.id,40);
             }
@@ -1350,6 +1376,7 @@ export class World {
           if(target.hp===0){
             target.deadUntil=at+3000;target.vx=0;target.vy=0;
             if(shooter){shooter.resources.kills++;shooter.score+=100;
+              triggerSuperCape(shooter,at);
               if(shooter.lifeStats)shooter.lifeStats.kills++;
               this.awardXp(shooter.id,40);}
             this.events.push({kind:'death',id:target.id,killer:arrow.owner});

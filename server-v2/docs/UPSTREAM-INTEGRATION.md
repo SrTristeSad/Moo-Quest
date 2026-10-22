@@ -144,3 +144,13 @@ A IA de decisão, os biomas e os ataques continuam calculados pela V2.
 Isso corrige animais atravessando obstáculos; **não significa que a
 classe `AI` inteira já substituiu a máquina de estados da V2**.
 
+
+## Runtime de projéteis e capas (22/10/2026)
+
+O V2 usa o ProjectileManager original para criar/reutilizar as instâncias
+Projectile e mantém SIDs Lua monotônicos, colisão e dano autoritativos.
+Dragon Cape ativa bônus de dano de 5 segundos após ataque PvP;
+Super Cape ativa dano e velocidade por 10 segundos após matar um
+jogador, inclusive via projétil ou veneno. Os valores são lidos do
+EFFECT original. Os bônus não são controlados pelo cliente nem
+persistidos após a morte. O restante de Player/AI continua em migração.

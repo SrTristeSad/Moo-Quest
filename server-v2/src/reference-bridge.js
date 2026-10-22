@@ -34,3 +34,20 @@ export function referenceThornsHeal(p, damage) {
   return hasTail(referencePlayer(p), TAIL.THORNS)
     ? Math.round(damage * EFFECT.thornsHeal) : 0;
 }
+
+export function triggerDragonCape(player,now){
+  if(hasTail(referencePlayer(player),TAIL.DRAGON_CAPE))
+    player.dragonUntil=now+EFFECT.dragonCapeTime;
+}
+export function triggerSuperCape(player,now){
+  if(hasTail(referencePlayer(player),TAIL.SUPER_CAPE))
+    player.superUntil=now+EFFECT.superCapeTime;
+}
+export function referenceCapeEffects(player,now){
+  const dragon=Number(player?.dragonUntil)>now?EFFECT.dragonCapeDamage:1;
+  const superActive=Number(player?.superUntil)>now;
+  return {
+    damage:dragon*(superActive?EFFECT.superCapeDamage:1),
+    speed:superActive?EFFECT.superCapeSpeed:1
+  };
+}
