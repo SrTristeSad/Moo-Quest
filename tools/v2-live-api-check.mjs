@@ -10,8 +10,11 @@ try{
   const endpoints=[
     {path:'/ping',method:'GET'},
     {path:'/api/capabilities',method:'GET'},
-    {path:'/api/account/register',method:'POST',body:'{}'},
-    {path:'/api/account/login',method:'POST',body:'{}'}
+    {path:'/api/account/register',method:'POST',body:'{}',label:'LuaSocket'},
+    {path:'/api/account/register',method:'POST',body:'{}',label:'Browser',agent:'Mozilla/5.0'},
+    {path:'/api/account/login',method:'POST',body:'{}',label:'LuaSocket'},
+    {path:'/api/join',method:'POST',body:'{}',label:'LuaSocket'},
+    {path:'/api/account/login',method:'GET',label:'LuaSocket'}
   ];
   for(const test of endpoints){
     try{
@@ -20,7 +23,7 @@ try{
         signal:AbortSignal.timeout(10000),
         headers:{
           'Accept':'application/json','Accept-Encoding':'identity',
-          'User-Agent':'LuaSocket 3.0-rc1',
+          'User-Agent':test.agent||'LuaSocket 3.0-rc1',
           ...(test.body?{'Content-Type':'application/json'}:{})
         }
       });
@@ -37,6 +40,7 @@ try{
       const redir=[301,302,303,307,308].includes(res.status);
       if(!parsed||redirected(redir)||!media.includes('json'))failures++;
       console.log('V2_PUBLIC_PROBE '+test.method+' '+test.path+
+        ' agent='+(test.label||'LuaSocket')+
         ' status='+res.status+' contentType='+media+
         ' contentEncoding='+encoding+' json='+parsed+
         (errorKey?' error='+errorKey:''));
