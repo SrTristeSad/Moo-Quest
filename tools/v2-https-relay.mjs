@@ -29,13 +29,14 @@ function parsedRequest(header,remoteHost,remotePort){
   if(websocket&&(line[1]!=='GET'||!route.includes('?')))return null;
   if(!websocket&&route.startsWith('/api/account/')&& !['GET','POST'].includes(line[1]))return null;
   const headers=[];let hosts=0,origins=0,authorization=0;
+  let localOrigin=null;
   for(const item of lines){
     if(item==='')continue;
     const found=/^([A-Za-z][A-Za-z0-9-]*):[ \t]*(.*)$/.exec(item);
     if(!found||/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(found[2]))return null;
     const [whole,name,value]=found,key=name.toLowerCase();
     if(key==='host'){hosts++;continue;}
-    if(key==='origin'){origins++;continue;}
+    if(key==='origin'){origins++;localOrigin=value;continue;}
     if(key==='authorization')authorization++;
     if(['proxy-authorization','proxy-connection','forwarded','x-forwarded-for',
       'x-forwarded-host','x-forwarded-proto','x-real-ip','transfer-encoding',
@@ -46,6 +47,11 @@ function parsedRequest(header,remoteHost,remotePort){
     headers.push(name+': '+value);
   }
   if(hosts!==1||origins>1||authorization>1)return null;
+  // Web browsers cannot forge Origin: do not let a local web page use the
+  // relay to bypass the remote server's cross-site WebSocket safeguards.
+  const allowedLocalOrigin=['http://127.0.0.1:8080','http://localhost:8080'];
+  if(origins&& !allowedLocalOrigin.includes(localOrigin))return null;
+  if(websocket&&origins!==1)return null;
   if(websocket&&!headers.some(h=>/^Upgrade:\s*websocket$/i.test(h)))return null;
   // LuaSocket uses a localhost Host/Origin. Never forward those headers to
   // the remote service: an exact HTTPS origin is required for WebSocket.
