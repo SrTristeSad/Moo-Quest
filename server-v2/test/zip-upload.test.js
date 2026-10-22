@@ -113,7 +113,7 @@ test('ZIP validator rejects missing modules, path traversal, symlink, duplicate,
   assert.ok(one);
   await assert.rejects(stageTrustedZip(makeZip([one]),dir),/incompleto/);
   await assert.rejects(stageTrustedZip(makeZip([...runtime,
-    {name:'../escape.js',data:'bad'}]),dir),/inseguro/);
+    {name:'../escape.js',data:'bad'}]),dir),/inseguro|invalid relative path/);
   await assert.rejects(stageTrustedZip(makeZip([...runtime,
     {name:'node_modules/target',data:'../private',type:0o120777}]),dir),
     /link|especial/);
