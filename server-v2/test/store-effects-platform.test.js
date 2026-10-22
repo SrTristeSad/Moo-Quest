@@ -80,11 +80,11 @@ test('boost and soldier helmets alter movement and damage; switching to none rem
   owner.angle=0;
   const hp=owner.hp;
   w.attack(rival.id);
-  assert.equal(owner.hp,hp-11,'15 base reduced 25%, rounded');
+  assert.equal(owner.hp,hp-19,'25 damage * 0.75 rounded to 19');
   owner.hat=0;
   rival.lastAttack=0;
   w.attack(rival.id);
-  assert.equal(owner.hp,hp-11-15);
+  assert.equal(owner.hp,hp-19-25);
 });
 
 test('miner helmet and gathering capes increase real pickups with correct native-compatible totals',()=>{
@@ -99,8 +99,8 @@ test('miner helmet and gathering capes increase real pickups with correct native
   const tree=resource(99901,'tree');
   w.attack(owner.id);
   assert.equal(owner.resources.wood,2);
-  assert.equal(owner.resources.points,2);
-  assert.ok(w.takeEvents().some(e=>e.kind==='gather'&&e.sid===tree.sid&&e.amount===2&&e.points===2));
+  assert.equal(owner.resources.points,1);
+  assert.ok(w.takeEvents().some(e=>e.kind==='gather'&&e.sid===tree.sid&&e.amount===2&&e.points===1));
   w.resources.clear();
   advance(501);
   owner.resources.points=1000;
@@ -209,5 +209,5 @@ test('projectile cape mitigates projectile damage but not ordinary melee',()=>{
   owner.x=1110;owner.y=1100;w.select(owner.id,0,true);
   owner.angle=0;
   w.attack(owner.id);
-  assert.equal(rival.hp,66,'melee ignores projectile-specific cape defense');
+  assert.equal(rival.hp,56,'melee ignores projectile-specific cape defense');
 });

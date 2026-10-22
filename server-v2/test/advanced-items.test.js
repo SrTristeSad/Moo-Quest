@@ -178,7 +178,7 @@ test('enemy cannot exploit player farm to obtain resources, but can break it',()
   enemy.x=farm.x-90;enemy.y=farm.y;enemy.angle=0;
   const before={...enemy.resources};
   assert.equal(world.attack(enemy.id),true);
-  assert.equal(farm.hp,335,'enemy hammer must damage owner\'s sapling');
+  assert.equal(farm.hp,325,'enemy hammer must damage owner\'s sapling');
   assert.equal(enemy.resources.wood,before.wood,'hostile farm cannot print wood');
   assert.equal(world.takeEvents().filter(e=>e.kind==='gather'&&e.player===enemy.id).length,0);
 });

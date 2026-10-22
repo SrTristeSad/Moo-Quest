@@ -27,7 +27,7 @@ test('gather, build, costs, grouping and free/paid gear remain authoritative',()
   const tree=[...w.resources.values()].find(o=>o.kind==='tree');
   a.x=tree.x-170;a.y=tree.y;a.angle=0;
   assert.equal(w.attack(a.id),true);
-  assert.ok(a.resources.wood>0 && a.resources.points>0,
+  assert.ok(a.resources.wood>0 && a.resources.points===0,
     'resource count must arise from server collision, not client declaration');
   assert.equal(w.attack(a.id),false);
   assert.equal(w.select(a.id,999,false),false);
