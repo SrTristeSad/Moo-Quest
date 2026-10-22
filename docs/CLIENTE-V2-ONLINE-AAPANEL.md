@@ -47,6 +47,32 @@ de compatibilidade do cliente Lua existente, não um suporte TLS
 feito dentro do motor LÖVE. Não é necessário iniciar um servidor do
 jogo local — a porta 8080 transporta somente a conexão remota segura.
 
+## Entendendo a tela "Servidor Online"
+
+Ao iniciar pelo **`JOGAR-V2-ONLINE-WINDOWS.bat`**, a barra de título
+deve dizer `Moo-Quest V2 ONLINE | app.snusnu.com.br`, e o painel
+direito exibe `SERVIDOR ONLINE — LC - app.snusnu.com.br`.
+A ponte local `127.0.0.1:8080` é apenas a conexão privada entre
+LÖVE e Node no próprio PC; não é um servidor de jogo separado.
+
+O modo online **não permite jogar como convidado sem desafio**.
+A tela agora mostra `Faca login` e pede para selecionar `Entrar`,
+informar nome de usuário e senha V2 e aguardar a emissão do ticket.
+Após uma resposta positiva ao login, a conexão ao WebSocket é
+realizada e o botão Play passa a ser liberado.
+
+Se aparecer `LOCAL SERVER — LC 127.0.0.1:8080`, você abriu o
+`INICIAR-V2-WINDOWS.bat` (modo de teste local) ou abriu a pasta
+diretamente com `love.exe`, **em vez do inicializador online**.
+Feche essa instância e use `JOGAR-V2-ONLINE-WINDOWS.bat`.
+Nunca desative o antivírus para executar esse launcher.
+
+Se o botão de cadastro responder `registration_disabled`, faça
+login numa conta existente ou habilite novos cadastros no painel
+admin do servidor. Se a conexão falhar mesmo após autenticar,
+clique em **Detalhes** e copie a mensagem técnica, que identifica
+se a falha ocorreu no HTTPS, no ticket V2 ou no WebSocket.
+
 ## Quando não conecta
 
 - Erro "API V2 ...": verifique se o domínio está apontando ao Node.js
