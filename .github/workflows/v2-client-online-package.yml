@@ -1,0 +1,54 @@
+name: MooQuest V2 Windows Online Client Package
+on:
+  push:
+    branches: [main, 'feat/v2-windows-remote-https-client']
+    paths:
+      - 'tools/v2-https-relay.mjs'
+      - 'tools/v2-https-relay.test.mjs'
+      - 'tools/run-v2-online.ps1'
+      - 'JOGAR-V2-ONLINE-WINDOWS.bat'
+      - 'main.lua'
+      - 'src/**'
+      - 'shared/**'
+      - 'docs/CLIENTE-V2-ONLINE-AAPANEL.md'
+      - '.github/workflows/v2-client-online-package.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Syntax check secured relay
+        run: node --check tools/v2-https-relay.mjs
+      - name: Functional HTTPS TLS and WebSocket end-to-end tests
+        run: node --test tools/v2-https-relay.test.mjs
+      - name: Package all first-party Lua client sources
+        run: |
+          set -euo pipefail
+          mkdir -p dist/MooQuest-V2-ONLINE/tools
+          cp main.lua conf.lua JOGAR-V2-ONLINE-WINDOWS.bat dist/MooQuest-V2-ONLINE/
+          cp -a src shared tests support dist/MooQuest-V2-ONLINE/
+          cp tools/v2-https-relay.mjs tools/run-v2-online.ps1 dist/MooQuest-V2-ONLINE/tools/
+          cp docs/CLIENTE-V2-ONLINE-AAPANEL.md dist/MooQuest-V2-ONLINE/LEIA-PRIMEIRO.md
+          test -s dist/MooQuest-V2-ONLINE/main.lua
+          test -s dist/MooQuest-V2-ONLINE/tools/v2-https-relay.mjs
+          test -s dist/MooQuest-V2-ONLINE/src/net/v2_accounts.lua
+          test -s dist/MooQuest-V2-ONLINE/src/net/websocket_client.lua
+          test ! -d dist/MooQuest-V2-ONLINE/server
+          test ! -d dist/MooQuest-V2-ONLINE/server-v2
+          cd dist
+          zip -qr MooQuest-V2-CLIENTE-ONLINE-WINDOWS.zip MooQuest-V2-ONLINE
+          unzip -tq MooQuest-V2-CLIENTE-ONLINE-WINDOWS.zip
+          sha256sum MooQuest-V2-CLIENTE-ONLINE-WINDOWS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MooQuest-V2-CLIENTE-ONLINE-WINDOWS
+          path: dist/MooQuest-V2-CLIENTE-ONLINE-WINDOWS.zip
+          retention-days: 14
+          if-no-files-found: error
