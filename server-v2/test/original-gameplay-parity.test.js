@@ -74,7 +74,7 @@ test('attack checks target body radius and facing instead of arbitrary center di
  w.resources.clear();w.animals.clear();
  const p=w.join(null,'Attacker'),target=w.join(null,'Victim');
  p.x=1000;p.y=5000;p.angle=0;
- target.x=1119;target.y=5000;
+ target.x=1099;target.y=5000;
  assert.equal(w.attack(p.id),true);
  assert.ok(target.hp<100,'target edge must be within the hammer reach');
  const hp=target.hp;
