@@ -308,6 +308,17 @@ export function createHTTP({ root, storage, auth, updates, game = null,
         if (req.method === 'GET' && pathname === '/api/admin/settings') return respond(res, 200, storage.data.settings);
         if (req.method === 'GET' && pathname === '/api/admin/players') return respond(res, 200,
           players.map(p => ({ id: p.id, name: p.name, hp: p.hp, x: Math.round(p.x), y: Math.round(p.y) })));
+        if (req.method === 'GET' && pathname === '/api/admin/accounts') {
+          if(!accounts)return respond(res,503,{error:'accounts_unavailable'});
+          const page=Number(new URL(req.url,'http://localhost').searchParams.get('page')||1);
+          const search=new URL(req.url,'http://localhost').searchParams.get('search')||'';
+          if(!Number.isSafeInteger(page)||page<1||page>100000||search.length>40)
+            return respond(res,400,{error:'invalid_account_filter'});
+          const result=await accounts.listRegistered({page,limit:25,search});
+          const onlineIds=new Set(players.map(p=>p.accountId).filter(Boolean));
+          return respond(res,200,{...result,accounts:result.accounts.map(account=>
+            ({...account,online:onlineIds.has(account.id)}))});
+        }
         if (req.method === 'GET' && pathname === '/api/admin/audit') return respond(res, 200, storage.data.audit.slice(-100).reverse());
         if (req.method === 'GET' && pathname === '/api/admin/updates') return respond(res, 200, updates.status());
         if (req.method === 'POST' && pathname === '/api/admin/settings') {
