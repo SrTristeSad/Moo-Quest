@@ -117,8 +117,12 @@ const UPGRADES=new Map([
   [15,{kind:'weapon',id:15,age:9,pre:12}]
 ]);
 const LEVEL_XP=age=>35+age*25;
-const RESOURCE_RETURN_MS=30000;
-const RESOURCE_DAMAGE=25;
+// Natural trees, rocks, gold nodes and bushes yield on every legal hit.
+// Unlike player-built structures, they are not destructible.
+const PLAYER_RADIUS=35;
+const RIVER_PUSH=80; // visible rightward current in world units per second
+const RESOURCE_RADIUS=o=>o.kind==='tree'||o.kind==='bush'?o.scale*0.6:o.scale;
+const MELEE_ARC_COS=Math.cos(Math.PI/2.6);
 const finite=Number.isFinite;
 function boundedName(s){return String(s||'Visitante').replace(/[^\p{L}\p{N}_ -]/gu,'').slice(0,15)||'Visitante';}
 const round=n=>Math.round(n*10)/10;
@@ -520,9 +524,23 @@ export class World {
     if(group.includes(rule.id)||rule.pre!==undefined&&!group.includes(rule.pre))return false;
     if(rule.kind==='weapon'&&!Object.hasOwn(WEAPONS,rule.id))return false;
     if(rule.kind==='item'&&!Object.hasOwn(RECIPES,rule.id)&&!Object.hasOwn(FOOD,rule.id))return false;
-    // One selection per stage. Older paths remain available to players who
-    // choose melee rather than ranged at age six.
-    group.push(rule.id);p.upgradePoints--;
+    // Primary weapons replace the previous primary. Secondary weapons
+    // remain a separate slot; their direct upgrades replace predecessors.
+    // Never retain the starting hammer next to an upgraded axe or sword.
+    if(rule.kind==='weapon'){
+      if(rule.id<=8){
+        for(let i=group.length-1;i>=0;i--)if(group[i]<=8)group.splice(i,1);
+      }else if(rule.pre!==undefined){
+        const pos=group.indexOf(rule.pre);
+        if(pos!==-1)group.splice(pos,1);
+      }
+    }else if(rule.pre!==undefined){
+      const pos=group.indexOf(rule.pre);
+      if(pos!==-1)group.splice(pos,1);
+    }
+    group.push(rule.id);
+    if(rule.kind==='weapon'){p.weaponIndex=rule.id;p.buildIndex=-1;}
+    p.upgradePoints--;
     p.upgradeAge=({2:3,3:4,4:5,5:6,6:7,7:8,8:9})[rule.age]??20;
     this.events.push({kind:'upgrade',player:id,equipmentKind:rule.kind,id:rule.id,
       points:p.upgradePoints,upgradeAge:p.upgradeAge});
@@ -590,7 +608,10 @@ export class World {
       if(other.id===p.id||other.hp<=0||other.team&&other.team===p.team||time<other.deadUntil)continue;
       const d=Math.hypot(other.x-p.x,other.y-p.y);
       const angle=Math.atan2(other.y-p.y,other.x-p.x);
-      if(d<distance&&Math.cos(angle-p.angle)>=0.15){victim=other;distance=d;}
+      const edgeDistance=Math.max(0,d-PLAYER_RADIUS);
+      if(edgeDistance<distance&&Math.cos(angle-p.angle)>=MELEE_ARC_COS){
+        victim=other;distance=edgeDistance;
+      }
     }
     if(victim){
       const attackDamage=Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
@@ -620,14 +641,15 @@ export class World {
     }
     // Server-owned wildlife combat. Only hit animals in the forward arc,
     // never accept animal identity, health or damage reported by the client.
-    let animal=null,animalDistance=Math.max(weapon.reach,115);
+    let animal=null,animalDistance=weapon.reach;
     for(const a of this.animals.values()){
       if(a.health<=0)continue;
       const d=Math.hypot(a.x-p.x,a.y-p.y);
-      if(d>=animalDistance)continue;
+      const edgeDistance=Math.max(0,d-a.scale*0.55);
+      if(edgeDistance>animalDistance)continue;
       const direction=Math.atan2(a.y-p.y,a.x-p.x);
-      if(Math.cos(direction-p.angle)<0.15)continue;
-      animal=a;animalDistance=d;
+      if(Math.cos(direction-p.angle)<MELEE_ARC_COS)continue;
+      animal=a;animalDistance=edgeDistance;
     }
     if(animal){
       const damage=Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
@@ -691,40 +713,28 @@ export class World {
       }
       return true;
     }
-    // Resource collection has a wide harvest arc independent of client
-    // coordinates; players cannot claim the amount or manipulate node health.
-    let resource=null,best=205;
+    // Natural resources retain their SID, sprite, collision and position.
+    // Their hitbox is the resource's physical radius, not its center point.
+    let resource=null,best=weapon.reach;
     for(const obj of this.resources.values()){
-      // Picked bushes remain as fruitless bushes until server-side regrowth.
-      if(obj.kind==='bush'&&obj.type===5)continue;
       const d=Math.hypot(obj.x-p.x,obj.y-p.y);
-      if(d>best)continue;
+      const edgeDistance=Math.max(0,d-RESOURCE_RADIUS(obj));
+      if(edgeDistance>best)continue;
       const angle=Math.atan2(obj.y-p.y,obj.x-p.x);
-      if(Math.cos(angle-p.angle)<0.25)continue;
-      resource=obj;best=d;
+      if(Math.cos(angle-p.angle)<MELEE_ARC_COS)continue;
+      resource=obj;best=edgeDistance;
     }
     if(resource){
       const key=resource.kind==='tree'?'wood':resource.kind==='bush'?'food':'stone';
       const bonus=key==='wood'?(tail.extraWood??0):
         key==='stone'?(tail.extraStone??0):(tail.extraFood??0);
-      const amount=(resource.kind==='ore'?4:2)*(weapon.gather??1)+bonus;
+      const amount=(resource.kind==='ore'?4:1)*(weapon.gather??1)+bonus;
       const points=1+(hat.extraGold??0);
       p.resources[key]+=amount;p.resources.points+=points;p.score+=points;
       if(p.lifeStats){p.lifeStats[key]=(p.lifeStats[key]||0)+amount;p.lifeStats.gold+=points;}
-      resource.hp=Math.max(0,resource.hp-RESOURCE_DAMAGE);
+      // Natural object health is never reduced and no Q packet is generated.
       this.events.push({kind:'gather',sid:resource.sid,player:p.id,key,amount,points});
       this.awardXp(p.id,8);
-      if(resource.hp===0){
-        if(resource.kind==='bush'){
-          resource.type=5;
-          resource.regrowAt=time+RESOURCE_RETURN_MS;
-          this.events.push({kind:'bush_empty',sid:resource.sid});
-        }else{
-          this.resources.delete(resource.sid);
-          this.depleted.set(resource.sid,{obj:resource,at:time+RESOURCE_RETURN_MS});
-          this.events.push({kind:'destroy',sid:resource.sid});
-        }
-      }
     }
     return true;
   }
@@ -778,22 +788,6 @@ export class World {
   }
   tick(dt){
     const step=Math.min(0.1,Math.max(0,Number(dt)||0)),at=this.now();
-    for(const obj of this.resources.values()){
-      if(obj.kind==='bush'&&obj.type===5&&at>=obj.regrowAt){
-        obj.type=TYPE.bush;obj.hp=obj.maxHp;obj.regrowAt=null;
-        this.events.push({kind:'bush_ready',sid:obj.sid});
-      }
-    }
-    for(const [sid,entry] of this.depleted){
-      if(at<entry.at)continue;
-      const obj=entry.obj;
-      // Never spawn a resource inside a live player or a placed structure.
-      const blocked=[...this.players.values()].some(p=>p.hp>0&&Math.hypot(p.x-obj.x,p.y-obj.y)<obj.scale+35)||
-        [...this.structures.values()].some(s=>Math.hypot(s.x-obj.x,s.y-obj.y)<obj.scale+s.scale);
-      if(blocked){entry.at=at+2000;continue;}
-      obj.hp=obj.maxHp;this.resources.set(sid,obj);this.depleted.delete(sid);
-      this.events.push({kind:'resource_return',sid});
-    }
     for(const a of this.animals.values()){
       if(a.health<=0){
         if(at>=a.deadUntil){a.health=a.maxHealth;a.x=a.homeX;a.y=a.homeY;this.events.push({kind:'animal_return',sid:a.sid});}
@@ -841,7 +835,7 @@ export class World {
       const speed=at<p.rootedUntil?0:250*(boosted?1.5:1)*
         (hat.speed??1)*(tail.speed??1)*(inRiver?0.33:1)*snowFactor;
       const x=Math.max(24,Math.min(this.size-24,
-        p.x+p.vx*speed*step+(inRiver?1.1*step:0)));
+        p.x+p.vx*speed*step+(inRiver&&at>=p.rootedUntil?RIVER_PUSH*step:0)));
       const y=Math.max(24,Math.min(this.size-24,p.y+p.vy*speed*step));
       // Platforms provide a short, local raised state for crossing a
       // nearby wall. It expires away from the platform: no global phasing.
