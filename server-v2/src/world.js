@@ -821,14 +821,15 @@ export class World {
         a.dir+=this.animalRandom()-0.5;
       }
       const speed=a.speed*(target?1.35:fleeing?1.6:0.45)*step;
+      const body=Number.isFinite(a.scale)&&a.scale>0?a.scale:75;
       const nextX=a.x+Math.cos(a.dir)*speed,nextY=a.y+Math.sin(a.dir)*speed;
-      a.x=Math.max(a.scale,Math.min(this.size-a.scale,nextX));
-      a.y=a.area==='snow'?Math.max(a.scale,Math.min(2400-a.scale,nextY)):
+      a.x=Math.max(body,Math.min(this.size-body,nextX));
+      a.y=a.area==='snow'?Math.max(body,Math.min(2400-body,nextY)):
         a.area==='river'?Math.max(this.size/2-350,Math.min(this.size/2+350,nextY)):
-        Math.max(a.scale,Math.min(this.size-a.scale,nextY));
+        Math.max(body,Math.min(this.size-body,nextY));
       // Contact damage uses both bodies' radii, not a universal 80-pixel box.
       if(target&&a.damage>0&&
-        Math.hypot(a.x-target.x,a.y-target.y)<=PLAYER_RADIUS+a.scale*0.55&&
+        Math.hypot(a.x-target.x,a.y-target.y)<=PLAYER_RADIUS+body*0.55&&
         at>=a.nextAttack){
         a.nextAttack=at+1100;
         const damage=this.protectedDamage(target,a.damage,a.x,a.y);
