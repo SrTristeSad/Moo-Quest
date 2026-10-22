@@ -154,6 +154,12 @@ a API, PostgreSQL, Redis e o painel permanecem intactos.
 Licença, arquivos importados e limites: `docs/UPSTREAM-CODE.md`.
 Teste: `npm run test:core` (inclui `test/reference-reuse.test.js`).
 
+## Funcionalidade herdada do servidor de referência
+- O filtro `filter_chat` original agora é carregado diretamente sob
+  `src/vendor/al007ex/` e aplicado ao chat de partidas.
+- Ping do minimapa é privado à própria equipe, com cooldown de 3 segundos.
+- Consulte `docs/UPSTREAM-CODE.md` para licenças e limitações.
+
 ## Protocolo do cliente Lua
 
 A implementação V2 tem seu próprio módulo `src/native-protocol.js`: handshake

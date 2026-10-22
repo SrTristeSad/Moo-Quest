@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 const allowed = {src:/\.js$/,public:/\.(?:js|html|css)$/};
 const VENDOR_LICENSE = 'src/vendor/al007ex/LICENSE';
-const VENDOR_FILES = ['src/vendor/al007ex/effects.js','src/vendor/al007ex/utils.js'];
+const VENDOR_FILES = ['src/vendor/al007ex/effects.js','src/vendor/al007ex/utils.js',
+  'src/vendor/al007ex/filterchat.js'];
 const required=['src/index.js','src/world.js','src/native-protocol.js','public/admin.html'];
 function within(base, file){
   const rel=path.relative(base,file);

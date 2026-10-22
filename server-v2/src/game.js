@@ -9,6 +9,7 @@ import path from 'node:path';
 import { requestIdentity } from './request-identity.js';
 import { World } from './world.js';
 import { NativeSession } from './native-protocol.js';
+import { filter_chat } from './vendor/al007ex/filterchat.js';
 export class GameServer {
   constructor(httpServer, storage, ticketStore=null, {accounts=null,reservedClanTags=[]}={}) {
     this.ticketStore=ticketStore;
@@ -110,6 +111,7 @@ export class GameServer {
     const state={ws,session,p:null,held:false,lastSnapshotAt:0,spawning:false,
       accountId:null,grantedAccountId:accountId,clanBusy:false,
       autoAttack:false,lockDir:false,watchSid:null,
+      lastChatAt:0,lastMapPingAt:0,
       supportsBossWarnings:false};
     this.nativeClients.set(ws,state);
     ws.send(session.handshake());
@@ -325,10 +327,24 @@ export class GameServer {
         }else if(this.room.answerTribe(p.id,requestedSid,allow))this._syncTribes();
       }
       else if(name==='6'&&typeof args[0]==='string'){
-        const txt=args[0].replace(/[\x00-\x1f]/g,'').slice(0,30);
-        if(txt)this._nativeBroadcast('6',[p.sid,txt]);
+        // Original filter_chat() is vendored under the upstream license;
+        // a per-connection cooldown prevents flooding the native broadcast.
+        if(now-state.lastChatAt<700)return;
+        const txt=filter_chat(args[0]);
+        if(txt){
+          state.lastChatAt=now;
+          this._nativeBroadcast('6',[p.sid,txt]);
+        }
       }
-      else if(name==='S')this._nativeBroadcast('9',[Math.round(p.x),Math.round(p.y)]);
+      else if(name==='S'){
+        // The upstream map ping is private to the sender and their team.
+        if(p.hp<=0||now-state.lastMapPingAt<3000)return;
+        state.lastMapPingAt=now;
+        for(const client of this.nativeClients.values()){
+          if(client.p&&(client.p===p||(p.team&&client.p.team===p.team)))
+            client.send('9',[Math.round(p.x),Math.round(p.y)]);
+        }
+      }
       else if(name==='0')send('0',[]);
     });
     ws.on('close',()=>{
