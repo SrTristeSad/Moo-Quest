@@ -1,7 +1,7 @@
 name: MooQuest V2 Windows Online Client Package
 on:
   push:
-    branches: [main, 'feat/v2-windows-remote-https-client', 'fix/windows-client-safe-node-launcher']
+    branches: [main, 'feat/v2-windows-remote-https-client', 'fix/windows-client-safe-node-launcher', 'fix/windows-client-remove-unused-legacy-js']
     paths:
       - 'tools/v2-https-relay.mjs'
       - 'tools/v2-https-relay.test.mjs'
@@ -46,7 +46,12 @@ jobs:
           set -euo pipefail
           mkdir -p dist/MooQuest-V2-ONLINE/tools
           cp main.lua conf.lua JOGAR-V2-ONLINE-WINDOWS.bat dist/MooQuest-V2-ONLINE/
-          cp -a src shared tests support dist/MooQuest-V2-ONLINE/
+          cp -a src tests dist/MooQuest-V2-ONLINE/
+          mkdir -p dist/MooQuest-V2-ONLINE/support
+          cp support/reference-image-manifest.json dist/MooQuest-V2-ONLINE/support/
+          # The Lua runtime uses its own src/game/catalog.lua: vendored
+          # server-side shared/config/*.js is not a client dependency.
+          test ! -d dist/MooQuest-V2-ONLINE/shared
           cp tools/v2-https-relay.mjs tools/run-v2-online.mjs dist/MooQuest-V2-ONLINE/tools/
           test ! -f dist/MooQuest-V2-ONLINE/tools/run-v2-online.ps1
           ! grep -R -Ei 'ExecutionPolicy|Bypass|powershell.exe' dist/MooQuest-V2-ONLINE/JOGAR-V2-ONLINE-WINDOWS.bat dist/MooQuest-V2-ONLINE/tools/run-v2-online.mjs
@@ -57,6 +62,12 @@ jobs:
           test -s dist/MooQuest-V2-ONLINE/src/net/websocket_client.lua
           test ! -d dist/MooQuest-V2-ONLINE/server
           test ! -d dist/MooQuest-V2-ONLINE/server-v2
+          # Release includes only the two explicitly reviewed Node transport
+          # modules, not unrelated legacy JavaScript configurations.
+          unexpected=$(find dist/MooQuest-V2-ONLINE -type f -name '*.js' -print)
+          test -z "$unexpected"
+          test -f dist/MooQuest-V2-ONLINE/tools/run-v2-online.mjs
+          test -f dist/MooQuest-V2-ONLINE/tools/v2-https-relay.mjs
           cd dist
           zip -qr MooQuest-V2-CLIENTE-ONLINE-WINDOWS.zip MooQuest-V2-ONLINE
           unzip -tq MooQuest-V2-CLIENTE-ONLINE-WINDOWS.zip
