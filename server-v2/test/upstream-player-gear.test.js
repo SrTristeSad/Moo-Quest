@@ -71,8 +71,9 @@ test('Plague Mask gives six 5-damage poison pulses on melee',()=>{
  assert.equal(b.hp,70);
 });
 test('Bull Mask suppresses unprovoked hostile targeting but not provoked pursuit',()=>{
- const {w,a}=arena();
+ const {w,a,b}=arena();
  a.hat=46;
+ b.x=5000;b.y=5000; // A bull may still chase any unmasked nearby player.
  const bull=[...new World({seed:4}).animals.values()].find(z=>z.index===2);
  w.animals.set(bull.sid,bull);
  bull.x=1100;bull.y=5000;bull.homeX=1100;bull.homeY=5000;
