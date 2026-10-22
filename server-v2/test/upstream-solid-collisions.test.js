@@ -29,7 +29,7 @@ test('spikes, mills and turrets are solid; pads and hidden pits are passable',()
  const p={x:980,y:5000,motionX:400,motionY:0};
  for(const id of [6,10,13,14,17]){
    const structures=new Map([[1,{...input,id}]]);
-   const result=resolveSolidContact(p,1020,5000,new Map(),structures);
+   const result=resolveSolidContact(p,id===14?1045:1020,5000,new Map(),structures);
    assert.equal(result.contacts,1,'solid building '+id);
    near(result.x,id===14?1040:1015);
  }
