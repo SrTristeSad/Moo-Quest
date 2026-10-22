@@ -29,3 +29,10 @@ browser attestation or FRVR bundles are imported.
 - Ao efetuar logout da conta, a sessão social conectada é encerrada.
 - A interface social do cliente Lua ainda exige implementação própria e
   o proxy público deve permitir WebSocket nessa rota.
+
+## Directly reused reference GameObject and ConnectionLimit
+`src/world.js` now calls the original `GameObject.getScale()` on
+V2 resource collision shapes. `src/social-realtime.js` uses the original
+`ConnectionLimit` to cap WebSocket connections at four per authenticated
+account, not per proxy IP. Both vendor modules are unchanged, licensed
+under Apache-2.0, with original source URL in `UPSTREAM-CODE.md`.

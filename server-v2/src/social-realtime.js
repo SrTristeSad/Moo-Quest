@@ -2,15 +2,26 @@
 // V2 uses a 30-second, one-use Redis ticket, never a long-term account token
 // in the WebSocket URL. Presence and invites are visible to friends only.
 import {WebSocketServer} from 'ws';
+import {ConnectionLimit} from './vendor/al007ex/limit.js';
 const isUuid=v=>typeof v==='string'&&/^[0-9a-f-]{36}$/i.test(v);
 export class SocialRealtime {
  constructor(service){
   this.service=service;
   this.clients=new Map();
+  this.accountLimit=new ConnectionLimit(4); // reused original limiter
   this.wss=new WebSocketServer({noServer:true,maxPayload:4096,perMessageDeflate:false});
  }
  accept(req,socket,head,accountId){
-  this.wss.handleUpgrade(req,socket,head,ws=>{void this.connected(ws,accountId);});
+  // Limit simultaneous social sockets per authenticated account, not IP:
+  // multiple users behind the same Cloudflare/Nginx NAT must still connect.
+  if(this.accountLimit.check(accountId)){socket.destroy();return;}
+  this.accountLimit.up(accountId);
+  try{
+    this.wss.handleUpgrade(req,socket,head,ws=>{
+      ws.once('close',()=>this.accountLimit.down(accountId));
+      void this.connected(ws,accountId);
+    });
+  }catch(error){this.accountLimit.down(accountId);throw error;}
  }
  send(client,code,data){
   if(client.ws.readyState===client.ws.OPEN&&client.ws.bufferedAmount<65536)
