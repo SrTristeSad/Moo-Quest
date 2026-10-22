@@ -5,6 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const allowed = {src:/\.js$/,public:/\.(?:js|html|css)$/};
+const VENDOR_LICENSE = 'src/vendor/al007ex/LICENSE';
+const VENDOR_FILES = ['src/vendor/al007ex/effects.js','src/vendor/al007ex/utils.js'];
 const required=['src/index.js','src/world.js','src/native-protocol.js','public/admin.html'];
 function within(base, file){
   const rel=path.relative(base,file);
@@ -22,7 +24,8 @@ export function auditReleaseBoundary(root){
         const relative=path.relative(root,absolute).split(path.sep).join('/');
         if(item.isSymbolicLink())throw new Error('Symlink prohibited: '+relative);
         if(item.isDirectory()){walk(absolute);continue;}
-        if(!item.isFile() || !allowed[folder].test(item.name))
+        if(!item.isFile() ||
+            !(allowed[folder].test(item.name) || relative===VENDOR_LICENSE))
           throw new Error('Unexpected release file: '+relative);
         if(!within(base,absolute) || !within(base,fs.realpathSync(absolute)))
           throw new Error('File escapes runtime directory: '+relative);
@@ -47,6 +50,9 @@ export function auditReleaseBoundary(root){
   }
   for(const item of required)if(!files.includes(item))
     throw new Error('Missing required standalone runtime file: '+item);
+  // A vendor runtime can only be shipped together with its exact license file.
+  if(VENDOR_FILES.some(f=>files.includes(f))&&!files.includes(VENDOR_LICENSE))
+    throw new Error('Missing Apache-2.0 vendor license');
   files.sort();
   return files;
 }

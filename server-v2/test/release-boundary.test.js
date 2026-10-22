@@ -12,6 +12,8 @@ test('real V2 release can be packaged without importing legacy server files',()=
   assert.ok(files.includes('src/index.js'));
   assert.ok(files.includes('src/guest-verification.js'));
   assert.ok(files.every(p=>p.startsWith('src/')||p.startsWith('public/')));
+  assert.ok(files.includes('src/vendor/al007ex/effects.js'));
+  assert.ok(files.includes('src/vendor/al007ex/LICENSE'));
 });
 test('release boundary fails closed on legacy imports, binary art, and symlinks',t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'mq-v2-boundary-'));
@@ -29,6 +31,15 @@ test('release boundary fails closed on legacy imports, binary art, and symlinks'
   fs.writeFileSync(path.join(root,'public','borrowed.png'),'not an asset to publish');
   assert.throws(()=>auditReleaseBoundary(root),/Unexpected release file/);
   fs.unlinkSync(path.join(root,'public','borrowed.png'));
+  const vendor=path.join(root,'src','vendor','al007ex');
+  fs.mkdirSync(vendor,{recursive:true});
+  fs.writeFileSync(path.join(vendor,'effects.js'),'export const item=1;\n');
+  assert.throws(()=>auditReleaseBoundary(root),/Missing Apache-2.0 vendor license/);
+  fs.writeFileSync(path.join(vendor,'LICENSE'),'Apache License 2.0\n');
+  assert.ok(auditReleaseBoundary(root).includes('src/vendor/al007ex/LICENSE'));
+  fs.writeFileSync(path.join(vendor,'OTHER.txt'),'not allowed\n');
+  assert.throws(()=>auditReleaseBoundary(root),/Unexpected release file/);
+  fs.unlinkSync(path.join(vendor,'OTHER.txt'));
   try{
     fs.symlinkSync(entry,path.join(root,'src','borrowed.js'));
     assert.throws(()=>auditReleaseBoundary(root),/Symlink prohibited/);

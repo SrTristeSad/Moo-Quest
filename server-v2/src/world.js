@@ -707,7 +707,7 @@ export class World {
       const gold=obj.kind==='ore';
       const key=gold?'points':obj.kind==='tree'?'wood':
         obj.kind==='bush'?'food':'stone';
-      const bonus=gold?0:referenceGatherBonus(p,obj.type);
+      const bonus=gold?0:referenceGatherBonus(p,obj.type??TYPE[obj.kind]);
       const amount=weapon.gather+(gold?4:0)+bonus;
       const points=gold?amount:(hat.extraGold??0);
       awardGather(obj,key,amount,points);

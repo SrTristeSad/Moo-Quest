@@ -16,6 +16,10 @@ Upstream copyright/attribution and license rights remain intact.
 **Not included:** official FRVR client, art, authentication bypass,
 anti-tamper code, original browser bundles, or non-licensed assets.
 
+The signed release publisher and privileged ZIP installer include the license
+file along with the vendor modules. The standalone runtime audit allows this
+single non-executable license path only, and rejects other imported assets.
+
 This change integrates equipment/harvest/physics behavior only. It is
 NOT a drop-in replacement for the upstream Game class, APIs, database,
 anti-cheat, network layer, or social services.

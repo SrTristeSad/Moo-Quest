@@ -12,7 +12,7 @@ const MAX_ENTRIES=8000;
 const MAX_UNCOMPRESSED=128*1024*1024; // all archive entries, even skipped ones
 const MAX_SOURCE=12*1024*1024;
 const MAX_FILE=1024*1024;
-const SAFE_FILE=/^(?:src\/[a-zA-Z0-9_/-]+\.js|public\/[a-zA-Z0-9_.-]+\.(?:html|js|css))$/;
+const SAFE_FILE=/^(?:src\/[a-zA-Z0-9_/-]+\.js|src\/vendor\/al007ex\/LICENSE|public\/[a-zA-Z0-9_.-]+\.(?:html|js|css))$/;
 const REQUIRED=[
   'src/index.js','src/http.js','src/auth.js','src/storage.js',
   'src/updates.js','src/zip-release.js','src/game.js','src/world.js',
@@ -118,6 +118,9 @@ export async function stageTrustedZip(buffer,dataDir){
     }
     for(const required of REQUIRED)
       if(!seen.has(required))throw Error('ZIP do servidor incompleto: '+required);
+    if([...seen].some(f=>f.startsWith('src/vendor/al007ex/')&&f.endsWith('.js'))&&
+       !seen.has('src/vendor/al007ex/LICENSE'))
+      throw Error('ZIP deve incluir licença Apache-2.0 dos módulos importados');
     const release='0.1.0-zip.'+Date.now().toString(36)+'.'+randomBytes(4).toString('hex');
     const dir=path.join(dataDir,'releases',release);
     fs.mkdirSync(dir,{recursive:true,mode:0o700});
