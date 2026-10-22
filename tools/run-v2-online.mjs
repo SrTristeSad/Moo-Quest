@@ -29,11 +29,22 @@ export async function launchOnlineClient({
 }={}){
   if(Number(process.versions.node.split('.')[0])<22)
     throw new Error('Node.js 22 ou superior necessario.');
-  const relay=createRelay();
+  let relay=createRelay();
   let child=null;
   try{
-    await relay.listen(); // refuses to take over any existing localhost port
-    const reply=await httpFetch('http://127.0.0.1:8080/ping',{
+    let address;
+    try{address=await relay.listen();}
+    catch(error){
+      if(error?.code!=='EADDRINUSE')throw error;
+      await relay.close();
+      relay=createRelay({listenPort:0});
+      address=await relay.listen();
+      console.log('[Moo-Quest] Porta 8080 ocupada. Usando a porta '+address.port+'.');
+    }
+    const localPort=address?.port;
+    if(!Number.isInteger(localPort)||localPort<1||localPort>65535)
+      throw Error('Nao foi possivel escolher a porta local.');
+    const reply=await httpFetch('http://127.0.0.1:'+localPort+'/ping',{
       signal:AbortSignal.timeout(10000),
       redirect:'error',
       cache:'no-store'
@@ -44,7 +55,8 @@ export async function launchOnlineClient({
       throw new Error('Servidor remoto inesperado: nao e a API V2.');
     console.log('[Moo-Quest] app.snusnu.com.br confirmado por HTTPS verificado.');
     console.log('[Moo-Quest] Iniciando LÖVE 2D com conta V2 online...');
-    const loveEnv={...env,MOOQUEST_REQUIRE_V2:'1',MOOQUEST_V2_ONLINE:'1'};
+    const loveEnv={...env,MOOQUEST_REQUIRE_V2:'1',MOOQUEST_V2_ONLINE:'1',
+      MOOQUEST_LOCAL_PORT:String(localPort)};
     // Command + argument array; never run through cmd/PowerShell or a shell.
     child=spawnProcess(executable,[root],{
       cwd:root,env:loveEnv,stdio:'inherit',shell:false,
