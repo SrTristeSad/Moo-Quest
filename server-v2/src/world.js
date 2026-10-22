@@ -517,6 +517,16 @@ export class World {
     this.events.push({kind:'projectile_spawn',sid,player:owner,x,y,dir,range,speed,type,layer,ammo});
     return sid;
   }
+  creditAnimalKill(p,a){
+    const food=a.foodDrop??30,points=Math.max(0,a.score??20);
+    p.resources.food+=food;p.resources.points+=points;p.score+=points;
+    if(p.lifeStats){
+      p.lifeStats.food+=food;p.lifeStats.gold+=points;
+      p.lifeStats.animals+=a.boss?0:1;
+      p.lifeStats.bosses+=a.boss?1:0;
+    }
+    this.awardXp(p.id,Math.max(30,Math.min(500,Math.round(points/5))));
+  }
   attack(id){
     const p=this.players.get(id),time=this.now();
     if(!p||p.hp<=0)return false;
@@ -569,7 +579,10 @@ export class World {
         }
       }
       this.events.push({kind:'hit',from:p.id,to:victim.id,damage,hp:victim.hp,x:victim.x,y:victim.y});
-      if(victim.hp===0){victim.deadUntil=time+3000;victim.vx=0;victim.vy=0;p.resources.kills++;p.score+=100;this.events.push({kind:'death',id:victim.id,killer:p.id});this.awardXp(p.id,40);}
+      if(p.lifeStats)p.lifeStats.damage+=damage;
+      if(victim.hp===0){victim.deadUntil=time+3000;victim.vx=0;victim.vy=0;p.resources.kills++;p.score+=100;
+        if(p.lifeStats)p.lifeStats.kills++;
+        this.events.push({kind:'death',id:victim.id,killer:p.id});this.awardXp(p.id,40);}
       return true;
     }
     // Server-owned wildlife combat. Only hit animals in the forward arc,
@@ -586,13 +599,14 @@ export class World {
     if(animal){
       const damage=Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
         (tail.damageDone??1)));
+      const effectiveDamage=Math.min(animal.health,damage);
       animal.health=Math.max(0,animal.health-damage);
-      this.events.push({kind:'animal_hit',sid:animal.sid,from:p.id,x:animal.x,y:animal.y,damage});
+      if(p.lifeStats)p.lifeStats.animalDamage+=effectiveDamage;
+      this.events.push({kind:'animal_hit',sid:animal.sid,from:p.id,x:animal.x,y:animal.y,damage:effectiveDamage});
       if(!animal.health){
-        animal.deadUntil=time+15000;
-        p.resources.food+=30;p.resources.points+=20;p.score+=20;
+        animal.deadUntil=time+(animal.boss?600000:15000);
+        this.creditAnimalKill(p,animal);
         this.events.push({kind:'animal_down',sid:animal.sid,player:p.id});
-        this.awardXp(p.id,30);
       }
       return true;
     }
@@ -613,6 +627,7 @@ export class World {
       const amount=2*(weapon.gather??1)+(key==='wood'?(tail.extraWood??0):(tail.extraStone??0));
       const points=1+(hat.extraGold??0);
       p.resources[key]+=amount;p.resources.points+=points;p.score+=points;
+      if(p.lifeStats){p.lifeStats[key]=(p.lifeStats[key]||0)+amount;p.lifeStats.gold+=points;}
       this.events.push({kind:'gather',sid:farm.sid,player:p.id,key,amount,points});
       this.awardXp(p.id,8);
       return true;
@@ -662,6 +677,7 @@ export class World {
       const amount=(resource.kind==='ore'?4:2)*(weapon.gather??1)+bonus;
       const points=1+(hat.extraGold??0);
       p.resources[key]+=amount;p.resources.points+=points;p.score+=points;
+      if(p.lifeStats){p.lifeStats[key]=(p.lifeStats[key]||0)+amount;p.lifeStats.gold+=points;}
       resource.hp=Math.max(0,resource.hp-RESOURCE_DAMAGE);
       this.events.push({kind:'gather',sid:resource.sid,player:p.id,key,amount,points});
       this.awardXp(p.id,8);
@@ -1021,17 +1037,20 @@ export class World {
             damage,hp:target.hp,x:target.x,y:target.y});
           if(target.hp===0){
             target.deadUntil=at+3000;target.vx=0;target.vy=0;
-            if(shooter){shooter.resources.kills++;shooter.score+=100;this.awardXp(shooter.id,40);}
+            if(shooter){shooter.resources.kills++;shooter.score+=100;
+              if(shooter.lifeStats)shooter.lifeStats.kills++;
+              this.awardXp(shooter.id,40);}
             this.events.push({kind:'death',id:target.id,killer:arrow.owner});
           }
         }else if(kind==='animal'){
+          const actual=Math.min(target.health,arrow.damage);
           target.health=Math.max(0,target.health-arrow.damage);
+          if(shooter?.lifeStats)shooter.lifeStats.animalDamage+=actual;
           this.events.push({kind:'animal_hit',sid:target.sid,from:arrow.owner,
-            x:target.x,y:target.y,damage:arrow.damage});
+            x:target.x,y:target.y,damage:actual});
           if(target.health===0){
-            target.deadUntil=at+15000;
-            if(shooter){shooter.resources.food+=30;shooter.resources.points+=20;
-              shooter.score+=20;this.awardXp(shooter.id,30);}
+            target.deadUntil=at+(target.boss?600000:15000);
+            if(shooter)this.creditAnimalKill(shooter,target);
             this.events.push({kind:'animal_down',sid:target.sid,player:arrow.owner});
           }
         }else if(kind==='structure'){
