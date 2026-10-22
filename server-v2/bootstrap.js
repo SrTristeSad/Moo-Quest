@@ -31,7 +31,19 @@ function startWorker() {
       state.active = state.previous;
       state.previous = active;
       atomicJSON(stateFile, state);
-      async function bootstrap(){
+      startWorker();
+      return;
+    }
+    process.exit(code || (signal ? 1 : 0));
+  });
+}
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
+  if (stopping) return;
+  stopping = true;
+  if (worker) worker.kill(signal);
+  if (installer) installer.server.close();
+});
+async function bootstrap(){
   // First launch: run the guided setup instead of crashing on absent URLs.
   // Existing installations with explicit environment variables are untouched.
   if(!process.env.MOO_DATABASE_URL||!process.env.MOO_REDIS_URL){
@@ -61,15 +73,3 @@ function startWorker() {
   startWorker();
 }
 await bootstrap();
-      return;
-    }
-    process.exit(code || (signal ? 1 : 0));
-  });
-}
-for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
-  if (stopping) return;
-  stopping = true;
-  if (worker) worker.kill(signal);
-  if (installer) installer.server.close();
-});
-startWorker();
