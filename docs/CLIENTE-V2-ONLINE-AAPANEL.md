@@ -14,10 +14,10 @@ legada nem baixa código do servidor na instalação.
 3. O inicializador abre somente `127.0.0.1:8080` no computador local,
    inicia a ponte de segurança e consulta `/ping` pelo domínio remoto
    com TLS verificado. Se retornar `mqv2native`, abre o LÖVE.
-4. No menu, use a **conta V2 com usuário e senha**. O servidor exige
-   cadastro habilitado no painel para registrar novas contas. Após login,
-   solicita ticket `/api/join`, conecta ao WebSocket binário `/s/LC` e
-   envia o spawn normalmente.
+4. O cliente abre primeiro a **tela de login V2**. Informe usuário e senha,
+   ou cadastre uma conta caso o administrador permita. Só depois do login
+   a tela de personagem/Play aparece. A conta autenticada solicita ticket
+   `/api/join`, conecta ao WebSocket binário `/s/LC` e pode entrar na partida.
 
 O iniciador `JOGAR-V2-ONLINE-WINDOWS.bat` chama apenas
 `node tools/run-v2-online.mjs` e **não executa PowerShell,
@@ -122,10 +122,12 @@ validam HTTPS, WebSocket, checagem de certificado e bloqueio de
 requisições não autorizadas, mas **não comprovam** disponibilidade
 nem configuração atual do domínio do aaPanel.
 
-O repositório-base não contém sprites PNG de terceiros. Para
-manter as artes personalizadas já usadas na instalação anterior,
-copie-as separadamente para a pasta `assets/custom/` se for o
-caso; o ZIP não fabrica sprites e não inclui artes privadas.
+O ZIP de cliente **não inclui PNGs privados**. Copie suas artes próprias
+para `MooQuest-V2-ONLINE/assets/custom/img/`, mantendo subpastas como
+`animals/`, `weapons/`, `hats/` e `accessories/`. O carregador
+prioriza essas imagens e mantém suporte a `assets/reference/img/`.
+Sem elas, o jogo ainda conecta, mas algumas imagens ficam ausentes.
+O cliente online não contém `PREPARAR-SERVIDOR.bat`.
 
 ## Alertas do Microsoft Defender ou SmartScreen
 

@@ -24,6 +24,13 @@ assert(w:localPlayer().x==105 and w:localPlayer().dir==1.57)
 assert(w:localPlayer().team=="Blue" and w.players[43].x==600)
 assert(w:apply("H",{{12,500,600,0,150,0,0,-1,13,700,800,0,85,2,0,-1}}))
 assert(w.objects[12].type==0 and w.objects[13].type==2)
+-- Same object SID switches between berry-bearing and empty bushes.
+assert(w:apply("H",{{120,810,910,0,85,1,0,-1}}))
+local oldSlot=w.objectSlotBySid[120]
+assert(w:apply("H",{{120,810,910,0,85,5,0,-1}}))
+assert(w.objects[120].type==5 and w.objectSlotBySid[120]==oldSlot)
+assert(w:apply("H",{{120,810,910,0,85,1,0,-1}}))
+assert(w.objects[120].type==1 and w.objectSlotBySid[120]==oldSlot)
 assert(w:apply("I",{{77,4,800,900,100,300,0,0},{}}))
 assert(w.animals[77].index==4 and w.animals[77].dir==1)
 assert(w:apply("N",{"wood",40,1}) and w.resources.wood==40)

@@ -5,6 +5,7 @@ local Original=require("src.net.original_client")
 local World=require("src.game.world_state")
 local View=require("src.game.reference_view")
 local Menu=require("src.game.reference_menu")
+local Login=require("src.game.v2_login_screen")
 local Auth=require("src.net.local_auth")
 local V2Accounts=require("src.net.v2_accounts")
 local V2Capabilities=require("src.net.v2_capabilities")
@@ -38,6 +39,7 @@ local world=World.new()
 local camera=nil
 local menuCamera=nil
 local menu=Menu.new()
+local function needsLoginScreen() return v2Online and not menu.accountEmail end
 menu.accountBackend=v2Mode and "v2" or "legacy"
 menu.onlineMode=v2Online
 local panels=Panels.new()
@@ -159,6 +161,9 @@ function love.load()
   end
   client=result
   if v2Mode then refreshV2Policy() end
+  if v2Online then
+    menu.authMode="login";menu.authStep="email";menu.authFocus="email"
+  end
   if v2Online or (v2Mode and menu.guestEnabled==false) then
     -- Remote mode requires an account. When guests are administratively
     -- disabled, local V2 also waits for login instead of retrying tickets.
@@ -390,8 +395,12 @@ function love.draw()
       status=menu.status~="" and menu.status or
         (client and (client.error or client.status)) or startupError
     end
-    menu:draw(state,status)
-    if not v2Mode then clans:draw(false) end
+    if needsLoginScreen() then
+      Login.draw(menu,status)
+    else
+      menu:draw(state,status)
+      if not v2Mode then clans:draw(false) end
+    end
     Notices.draw(world,w,h)
     return
   end
@@ -424,7 +433,7 @@ function love.draw()
       for i,file in ipairs(absent) do
         love.graphics.print(file,20,20+i*18)
       end
-      love.graphics.print("Execute PREPARAR-SERVIDOR.bat",20,23+(#absent+1)*18)
+      love.graphics.print("Copie suas artes PNG para assets/custom/img/",20,23+(#absent+1)*18)
     end
     return
   end
@@ -515,6 +524,10 @@ local function accountAction(action)
     elseif action=="auth_verify" then
       local password=menu.authCode
       menu.authCode="" -- never keep a plaintext password in the menu
+      if not V2Accounts.validUsername(menu.authEmail) then
+        menu.authMessage="Usuario: 3 a 20 letras, numeros ou underscore"
+        return
+      end
       if not V2Accounts.validPassword(password) then
         menu.authMessage="A senha precisa ter de 12 a 128 caracteres"
         return
@@ -544,6 +557,7 @@ local function accountAction(action)
       client.authToken=account.token
       clans:reset()
       menu.accountEmail=account.username
+      menu.name=account.username:sub(1,15)
       menu.authEmail=""
       menu.authMode=nil
       menu.authFlow=nil
@@ -565,6 +579,10 @@ local function accountAction(action)
       client.authToken=nil
       clans:reset()
       menu.accountEmail=nil
+      if v2Online then
+        menu.authMode="login";menu.authStep="email";menu.authFocus="email"
+        menu.authEmail="";menu.authCode="";menu.authMessage=""
+      end
       world=World.new()
       refreshV2Policy()
       if v2Online or menu.guestEnabled==false then
@@ -695,6 +713,10 @@ end
 
 function love.keypressed(key)
   if phase=="death" then return end
+  if phase=="menu" and needsLoginScreen() then
+    menuAction(Login.keypressed(menu,key))
+    return
+  end
   if profile:isOpen() then
     if key=="escape" or key=="p" then closeProfile() end
     return
@@ -872,6 +894,10 @@ function love.mousepressed(x,y,button)
   if phase=="menu" then
     if button==1 then
       local width,height=love.graphics.getDimensions()
+      if needsLoginScreen() then
+        menuAction(Login.click(menu,x,y,width,height))
+        return
+      end
       if not v2Mode and clans:isOpen() and clans:click(x,y,width,height,false,client and client.authToken) then return end
       menu.connectionState=client and client.state or "failed"
       local action=menu:click(x,y,width,height)

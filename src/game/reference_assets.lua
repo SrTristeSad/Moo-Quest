@@ -10,23 +10,31 @@ function A.get(category,filename)
   if type(filename)~="string" or not filename:match("^[%w_%-]+%.png$") then
     return nil
   end
-  local path="assets/reference/img/"..category.."/"..filename
-  if cache[path]~=nil then return cache[path] or nil end
-  if not love.filesystem.getInfo(path,"file") then
-    missing[path]="arquivo nao encontrado"
-    cache[path]=false
-    return nil
+  local key=category.."/"..filename
+  if cache[key]~=nil then return cache[key] or nil end
+  -- Prefer user-owned art over legacy local reference images.
+  local candidates={
+    "assets/custom/img/"..key,
+    "assets/reference/img/"..key
+  }
+  for _,path in ipairs(candidates) do
+    if love.filesystem.getInfo(path,"file") then
+      local ok,result=pcall(love.graphics.newImage,path)
+      if ok then
+        result:setFilter("linear","linear")
+        cache[key]=result
+        return result
+      end
+      missing[key]="PNG invalido em "..path
+      cache[key]=false
+      return nil
+    end
   end
-  local ok,result=pcall(love.graphics.newImage,path)
-  if not ok then
-    missing[path]="PNG invalido: "..tostring(result)
-    cache[path]=false
-    return nil
-  end
-  result:setFilter("linear","linear")
-  cache[path]=result
-  return result
+  missing[key]="arquivo nao encontrado"
+  cache[key]=false
+  return nil
 end
+
 -- The pinned source is missing bow_1_d.png (diamond bow), despite
 -- containing all the other 16 x 5 weapon variants. Never synthesize
 -- proprietary art: prefer that weapon's ORIGINAL base image rather than
@@ -43,7 +51,9 @@ function A.weaponFilename(source,suffix,exists)
   if suffix=="" then return desired,false end
   local check=exists or function(file)
     return love.filesystem.getInfo(
-      "assets/reference/img/weapons/"..file,"file")~=nil
+      "assets/custom/img/weapons/"..file,"file")~=nil or
+      love.filesystem.getInfo(
+        "assets/reference/img/weapons/"..file,"file")~=nil
   end
   if check(desired) then return desired,false end
   return source..".png",true

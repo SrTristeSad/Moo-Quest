@@ -41,7 +41,7 @@ local function drawResource(typ,s,biome)
         or (i==0 and "#9ebf57" or "#b4db62")
       P.star(7,scale,scale*0.7,color,i==0 and P.outline or nil)
     end
-  elseif typ==1 then
+  elseif typ==1 or typ==5 then
     if biome==2 then
       P.star(6,s*0.3,s*0.71,"#606060",P.outline)
       P.circle(0,0,s*0.55,"#89a54c",P.outline)
@@ -49,10 +49,12 @@ local function drawResource(typ,s,biome)
     else
       P.blob(6,s,s*0.7,biome==1 and "#e3f1f4" or "#89a54c",P.outline)
       local berryColor=biome==1 and "#6a64af" or "#c15555"
-      for i=0,3 do
-        local range=randomInt(s/3.5,s/2.3)
-        P.circle(range*cos(pi*i/2),range*sin(pi*i/2),
-          randomInt(10,12),berryColor,P.outline)
+      if typ==1 then
+        for i=0,3 do
+          local range=randomInt(s/3.5,s/2.3)
+          P.circle(range*cos(pi*i/2),range*sin(pi*i/2),
+            randomInt(10,12),berryColor,P.outline)
+        end
       end
     end
   elseif typ==2 or typ==3 then

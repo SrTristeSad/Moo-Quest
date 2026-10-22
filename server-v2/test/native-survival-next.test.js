@@ -110,3 +110,33 @@ test('building damage and spikes are server-side, cannot hurt allies',()=>{
   at+=1100;w.tick(0.05);
   assert.equal(b.hp,90,'tribe members are protected against friendly spikes');
 });
+
+test('collecting all berries keeps the bush in place until fruit regrows',()=>{
+  let at=42000;
+  const w=new World({seed:59,now:()=>at});
+  const p=w.join(null,'Berry Picker');
+  const bush=[...w.resources.values()].find(o=>o.kind==='bush');
+  for(const [sid,obj] of w.resources){
+    if(sid!==bush.sid&&Math.hypot(obj.x-bush.x,obj.y-bush.y)<300)w.resources.delete(sid);
+  }
+  p.x=bush.x-140;p.y=bush.y;p.angle=0;
+  for(let i=0;i<4;i++){assert.equal(w.attack(p.id),true);at+=501;}
+  assert.equal(p.resources.food,8);
+  assert.equal(w.resources.has(bush.sid),true);
+  assert.equal(w.resources.get(bush.sid).type,5);
+  assert.equal(w.depleted.has(bush.sid),false);
+  const packets=w.objectPacket();
+  assert.equal(packets[packets.indexOf(bush.sid)+5],5);
+  assert.ok(w.takeEvents().some(e=>e.kind==='bush_empty'&&e.sid===bush.sid));
+  const earned=p.resources.food;
+  at+=501;assert.equal(w.attack(p.id),true);
+  assert.equal(p.resources.food,earned);
+  at+=28000;w.tick(0.05);
+  assert.equal(bush.type,5);
+  at+=2500;w.tick(0.05);
+  assert.equal(bush.type,1);
+  assert.equal(bush.hp,bush.maxHp);
+  assert.ok(w.takeEvents().some(e=>e.kind==='bush_ready'&&e.sid===bush.sid));
+  at+=501;assert.equal(w.attack(p.id),true);
+  assert.ok(p.resources.food>earned);
+});
