@@ -462,6 +462,9 @@ export class GameServer {
         this._nativeBroadcast('J',[evt.sid]);
         if(victim)this._nativeBroadcast('O',[victim.sid,victim.hp]);
         this._nativeBroadcast('8',[evt.x,evt.y,-evt.damage,1]);
+      }else if(evt.kind==='pvp_reward'){
+        const owner=[...this.nativeClients.values()].find(s=>s.p?.id===evt.player);
+        owner?.send('N',['points',evt.points,1]);
       }else if(evt.kind==='steal'){
         // Both inventories change in a server-approved melee transfer.
         const taker=[...this.nativeClients.values()].find(st=>st.p?.id===evt.from);

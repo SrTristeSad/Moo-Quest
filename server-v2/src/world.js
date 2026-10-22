@@ -681,6 +681,23 @@ export class World {
     this.events.push({kind:'projectile_spawn',sid,player:owner,x,y,dir,range,speed,type,layer,ammo});
     return sid;
   }
+  // Port of upstream Player.kill(): age-based gold and equipment bonuses.
+  creditPvPKill(killer,victim,time){
+    if(!killer||killer===victim||killer.hp<=0)return 0;
+    const hat=gearEffects(killer).hat;
+    const points=hat.killGoldSteal?
+      Math.round(Math.max(0,victim.resources.points||0)*hat.killGoldSteal):
+      Math.round(Math.max(1,victim.age||1)*100*(hat.killScoreMultiplier??1));
+    killer.resources.kills++;
+    killer.resources.points+=points;
+    killer.score+=points;
+    if(killer.lifeStats){killer.lifeStats.kills++;killer.lifeStats.gold+=points;}
+    triggerSuperCape(killer,time);
+    this.events.push({kind:'pvp_reward',player:killer.id,
+      points:killer.resources.points,amount:points});
+    this.awardXp(killer.id,40);
+    return points;
+  }
   creditAnimalKill(p,a){
     const cowMultiplier=referenceCowMultiplier(p,a.index);
     const food=Math.round((a.foodDrop??30)*cowMultiplier);
@@ -837,11 +854,8 @@ export class World {
       if(victim.hp===0){
         victim.deadUntil=time+3000;victim.vx=0;victim.vy=0;
         victim.motionX=0;victim.motionY=0;
-        p.resources.kills++;p.score+=100;
-        triggerSuperCape(p,time);
-        if(p.lifeStats)p.lifeStats.kills++;
+        this.creditPvPKill(p,victim,time);
         this.events.push({kind:'death',id:victim.id,killer:p.id});
-        this.awardXp(p.id,40);
       }
     }
     // Animals have their own body radii and mass. Hit reactions feed the
@@ -1225,10 +1239,7 @@ export class World {
             const killer=this.players.get(dot.from);
             if(killer&&killer!==p&&killer.hp>0&&
                !(p.team&&killer.team===p.team)){
-              killer.resources.kills++;killer.score+=100;
-              triggerSuperCape(killer,at);
-              if(killer.lifeStats)killer.lifeStats.kills++;
-              this.awardXp(killer.id,40);
+              this.creditPvPKill(killer,p,at);
             }
             this.events.push({kind:'death',id:p.id,killer:dot.from});
             p.poison=null;p.regen=null;
@@ -1427,10 +1438,7 @@ export class World {
             damage,hp:target.hp,x:target.x,y:target.y});
           if(target.hp===0){
             target.deadUntil=at+3000;target.vx=0;target.vy=0;
-            if(shooter){shooter.resources.kills++;shooter.score+=100;
-              triggerSuperCape(shooter,at);
-              if(shooter.lifeStats)shooter.lifeStats.kills++;
-              this.awardXp(shooter.id,40);}
+            if(shooter)this.creditPvPKill(shooter,target,at);
             this.events.push({kind:'death',id:target.id,killer:arrow.owner});
           }
         }else if(kind==='animal'){
