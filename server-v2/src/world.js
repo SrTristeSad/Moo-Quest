@@ -635,6 +635,152 @@ export class World {
     }
     this.awardXp(p.id,Math.max(30,Math.min(500,Math.round(points/5))));
   }
+  // Knockback is an authoritative velocity impulse, never an incoming
+  // position or velocity from a client. It is integrated by tick() with the
+  // same wall, tree and player collisions used for ordinary movement.
+  applyMeleeImpulse(target,direction,weapon,weight=1){
+    const base=0.3*Math.max(0,Math.min(2,weight))+(weapon.knock??0);
+    const impulse=Math.min(1600,base*1000);
+    target.motionX=(Number.isFinite(target.motionX)?target.motionX:0)+
+      Math.cos(direction)*impulse;
+    target.motionY=(Number.isFinite(target.motionY)?target.motionY:0)+
+      Math.sin(direction)*impulse;
+  }
+  // Reference gather() resolves each valid object, player and animal within
+  // the forward melee arc, once per swing. Selecting the nearest single
+  // target first caused major combat and harvesting divergence in the V2.
+  meleeSwing(p,weapon,hat,tail,time){
+    const range=weapon.reach??0,damageMultiplier=(hat.damageDone??1)*
+      (tail.damageDone??1);
+    const facing=(o,radius)=>{
+      const dx=o.x-p.x,dy=o.y-p.y,dist=Math.hypot(dx,dy);
+      if(!Number.isFinite(dist)||Math.max(0,dist-radius)>range)return null;
+      const angle=dist>0?Math.atan2(dy,dx):p.angle;
+      if(Math.cos(angle-p.angle)<MELEE_ARC_COS)return null;
+      return angle;
+    };
+    const awardGather=(obj,key,amount,points)=>{
+      if(key==='points')p.resources.points+=amount;
+      else {p.resources[key]+=amount;p.resources.points+=points;}
+      p.score+=points;
+      if(p.lifeStats){
+        if(key!=='points')p.lifeStats[key]=(p.lifeStats[key]||0)+amount;
+        p.lifeStats.gold+=points;
+      }
+      this.events.push({kind:'gather',sid:obj.sid,player:p.id,key,amount,points});
+    };
+    // World objects are independent targets. Harvestable buildings remain
+    // owner/tribe-only; hostile buildings can receive damage in this swing.
+    const playersBySid=new Map([...this.players.values()].map(x=>[x.sid,x]));
+    for(const obj of this.structures.values()){
+      const angle=facing(obj,obj.scale??50);
+      if(angle===null)continue;
+      const owner=playersBySid.get(obj.owner);
+      const friendly=obj.owner===p.sid||Boolean(p.team&&owner?.team===p.team);
+      const crop=RECIPES[obj.id]?.harvest;
+      if(crop&&friendly&&weapon.gather>0){
+        const amount=2*weapon.gather+(crop==='wood'?(tail.extraWood??0):
+          (tail.extraStone??0));
+        const points=1+(hat.extraGold??0);
+        awardGather(obj,crop,amount,points);
+        this.creditWeaponXp(p,amount);
+        this.awardXp(p.id,8);
+        continue;
+      }
+      if(friendly)continue;
+      const hit=Math.max(0,Math.round(weapon.damage*damageMultiplier*
+        (hat.structureDamage??1)*(weapon.structureDamage??1)));
+      if(hit<=0||obj.hp<=0)continue;
+      obj.hp=Math.max(0,obj.hp-hit);
+      this.events.push({kind:'structure_hit',sid:obj.sid,dir:angle,
+        x:obj.x,y:obj.y,damage:hit});
+      if(obj.hp===0){
+        this.structures.delete(obj.sid);
+        this.events.push({kind:'destroy',sid:obj.sid,owner:obj.owner,id:obj.id});
+      }
+    }
+    // Natural trees, rocks, bushes and gold nodes never lose HP or vanish.
+    if(weapon.gather>0)for(const obj of this.resources.values()){
+      if(facing(obj,obj.scale??0)===null)continue;
+      const gold=obj.kind==='ore';
+      const key=gold?'points':obj.kind==='tree'?'wood':
+        obj.kind==='bush'?'food':'stone';
+      const bonus=gold?0:key==='wood'?(tail.extraWood??0):
+        key==='stone'?(tail.extraStone??0):(tail.extraFood??0);
+      const amount=weapon.gather+(gold?4:0)+bonus;
+      const points=gold?amount:(hat.extraGold??0);
+      awardGather(obj,key,amount,points);
+      this.creditWeaponXp(p,amount);
+      this.awardXp(p.id,4*weapon.gather);
+    }
+    // One attack may hit several unfriendly players in the arc; each can
+    // be damaged/killed at most once, with an independent shield check.
+    for(const victim of this.players.values()){
+      if(victim===p||victim.hp<=0||time<victim.deadUntil||
+        (p.team&&victim.team===p.team))continue;
+      const angle=facing(victim,PLAYER_RADIUS);
+      if(angle===null)continue;
+      const raw=Math.max(0,Math.round(weapon.damage*damageMultiplier));
+      const applied=this.protectedDamage(victim,raw,p.x,p.y);
+      const effective=Math.min(victim.hp,applied);
+      victim.hp=Math.max(0,victim.hp-applied);
+      this.applyMeleeImpulse(victim,angle,weapon,1);
+      // The reference thief tool steals points, not arbitrary food/wood.
+      if(weapon.steal){
+        const taken=Math.min(Math.max(0,victim.resources.points),weapon.steal);
+        if(taken>0){
+          victim.resources.points-=taken;
+          p.resources.points+=taken;
+          this.events.push({kind:'steal',from:p.id,to:victim.id,
+            key:'points',amount:taken});
+        }
+      }
+      this.events.push({kind:'hit',from:p.id,to:victim.id,
+        damage:effective,hp:victim.hp,x:victim.x,y:victim.y});
+      if(p.lifeStats)p.lifeStats.damage+=effective;
+      if(victim.hp===0){
+        victim.deadUntil=time+3000;victim.vx=0;victim.vy=0;
+        victim.motionX=0;victim.motionY=0;
+        p.resources.kills++;p.score+=100;
+        if(p.lifeStats)p.lifeStats.kills++;
+        this.events.push({kind:'death',id:victim.id,killer:p.id});
+        this.awardXp(p.id,40);
+      }
+    }
+    // Animals have their own body radii and mass. Hit reactions feed the
+    // same charge/flee state machine as before, but with physical impulse.
+    for(const animal of this.animals.values()){
+      if(animal.health<=0)continue;
+      const angle=facing(animal,animal.scale??75);
+      if(angle===null)continue;
+      const damage=Math.max(0,Math.round(weapon.damage*damageMultiplier));
+      const effective=Math.min(animal.health,damage);
+      if(damage>0){
+        animal.lastAttackerId=p.id;animal.alertUntil=time+5000;
+        if(animal.hostile){
+          animal.chargeTargetId=p.id;animal.runFromId=null;
+          animal.moveLeft=8000;
+        }else{
+          animal.runFromId=p.id;animal.chargeTargetId=null;
+          animal.moveLeft=2000;
+        }
+        animal.waitLeft=0;
+      }
+      animal.health=Math.max(0,animal.health-damage);
+      const weight=({0:0.8,1:0.6,2:0.5,3:0.45,4:0.45,
+        5:0.2,6:0.4,7:0.1,8:0.45,9:0.55,10:0.35,
+        11:0,12:0.7})[animal.index]??0.5;
+      this.applyMeleeImpulse(animal,angle,weapon,weight);
+      if(p.lifeStats)p.lifeStats.animalDamage+=effective;
+      this.events.push({kind:'animal_hit',sid:animal.sid,from:p.id,
+        x:animal.x,y:animal.y,damage:effective});
+      if(animal.health===0){
+        animal.deadUntil=time+(animal.boss?600000:15000);
+        this.creditAnimalKill(p,animal);
+        this.events.push({kind:'animal_down',sid:animal.sid,player:p.id});
+      }
+    }
+  }
   attack(id){
     const p=this.players.get(id),time=this.now();
     if(!p||p.hp<=0)return false;
@@ -660,159 +806,7 @@ export class World {
     }
     if(weapon.shield)return false; // Defensive selection cannot damage wildlife.
     p.lastAttack=time;
-    let victim=null,distance=weapon.reach;
-    for(const other of this.players.values()){
-      if(other.id===p.id||other.hp<=0||other.team&&other.team===p.team||time<other.deadUntil)continue;
-      const d=Math.hypot(other.x-p.x,other.y-p.y);
-      const angle=Math.atan2(other.y-p.y,other.x-p.x);
-      const edgeDistance=Math.max(0,d-PLAYER_RADIUS);
-      if(edgeDistance<distance&&Math.cos(angle-p.angle)>=MELEE_ARC_COS){
-        victim=other;distance=edgeDistance;
-      }
-    }
-    if(victim){
-      const attackDamage=Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
-        (tail.damageDone??1)));
-      const damage=this.protectedDamage(victim,attackDamage,p.x,p.y);
-      victim.hp=Math.max(0,victim.hp-damage);
-      if(weapon.steal){
-        // A contact-only non-damaging tool: transfer existing resources rather
-        // than minting any. No other player-selected resource count is trusted.
-        let remaining=weapon.steal;
-        for(const key of ['wood','stone','food','points']){
-          const taken=Math.min(remaining,victim.resources[key]);
-          if(taken>0){
-            victim.resources[key]-=taken;p.resources[key]+=taken;
-            this.events.push({kind:'steal',from:p.id,to:victim.id,key,amount:taken});
-            remaining-=taken;
-          }
-          if(!remaining)break;
-        }
-      }
-      this.events.push({kind:'hit',from:p.id,to:victim.id,damage,hp:victim.hp,x:victim.x,y:victim.y});
-      if(p.lifeStats)p.lifeStats.damage+=damage;
-      if(victim.hp===0){victim.deadUntil=time+3000;victim.vx=0;victim.vy=0;p.resources.kills++;p.score+=100;
-        if(p.lifeStats)p.lifeStats.kills++;
-        this.events.push({kind:'death',id:victim.id,killer:p.id});this.awardXp(p.id,40);}
-      return true;
-    }
-    // Server-owned wildlife combat. Only hit animals in the forward arc,
-    // never accept animal identity, health or damage reported by the client.
-    let animal=null,animalDistance=weapon.reach;
-    for(const a of this.animals.values()){
-      if(a.health<=0)continue;
-      const d=Math.hypot(a.x-p.x,a.y-p.y);
-      const edgeDistance=Math.max(0,d-a.scale);
-      if(edgeDistance>animalDistance)continue;
-      const direction=Math.atan2(a.y-p.y,a.x-p.x);
-      if(Math.cos(direction-p.angle)<MELEE_ARC_COS)continue;
-      animal=a;animalDistance=edgeDistance;
-    }
-    if(animal){
-      const damage=Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
-        (tail.damageDone??1)));
-      const effectiveDamage=Math.min(animal.health,damage);
-      animal.lastAttackerId=p.id;animal.alertUntil=time+5000;
-      // Attacked hostiles charge their attacker; peaceful animals flee.
-      // Timers are in milliseconds, matching the original AI state machine.
-      if(animal.hostile){
-        animal.chargeTargetId=p.id;animal.runFromId=null;animal.moveLeft=8000;
-      }else{
-        animal.runFromId=p.id;animal.chargeTargetId=null;animal.moveLeft=2000;
-      }
-      animal.waitLeft=0;
-      animal.health=Math.max(0,animal.health-damage);
-      if(p.lifeStats)p.lifeStats.animalDamage+=effectiveDamage;
-      this.events.push({kind:'animal_hit',sid:animal.sid,from:p.id,x:animal.x,y:animal.y,damage:effectiveDamage});
-      if(!animal.health){
-        animal.deadUntil=time+(animal.boss?600000:15000);
-        this.creditAnimalKill(p,animal);
-        this.events.push({kind:'animal_down',sid:animal.sid,player:p.id});
-      }
-      return true;
-    }
-    // Planted mine and sapling yields come from real forward-arc attacks.
-    let farm=null,farmDistance=205;
-    for(const obj of this.structures.values()){
-      if(!RECIPES[obj.id]?.harvest)continue;
-      const farmOwner=[...this.players.values()].find(other=>other.sid===obj.owner);
-      if(obj.owner!==p.sid&&!(p.team&&farmOwner?.team===p.team))continue;
-      const d=Math.hypot(obj.x-p.x,obj.y-p.y);
-      if(d>=farmDistance)continue;
-      const direction=Math.atan2(obj.y-p.y,obj.x-p.x);
-      if(Math.cos(direction-p.angle)<0.25)continue;
-      farm=obj;farmDistance=d;
-    }
-    if(farm){
-      const key=RECIPES[farm.id].harvest;
-      const amount=2*(weapon.gather??1)+(key==='wood'?(tail.extraWood??0):(tail.extraStone??0));
-      const points=1+(hat.extraGold??0);
-      p.resources[key]+=amount;p.resources.points+=points;p.score+=points;
-      if(p.lifeStats){p.lifeStats[key]=(p.lifeStats[key]||0)+amount;p.lifeStats.gold+=points;}
-      this.events.push({kind:'gather',sid:farm.sid,player:p.id,key,amount,points});
-      this.awardXp(p.id,8);
-      return true;
-    }
-    // Buildings belong to the world, not the request. Friendly players never
-    // strike structures built by their own tribe; the server measures both
-    // collision and damage and broadcasts destruction to every client.
-    let targetStructure=null,structureDistance=Math.max(weapon.reach,85)+25;
-    for(const obj of this.structures.values()){
-      const owner=[...this.players.values()].find(other=>other.sid===obj.owner);
-      if(obj.owner===p.sid || (p.team && owner?.team===p.team))continue;
-      const d=Math.hypot(obj.x-p.x,obj.y-p.y);
-      const edgeDistance=Math.max(0,d-obj.scale);
-      if(edgeDistance>structureDistance)continue;
-      const direction=Math.atan2(obj.y-p.y,obj.x-p.x);
-      if(Math.cos(direction-p.angle)<MELEE_ARC_COS)continue;
-      targetStructure=obj;structureDistance=edgeDistance;
-    }
-    if(targetStructure){
-      const damage=Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
-        (tail.damageDone??1)*(hat.structureDamage??1)*(weapon.structureDamage??1)));
-      targetStructure.hp=Math.max(0,targetStructure.hp-damage);
-      this.events.push({kind:'structure_hit',sid:targetStructure.sid,dir:p.angle,
-        x:targetStructure.x,y:targetStructure.y,damage});
-      if(targetStructure.hp===0){
-        this.structures.delete(targetStructure.sid);
-        this.events.push({kind:'destroy',sid:targetStructure.sid,
-          owner:targetStructure.owner,id:targetStructure.id});
-      }
-      return true;
-    }
-    // Natural resources retain their SID, sprite, collision and position.
-    // Their hitbox is the resource's physical radius, not its center point.
-    let resource=null,best=weapon.reach;
-    for(const obj of this.resources.values()){
-      const d=Math.hypot(obj.x-p.x,obj.y-p.y);
-      const edgeDistance=Math.max(0,d-obj.scale);
-      if(edgeDistance>best)continue;
-      const angle=Math.atan2(obj.y-p.y,obj.x-p.x);
-      if(Math.cos(angle-p.angle)<MELEE_ARC_COS)continue;
-      resource=obj;best=edgeDistance;
-    }
-    if(resource){
-      const gold=resource.kind==='ore';
-      const key=gold?'points':resource.kind==='tree'?'wood':
-        resource.kind==='bush'?'food':'stone';
-      const bonus=gold?0:key==='wood'?(tail.extraWood??0):
-        key==='stone'?(tail.extraStone??0):(tail.extraFood??0);
-      // Ore gives gather + 4 points, never stone. Other resources grant
-      // wood, food or stone, plus gold only from an eligible accessory.
-      const amount=(weapon.gather??1)+(gold?4:0)+bonus;
-      const points=gold?amount:(hat.extraGold??0);
-      if(gold)p.resources.points+=amount;
-      else {p.resources[key]+=amount;p.resources.points+=points;}
-      p.score+=points;
-      if(p.lifeStats){
-        if(!gold)p.lifeStats[key]=(p.lifeStats[key]||0)+amount;
-        p.lifeStats.gold+=points;
-      }
-      this.events.push({kind:'gather',sid:resource.sid,player:p.id,
-        key:gold?'points':key,amount,points});
-      this.creditWeaponXp(p,amount);
-      this.awardXp(p.id,4*(weapon.gather??1));
-    }
+    this.meleeSwing(p,weapon,hat,tail,time);
     return true;
   }
   // Never land inside solid geometry, other players, or the central river.
