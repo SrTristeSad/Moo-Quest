@@ -1,0 +1,19 @@
+name: MooQuest V2 gameplay tests
+on:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+    paths: ['server-v2/**', '.github/workflows/v2-gameplay-tests.yml']
+  pull_request:
+    paths: ['server-v2/**', '.github/workflows/v2-gameplay-tests.yml']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install V2 dependencies
+        run: npm install --prefix server-v2 --no-audit --no-fund
+      - name: Run all V2 tests
+        run: npm test --prefix server-v2
