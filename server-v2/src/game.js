@@ -279,6 +279,24 @@ export class GameServer {
           finally{state.clanBusy=false;}
         }else if(this.room.leaveTribe(p.id))this._syncTribes();
       }
+      else if(name==='Q'){
+        // Native client Tribe/Kick button: only the active owner can remove
+        // an existing member, and persistent membership must change in SQL.
+        const memberSid=args[0];
+        const member=[...this.room.players.values()].find(x=>x.sid===memberSid);
+        const tribe=p.team&&this.room.tribes.get(p.team);
+        if(!member||!tribe||tribe.owner!==p.id||member.id===p.id||
+          member.team!==p.team||state.clanBusy)return;
+        if(tribe.persistent){
+          if(!p.accountId||!member.accountId||!this.accounts)return;
+          state.clanBusy=true;
+          try{
+            if(await this.accounts.kickClanMember(p.accountId,member.accountId,p.team))
+              this.room.kickTribe(p.id,memberSid)&&this._syncTribes();
+          }catch(error){console.error('[MooQuest] clan kick failed:',error.message);}
+          finally{state.clanBusy=false;}
+        }else if(this.room.kickTribe(p.id,memberSid))this._syncTribes();
+      }
       else if(name==='b'){
         const target=this.room.tribes.get(args[0]);
         if(!target?.persistent||p.accountId)this.room.requestTribe(p.id,args[0]);
