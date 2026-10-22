@@ -6,6 +6,7 @@ import { secretWalkable, tickCrabKing } from './boss-logic.js';
 import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 import { UTILS } from './vendor/al007ex/utils.js';
 import { GameObject } from './vendor/al007ex/gameObject.js';
+import { referenceNaturalPlacementClear } from './reference-object-placement.js';
 import { AI_TYPES } from './vendor/al007ex/aiManager.js';
 import { Projectile } from './vendor/al007ex/projectile.js';
 import { referenceGatherBonus, referenceSnowFactor, referenceCowMultiplier, referenceThornsHeal, referenceBleed } from './reference-bridge.js';
@@ -361,10 +362,12 @@ export class World {
           RECIPES[o.id]?.group===recipe.group).length+
           p.deferredStructures.filter(o=>RECIPES[o.id]?.group===recipe.group).length;
         if(count>=recipe.limit)continue;
-        const blocked=[...this.structures.values(),...this.resources.values()].some(o=>
-          Math.hypot(x-o.x,y-o.y)<scale+(o.scale||50)*0.7)||
+        const blocked=!referenceNaturalPlacementClear(this.resources,
+          {x,y,scale,itemId:saved.id,size:this.size})||
+          [...this.structures.values()].some(o=>
+            Math.hypot(x-o.x,y-o.y)<scale+(o.scale||50)*0.7)||
           [...this.players.values()].some(other=>other!==p&&other.hp>0&&
-          Math.hypot(x-other.x,y-other.y)<scale+30);
+            Math.hypot(x-other.x,y-other.y)<scale+30);
         if(blocked){
           // Do not erase a purchased building merely because another player
           // or a respawned resource occupies its saved position.
@@ -522,7 +525,11 @@ export class World {
     if(Object.entries(recipe.cost).some(([k,n])=>p.resources[k]<n))return false;
     const x=p.x+Math.cos(p.angle)*95,y=p.y+Math.sin(p.angle)*95,scale=recipe.scale;
     if(x<scale||x>this.size-scale||y<scale||y>this.size-scale||Math.abs(y-this.size/2)<470)return false;
-    for(const o of [...this.structures.values(),...this.resources.values()]){
+    // Original ObjectManager placement radius for natural objects.
+    if(!referenceNaturalPlacementClear(this.resources,
+       {x,y,scale,itemId,size:this.size}))return false;
+    // Player-owned structures still use V2 team/ownership rules.
+    for(const o of this.structures.values()){
       if(Math.hypot(x-o.x,y-o.y)<scale+(o.scale||50)*0.7)return false;
     }
     // Placement cannot trap a player or bypass a rival's building blocker.
