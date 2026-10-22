@@ -51,7 +51,8 @@ test('Crab telegraphs before it inflicts damage',()=>{
  assert.ok(p.hp<1000);
 });
 test('W warning is a V2 append-only wire event',()=>{
- const session=new NativeSession('0123456789abcdef',123,Buffer.alloc(16,7));
+ const session=new NativeSession({socketId:'0123456789abcdef',seed:123,
+    key:Buffer.alloc(16,7)});
  const record=unpack(session.encode('W',[3,-2500,7200,540,1300]));
  assert.deepEqual(record[1],[3,-2500,7200,540,1300]);
 });
