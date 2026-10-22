@@ -222,7 +222,8 @@ export class GameServer {
           if(other!==state&&other.p){
             other.send('D',[this.room.playerData(state.p),false]);
             const owned=[...this.room.structures.values()].filter(o=>o.owner===state.p.sid);
-            if(owned.length)other.send('H',[owned.flatMap(o=>[
+            const visible=owned.filter(o=>this.room.objectVisibleToPlayer(o,other.p));
+            if(visible.length)other.send('H',[visible.flatMap(o=>[
               o.sid,o.x,o.y,0,o.scale,o.type,o.id,o.owner])]);
           }
         }
@@ -426,6 +427,14 @@ export class GameServer {
       if(tribe)state.send('4',[[...tribe.members].flatMap(id=>{
         const member=this.room.players.get(id);return member?[member.sid,member.name]:[];
       })]);
+      // An ally joining sees a teammate's hidden traps; leaving the team
+      // must hide them again. The server, not the client, decides visibility.
+      for(const obj of this.room.structures.values()){
+        if(obj.id!==15||obj.hidden===false)continue;
+        if(this.room.objectVisibleToPlayer(obj,p))
+          state.send('H',[[obj.sid,obj.x,obj.y,0,obj.scale,obj.type,obj.id,obj.owner]]);
+        else state.send('Q',[obj.sid]);
+      }
     }
   }
   _nativeEvents(events) {
@@ -495,6 +504,12 @@ export class GameServer {
         // Updating an existing object SID preserves the bush on the map.
         const obj=this.room.resources.get(evt.sid);
         if(obj)this._nativeBroadcast('H',[[obj.sid,obj.x,obj.y,0,obj.scale,obj.type,null,null]]);
+      }else if(evt.kind==='structure_revealed'){
+        const obj=this.room.structures.get(evt.sid);
+        if(obj)for(const state of this.nativeClients.values()){
+          if(state.p&&this.room.objectVisibleToPlayer(obj,state.p))
+            state.send('H',[[obj.sid,obj.x,obj.y,0,obj.scale,obj.type,obj.id,obj.owner]]);
+        }
       }else if(evt.kind==='destroy'){
         this._nativeBroadcast('Q',[evt.sid]);
         // Counters must update on destruction and one-use spawn pads,
@@ -510,7 +525,10 @@ export class GameServer {
       }
       else if(evt.kind==='build'){
         const obj=this.room.structures.get(evt.sid);
-        if(obj)this._nativeBroadcast('H',[[obj.sid,obj.x,obj.y,0,obj.scale,obj.type,obj.id,obj.owner]]);
+        if(obj)for(const client of this.nativeClients.values()){
+          if(client.p&&this.room.objectVisibleToPlayer(obj,client.p))
+            client.send('H',[[obj.sid,obj.x,obj.y,0,obj.scale,obj.type,obj.id,obj.owner]]);
+        }
         const state=[...this.nativeClients.values()].find(s=>s.p?.sid===evt.owner);
         if(state){
           for(const key of ['wood','stone','food'])state.send('N',[key,state.p.resources[key],1]);
