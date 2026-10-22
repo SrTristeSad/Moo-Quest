@@ -78,7 +78,10 @@ test('PostgreSQL backup writes restrictive dump+checksum, supports offline verif
   const check=cmd(['verify',file],{MOO_DATABASE_URL:''});
   assert.equal(check.status,0,check.stderr);
   assert.match(check.stdout,/VERIFY_OK/);
-  fs.appendFileSync(file,'corruption');
+  // Keep the recorded length unchanged so the checksum check is reached.
+  const damaged=fs.readFileSync(file);
+  damaged[8]^=1;
+  fs.writeFileSync(file,damaged);
   const bad=cmd(['verify',file],{MOO_DATABASE_URL:''});
   assert.notEqual(bad.status,0);
   assert.match(bad.stderr,/Backup SHA256 verification failed/);
