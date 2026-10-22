@@ -101,14 +101,23 @@ test('TLS relay transports remote account API and WebSocket upgrade',async t=>{
   assert.equal(requests[3].te,undefined);
   assert.equal(requests[3].url,'/api/capabilities');
 
+  // Node's fetch-based startup /ping uses Connection: keep-alive.
+  // Even though the relay closes upstream after each request, accepting
+  // the default client header is required for online launcher bootstrap.
+  const nodePing=await raw(local,'GET /ping HTTP/1.1\r\n'
+    +'Host: 127.0.0.1:8080\r\nConnection: keep-alive\r\n\r\n');
+  assert.match(nodePing,/200 OK/);
+  assert.equal(requests[4].url,'/ping');
+  assert.equal(requests[4].connection,'close');
+
   const ws=await raw(local,'GET /s/LC?b=mqv2native&token=tk:abababab HTTP/1.1\r\n'
     +'Host: 127.0.0.1:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n'
     +'Origin: http://127.0.0.1:8080\r\nSec-WebSocket-Key: SGVsbG8xMjM0NTY3ODkwIQ==\r\n'
     +'Sec-WebSocket-Version: 13\r\n\r\n');
   assert.match(ws,/101 Switching Protocols/);
-  assert.equal(requests[4].origin,'https://localhost:'+port);
-  assert.equal(requests[4].host,'localhost:'+port);
-  assert.match(requests[4].url,/token=tk:abababab/);
+  assert.equal(requests[5].origin,'https://localhost:'+port);
+  assert.equal(requests[5].host,'localhost:'+port);
+  assert.match(requests[5].url,/token=tk:abababab/);
 });
 test('relay blocks forbidden HTTP routes and rejects untrusted remote TLS',async t=>{
   const {key,ca}=certificate(t);
