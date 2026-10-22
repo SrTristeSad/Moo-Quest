@@ -114,7 +114,7 @@ const WEAPONS={
   12:{damage:35,cooldown:700,projectile:2,speed:2.5,range:1200,ammo:{wood:5},move:0.7},
   13:{damage:30,cooldown:230,projectile:3,speed:2.0,range:1200,ammo:{wood:10},move:0.7},
   14:{damage:0,reach:125,cooldown:700,steal:250,move:1.05,knock:0.2,gather:0},
-  15:{damage:50,cooldown:1500,projectile:5,speed:3.6,range:1400,ammo:{stone:10},move:0.6}
+  15:{damage:50,cooldown:1500,projectile:5,speed:3.6,range:1400,ammo:{stone:10},move:0.6,rec:0.35}
 };
 // Lua sends weapon index = numeric ID, item upgrade index = 16+item ID.
 const UPGRADES=new Map([
@@ -286,7 +286,7 @@ export class World {
       hp:100,maxHp:100,vx:0,vy:0,motionX:0,motionY:0,
       angle:0,skinColor:0,accountId,
       lastAttack:0,deadUntil:0,socket,ipHash:null,
-      dragonUntil:0,superUntil:0,
+      dragonUntil:0,superUntil:0,slowMult:1,nextGearShotAt:0,
       xp:0,age:1,upgradePoints:0,upgradeAge:2,maxXp:LEVEL_XP(1),
       native:false,team:null,hat:0,tail:0,
       ownedHats:new Set([0,...FREE_HATS]),ownedAccessories:new Set([0]),
@@ -709,8 +709,10 @@ export class World {
   inflictMeleeStatus(attacker,target,time){
     if(!target||target.hp<=0||gearEffects(target).hat.poisonImmune)return;
     const ruby=this.weaponVariant(attacker)===3;
+    const plague=attacker.hat===21;
     const bleed=referenceBleed(attacker);
-    const damage=ruby?5:bleed.damage,seconds=ruby?5:bleed.seconds;
+    const damage=ruby?5:plague?5:bleed.damage;
+    const seconds=ruby?5:plague?6:bleed.seconds;
     if(!damage||!seconds)return;
     const prev=target.poison;
     if(prev&&prev.until>time&&prev.damage>damage)return;
@@ -798,6 +800,16 @@ export class World {
       if(effective>0){
         this.inflictMeleeStatus(p,victim,time);
         triggerDragonCape(p,time);
+        const healRate=hat.healOnHit??0;
+        if(healRate>0&&p.hp>0&&p.hp<p.maxHp){
+          const amount=Math.min(p.maxHp-p.hp,Math.round(effective*healRate));
+          if(amount>0){
+            p.hp+=amount;
+            if(p.lifeStats)p.lifeStats.healing+=amount;
+            this.events.push({kind:'heal',player:p.id,sid:p.sid,
+              amount,hp:p.hp,x:p.x,y:p.y});
+          }
+        }
       }
       this.applyMeleeImpulse(victim,angle,weapon,1);
       // The reference thief tool steals points, not arbitrary food/wood.
@@ -883,6 +895,12 @@ export class World {
       if(!Object.entries(ammo).every(([k,v])=>p.resources[k]>=v))return false;
       for(const [k,v] of Object.entries(ammo))p.resources[k]-=v;
       p.lastAttack=time;
+      // The original Player.gather() gives musket shots real recoil.
+      // Original velocity is units/ms, V2 velocity is units/second.
+      if(weapon.rec){
+        p.motionX-=weapon.rec*1000*Math.cos(p.angle);
+        p.motionY-=weapon.rec*1000*Math.sin(p.angle);
+      }
       const x=p.x+Math.cos(p.angle)*46,y=p.y+Math.sin(p.angle)*46;
       this.spawnProjectile({owner:p.id,ownerSid:p.sid,team:p.team,x,y,dir:p.angle,
         range:weapon.range*(hat.arrow??1),speed:weapon.speed*(hat.arrow??1),
@@ -892,6 +910,9 @@ export class World {
     }
     if(weapon.shield)return false; // Defensive selection cannot damage wildlife.
     p.lastAttack=time;
+    // Player.gather() applies a per-hit movement penalty, recovering
+    // at 0.0008 per millisecond in Player.update().
+    p.slowMult=Math.max(0,(p.slowMult??1)-(weapon.hitSlow??0.3));
     this.meleeSwing(p,weapon,hat,tail,time);
     return true;
   }
@@ -939,6 +960,7 @@ export class World {
     p.vx=0;p.vy=0;p.motionX=0;p.motionY=0;
     p.lastAttack=0;p.rootedUntil=0;p.nextHealAt=0;
     p.poison=null;p.regen=null;p.dragonUntil=0;p.superUntil=0;
+    p.slowMult=1;p.nextGearShotAt=0;
     p.nextTeleportAt=this.now()+3000;
     p.lastGearRegenAt=this.now();p.raisedUntil=0;p.raisedOrigin=null;
     p.lastGeneratorAt=this.now();p.generatorRemainder=0;
@@ -973,6 +995,9 @@ export class World {
           let target=null,best=a.viewRange||0;
           if(a.hostile&&a.damage>0)for(const p of this.players.values()){
             if(p.hp<=0)continue;
+            // The reference AI skips Bull Mask wearers unless they
+            // have provoked that creature by attacking it.
+            if(p.hat===46&&a.lastAttackerId!==p.id)continue;
             // Hidden/repelled targets are not acquired by hostile wildlife.
             const dist=Math.hypot(a.x-p.x,a.y-p.y);
             if(dist<best){best=dist;target=p;}
@@ -1073,9 +1098,10 @@ export class World {
       const waterFactor=inRiver?(waterImmune?0.75:0.33):1;
       const weaponMove=WEAPONS[p.weaponIndex]?.move??1;
       const buildingMove=p.buildIndex>=0?0.5:1;
+      p.slowMult=Math.min(1,(p.slowMult??1)+0.8*step);
       const motionScale=(boosted?1.5:1)*(hat.speed??1)*(tail.speed??1)*
         waterFactor*snowFactor*weaponMove*buildingMove*
-        referenceCapeEffects(p,at).speed;
+        referenceCapeEffects(p,at).speed*p.slowMult;
       p.motionX??=0;p.motionY??=0;
       if(at<p.rootedUntil){
         p.motionX=0;p.motionY=0;
@@ -1289,8 +1315,34 @@ export class World {
         this.resources,this.structures,raised);
     });
     this.fireTurrets(at);
+    this.fireWearableTurrets(at);
     this.advanceProjectiles(step,at);
     this.tickNumber++;
+  }
+  // Original Player.shootTurret() port: one nearest living rival in
+  // 700 units, no allied fire, anti-turret helmets excluded. Damage and
+  // projectile generation are authoritative, not driven by client packets.
+  fireWearableTurrets(at){
+    for(const owner of this.players.values()){
+      if(owner.hp<=0||owner.hat!==53||at<owner.nextGearShotAt)continue;
+      let victim=null,best=700;
+      for(const p of this.players.values()){
+        if(p===owner||p.hp<=0||
+          (owner.team&&p.team===owner.team)||
+          gearEffects(p).hat.antiTurret)continue;
+        const dist=Math.hypot(p.x-owner.x,p.y-owner.y);
+        if(dist<best){best=dist;victim=p;}
+      }
+      if(!victim){
+        owner.nextGearShotAt=at+250;
+        continue;
+      }
+      const dir=Math.atan2(victim.y-owner.y,victim.x-owner.x);
+      owner.nextGearShotAt=at+2500;
+      this.spawnProjectile({owner:owner.id,ownerSid:owner.sid,
+        team:owner.team,x:owner.x,y:owner.y,dir,
+        range:700,speed:1.6,damage:25,type:1,layer:1});
+    }
   }
   // Turrets are player-built structures, not NPCs. Targets, attack cadence,
   // team protection and projectile damage are all computed by the server.

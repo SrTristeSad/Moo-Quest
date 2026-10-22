@@ -28,7 +28,13 @@ export const HEAD_EFFECTS=Object.freeze({
   14:{pps:1.5},20:{attackSpeed:0.78},
   22:{speed:0.7,antiTurret:true},
   23:{poisonImmune:true},32:{ammoCost:0.5},
-  40:{speed:0.3,structureDamage:3.3},59:{speed:1.08,damageTaken:1.12},
+  40:{speed:0.3,structureDamage:3.3},
+  21:{poisonDmg:5,poisonTime:6},
+  46:{bullRepel:true},
+  53:{speed:0.7,turret:{projectile:1,range:700,rate:2500}},
+  58:{healOnHit:0.4},
+  55:{damageDone:1.2,healOnHit:0.25},
+  59:{speed:1.08,damageTaken:1.12},
   60:{speed:0.94,damageTaken:0.88}
 });
 export const TAIL_EFFECTS=Object.freeze({

@@ -154,3 +154,20 @@ Super Cape ativa dano e velocidade por 10 segundos após matar um
 jogador, inclusive via projétil ou veneno. Os valores são lidos do
 EFFECT original. Os bônus não são controlados pelo cliente nem
 persistidos após a morte. O restante de Player/AI continua em migração.
+
+## Migração de Player.update() / Player.gather() / Player.shootTurret()
+
+Os golpes corpo a corpo aplicam `hitSlow` original e recuperação
+gradual de 0,0008/ms; o mosquete provoca recuo físico de 0,35
+unidades/ms. A Turret Gear (chapéu 53) dispara automaticamente em
+um inimigo próximo a cada 2500 ms, usando projéteis oficiais do
+catálogo original, sem munição inventada, protegendo clãs e
+respeitando EMP Helmet (22). Sem alvo, reavalia em 250 ms.
+
+Também foram conectados Plague Mask (veneno 5 por 6 segundos),
+Bull Mask (criaturas hostis não adquirem um jogador não provocador),
+Dark Knight e Bloodthirster (cura pelo dano causado). São valores
+derivados de `shared/config/store.js` do al007ex. O cliente Lua,
+a persistência PostgreSQL e as sessões Redis continuam intactos.
+Ainda é uma adaptação de rotinas de Player, não um porte completo
+da classe de 809 linhas.
