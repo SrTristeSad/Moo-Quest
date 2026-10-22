@@ -5,6 +5,25 @@ import { randomUUID, randomInt } from 'node:crypto';
 import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 
 const TYPE={tree:0,bush:1,stone:2,ore:3};
+// Authoritative V2 equivalents of the original client's animal categories and
+// region spawn contracts. No scripts or artwork from the legacy server.
+const WILDLIFE=[
+  {index:0,count:10,hp:500,speed:65,damage:0,food:50,score:150,scale:72},
+  {index:1,count:8,hp:800,speed:59,damage:0,food:80,score:200,scale:72},
+  {index:12,count:6,hp:650,speed:63,damage:0,food:150,score:200,scale:72},
+  {index:2,count:5,hp:1800,speed:70,damage:20,food:100,score:1000,scale:78},
+  {index:3,count:2,hp:2800,speed:72,damage:20,food:400,score:2000,scale:90},
+  {index:4,count:6,hp:300,speed:76,damage:8,food:200,score:500,scale:84,area:'snow'},
+  {index:5,count:4,hp:300,speed:100,damage:8,food:100,score:2000,scale:70,area:'river'},
+  {index:9,count:4,hp:900,speed:72,damage:14,food:150,score:800,scale:76},
+  {index:10,count:2,hp:3200,speed:58,damage:25,food:800,score:4500,scale:95,area:'snow'},
+  {index:6,count:1,hp:18000,speed:50,damage:40,food:100,score:8000,scale:80,
+    fixed:true},
+  {index:7,count:1,hp:20000,speed:0,damage:0,food:0,score:5000,scale:70,fixed:true},
+  {index:8,count:1,hp:7000,speed:92,damage:10,food:1000,score:3000,scale:90,fixed:true},
+  {index:11,count:1,hp:480000,speed:32,damage:45,food:0,score:4000,scale:280,
+    fixed:true,boss:true}
+];
 // These definitions are independent gameplay rules; numeric IDs serve as
 // presentation contracts with the installed LÖVE inventory, not imported JS.
 const RECIPES={
@@ -156,20 +175,25 @@ export class World {
     fill('ore',7,null,null,5000);
     // Wildlife is part of the existing survival game; these are not NPCs,
     // quests or editable map actors. Combat/movement is authoritative.
-    const templates=[
-      {type:0,count:5,hp:130,speed:75,damage:0},
-      {type:1,count:4,hp:155,speed:65,damage:0},
-      {type:2,count:3,hp:280,speed:90,damage:12},
-      {type:3,count:2,hp:370,speed:85,damage:18},
-      {type:9,count:3,hp:190,speed:85,damage:10}
-    ];
+    // Distribute wildlife into appropriate map biomes. Fixed bosses remain
+    // recognizable and respawn at their server-owned home positions.
     let animalId=30000;
-    for(const template of templates)for(let i=0;i<template.count;i++){
-      const {x,y}=randomPlacement(size,rng,'animal');
+    for(const species of WILDLIFE)for(let i=0;i<species.count;i++){
+      let x=250+rng()*(size-500),y=250+rng()*(size-500);
+      if(species.area==='snow')y=250+rng()*1850;
+      if(species.area==='river')y=size/2+(rng()-0.5)*600;
+      if(species.fixed){
+        const loc=species.index===6?[size*0.5,size*0.93]:
+          species.index===7?[size*0.18,size*0.22]:
+          species.index===8?[size*0.78,size*0.08]:[size*0.14,size*0.5];
+        [x,y]=loc;
+      }
       const sid=animalId++;
-      this.animals.set(sid,{sid,index:template.type,x,y,homeX:x,homeY:y,
-        dir:rng()*Math.PI*2,health:template.hp,maxHealth:template.hp,
-        speed:template.speed,damage:template.damage,nextAttack:0,deadUntil:0,
+      this.animals.set(sid,{sid,index:species.index,x,y,homeX:x,homeY:y,
+        dir:rng()*Math.PI*2,health:species.hp,maxHealth:species.hp,
+        scale:species.scale,score:species.score,foodDrop:species.food,
+        boss:!!species.boss,fixed:!!species.fixed,area:species.area||null,
+        speed:species.speed,damage:species.damage,nextAttack:0,deadUntil:0,
         nameIndex:0,state:0});
     }
   }
@@ -185,6 +209,8 @@ export class World {
       native:false,team:null,hat:0,tail:0,
       ownedHats:new Set([0,...FREE_HATS]),ownedAccessories:new Set([0]),
       resources:{wood:0,stone:0,food:0,points:0,kills:0},
+      lifeStats:{kills:0,wood:0,food:0,stone:0,gold:0,damage:0,
+        animalDamage:0,healing:0,animals:0,bosses:0},
       inventory:{weapons:[0],items:[0,3,6,10]},weaponIndex:0,buildIndex:-1,score:0,
       rootedUntil:0,nextHealAt:0,nextTeleportAt:0,poison:null,regen:null,
       lastGearRegenAt:this.now(),raisedUntil:0,raisedOrigin:null,
@@ -690,6 +716,8 @@ export class World {
       this.events.push({kind:'destroy',sid:pad.sid,owner:pad.owner,id:pad.id});
     }
     p.resources={wood:0,stone:0,food:0,points:0,kills:0};p.score=0;p.buildIndex=-1;p.weaponIndex=0;
+    p.lifeStats={kills:0,wood:0,food:0,stone:0,gold:0,damage:0,
+      animalDamage:0,healing:0,animals:0,bosses:0};
     p.inventory={weapons:[0],items:[0,3,6,10]};p.xp=0;p.age=1;
     p.maxXp=LEVEL_XP(1);p.upgradePoints=0;p.upgradeAge=2;
     p.vx=0;p.vy=0;p.lastAttack=0;p.rootedUntil=0;p.nextHealAt=0;
@@ -731,8 +759,12 @@ export class World {
       if(target)a.dir=Math.atan2(target.y-a.y,target.x-a.x);
       else if(this.animalRandom()<step*0.4)a.dir+=this.animalRandom()-0.5;
       const speed=a.speed*(target?1.15:0.5)*step;
-      a.x=Math.max(60,Math.min(this.size-60,a.x+Math.cos(a.dir)*speed));
-      a.y=Math.max(60,Math.min(this.size-60,a.y+Math.sin(a.dir)*speed));
+      // Region-restricted wildlife should not wander into the wrong biome.
+      const nextX=a.x+Math.cos(a.dir)*speed,nextY=a.y+Math.sin(a.dir)*speed;
+      a.x=Math.max(60,Math.min(this.size-60,nextX));
+      a.y=a.area==='snow'?Math.max(60,Math.min(2350,nextY)):
+        a.area==='river'?Math.max(this.size/2-350,Math.min(this.size/2+350,nextY)):
+        Math.max(60,Math.min(this.size-60,nextY));
       if(target&&best<80&&at>=a.nextAttack){
         a.nextAttack=at+1100;
         const damage=this.protectedDamage(target,a.damage,a.x,a.y);
@@ -1030,6 +1062,13 @@ export class World {
       objects:[...this.resources.values(),...this.structures.values()].map(o=>({sid:o.sid,x:o.x,y:o.y,type:o.type,id:o.id??null,owner:o.owner??null}))};
   }
   takeEvents(){return this.events.splice(0);}
+  animalCatalog(){return WILDLIFE.map(a=>({
+    id:a.index,scale:a.scale,src:({
+      0:'cow_1',1:'pig_1',2:'bull_2',3:'bull_1',4:'wolf_1',
+      5:'chicken_1',6:'enemy',7:'crate_1',8:'wolf_2',9:'boar_1',
+      10:'yeti_1',11:'crab_1',12:'sheep_1'
+    })[a.index]
+  }));}
   animalPacket(){return [
     [...this.animals.values()].filter(a=>a.health>0).flatMap(a=>[
       a.sid,a.index,round(a.x),round(a.y),Math.round(a.dir*100),a.health,a.nameIndex,a.state]),
@@ -1050,7 +1089,7 @@ export class World {
   leaderboard(){return [...this.players.values()].filter(p=>p.hp>0).sort((a,b)=>b.score-a.score).slice(0,10).flatMap(p=>[p.sid,p.name,p.score]);}
   // Logical presentation events, encoded by a separately tested transport.
   initialPackets(p){
-    return [['A',[{teams:[...this.tribes].map(([sid,v])=>({sid,owner:this.players.get(v.owner)?.sid,clan:false})),animals:[]}]],
+    return [['A',[{teams:[...this.tribes].map(([sid,v])=>({sid,owner:this.players.get(v.owner)?.sid,clan:false})),animals:this.animalCatalog()}]],
       ['C',[p.sid]],...([...this.players.values()].filter(other=>other.hp>0).map(other=>['D',[this.playerData(other),other===p]])),
       ['H',[this.objectPacket()]],['I',this.animalPacket()],['a',this.playerUpdates()],
       ...Object.entries(p.resources).map(([k,n])=>['N',[k,n,1]]),
