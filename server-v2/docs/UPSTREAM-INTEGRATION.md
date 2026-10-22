@@ -91,3 +91,11 @@ a armadilha, `World` envia `structure_revealed` uma única vez, e
 o servidor redistribui `H`. O estado revelado da armadilha também
 participa do snapshot de estruturas para contas PostgreSQL.
 Não há novos códigos de pacote ou alteração do cliente Lua.
+
+## Retrocompatibilidade JSON e efeitos de dano
+
+O snapshot do cliente JSON legado e o fluxo de eventos agora são
+individualizados por usuário para não revelar a localização de
+armadilhas ocultas. Os efeitos `structure_hit` nos pacotes Lua
+também respeitam `GameObject.visibleToPlayer()`. Administradores
+continuam tendo acesso ao estado completo do mundo para depuração.

@@ -31,6 +31,9 @@ test('original GameObject visibleToPlayer controls private traps in V2',()=>{
   assert.equal(pit.hidden,true);
   assert.equal(includesSid(world.objectPacket(owner),pit.sid),true);
   assert.equal(includesSid(world.objectPacket(enemy),pit.sid),false);
+  assert.equal(world.snapshot(enemy).objects.some(o=>o.sid===pit.sid),false);
+  assert.equal(world.snapshot(owner).objects.some(o=>o.sid===pit.sid),true);
+  assert.equal(world.eventsFor(enemy,[{kind:'build',sid:pit.sid,id:15,owner:owner.sid}]).length,0);
   assert.equal(includesSid(world.initialPackets(enemy).find(([n])=>n==='H')[1][0],pit.sid),false);
   const original=new GameObject(pit.sid);
   original.init(pit.x,pit.y,0,pit.scale,4,{id:15,hideFromEnemy:true},owner);
@@ -46,6 +49,7 @@ test('original GameObject visibleToPlayer controls private traps in V2',()=>{
   assert.equal(pit.hidden,false);
   assert.equal(world.takeEvents().filter(e=>e.kind==='structure_revealed'&&e.sid===pit.sid).length,1);
   assert.equal(includesSid(world.objectPacket(enemy),pit.sid),true);
+  assert.equal(world.snapshot(enemy).objects.some(o=>o.sid===pit.sid),true);
   world.tick(.05);
   assert.equal(world.takeEvents().filter(e=>e.kind==='structure_revealed').length,0);
 });

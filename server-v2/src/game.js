@@ -482,8 +482,15 @@ export class GameServer {
           killer?.send('N',['kills',killer.p.resources.kills,1]);
         }
       }else if(evt.kind==='structure_hit'){
-        this._nativeBroadcast('L',[evt.dir,evt.sid]);
-        this._nativeBroadcast('8',[evt.x,evt.y,-evt.damage,1]);
+        // Reference ObjectManager.hitObj() only sends hit effects to players
+        // that could already see the object. Unrevealed traps stay private.
+        const obj=this.room.structures.get(evt.sid)||
+          {id:evt.id,owner:evt.owner,hidden:evt.hidden!==false};
+        for(const state of this.nativeClients.values()){
+          if(!state.p||!this.room.objectVisibleToPlayer(obj,state.p))continue;
+          state.send('L',[evt.dir,evt.sid]);
+          state.send('8',[evt.x,evt.y,-evt.damage,1]);
+        }
       }else if(evt.kind==='heal'){
         const owner=[...this.nativeClients.values()].find(s=>s.p?.id===evt.player);
         owner?.send('N',['food',owner.p.resources.food,1]);
@@ -617,9 +624,7 @@ export class GameServer {
         for(const state of this.nativeClients.values())if(state.watchSid!==null)
           this._sendNativeStats(state,state.watchSid);
       }
-      const world = JSON.stringify(this.room.snapshot());
       const allEvents=this.room.takeEvents();
-      const events = JSON.stringify({ kind: 'events', list: allEvents });
       this._nativeEvents(allEvents);
       // Binary native transport sends Lua-compatible logical packet records.
       const positions=this.room.playerUpdates(),board=this.room.leaderboard();
@@ -640,11 +645,15 @@ export class GameServer {
       }
       // A connection tracked for admin moderation may use either protocol.
       // Native Lua clients accept ONLY authenticated binary game packets.
-      for (const ws of this.online.values()) {
+      for (const [playerId,ws] of this.online) {
         if (this.nativeClients.has(ws)) continue;
         if (ws.readyState !== ws.OPEN) continue;
         if (ws.bufferedAmount > 512_000) { ws.terminate(); continue; }
-        ws.send(world); ws.send(events);
+        const viewer=this.room.players.get(playerId);
+        if(!viewer)continue;
+        ws.send(JSON.stringify(this.room.snapshot(viewer)));
+        ws.send(JSON.stringify({kind:'events',
+          list:this.room.eventsFor(viewer,allEvents)}));
       }
     }, 1000 / 30);
   }

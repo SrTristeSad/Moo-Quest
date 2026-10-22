@@ -742,7 +742,8 @@ export class World {
       if(hit<=0||obj.hp<=0)continue;
       obj.hp=Math.max(0,obj.hp-hit);
       this.events.push({kind:'structure_hit',sid:obj.sid,dir:angle,
-        x:obj.x,y:obj.y,damage:hit});
+        x:obj.x,y:obj.y,damage:hit,id:obj.id,owner:obj.owner,
+        hidden:obj.id===15&&obj.hidden!==false});
       if(obj.hp===0){
         this.structures.delete(obj.sid);
         this.events.push({kind:'destroy',sid:obj.sid,owner:obj.owner,id:obj.id});
@@ -1347,7 +1348,9 @@ export class World {
           if(target.owner!==arrow.ownerSid&&!(arrow.team&&owner?.team===arrow.team)){
             target.hp=Math.max(0,target.hp-arrow.damage);
             this.events.push({kind:'structure_hit',sid:target.sid,dir:arrow.dir,
-              x:target.x,y:target.y,damage:arrow.damage});
+              x:target.x,y:target.y,damage:arrow.damage,
+              id:target.id,owner:target.owner,
+              hidden:target.id===15&&target.hidden!==false});
             if(target.hp===0){
               this.structures.delete(target.sid);
               this.events.push({kind:'destroy',sid:target.sid,
@@ -1364,10 +1367,20 @@ export class World {
       }
     }
   }
-  snapshot(){
+  eventsFor(viewer,events){
+    return events.filter(evt=>{
+      if(evt.kind!=='build'&&evt.kind!=='structure_hit')return true;
+      const obj=this.structures.get(evt.sid)||
+        {id:evt.id,owner:evt.owner,hidden:evt.hidden!==false};
+      return this.objectVisibleToPlayer(obj,viewer);
+    });
+  }
+  snapshot(viewer=null){
     return {kind:'world',tick:this.tickNumber,size:this.size,
       players:[...this.players.values()].map(p=>({id:p.id,name:p.name,x:round(p.x),y:round(p.y),hp:p.hp})),
-      objects:[...this.resources.values(),...this.structures.values()].map(o=>({sid:o.sid,x:o.x,y:o.y,type:o.type,id:o.id??null,owner:o.owner??null}))};
+      objects:[...this.resources.values(),...this.structures.values()]
+        .filter(o=>this.objectVisibleToPlayer(o,viewer))
+        .map(o=>({sid:o.sid,x:o.x,y:o.y,type:o.type,id:o.id??null,owner:o.owner??null}))};
   }
   takeEvents(){return this.events.splice(0);}
   animalCatalog(){return WILDLIFE.map(a=>({
