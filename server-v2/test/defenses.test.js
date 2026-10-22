@@ -22,11 +22,11 @@ test('equipped wooden shield absorbs only frontal melee damage and cannot attack
   owner.x=2000;owner.y=2000;owner.angle=0;
   attacker.x=2070;attacker.y=2000;attacker.angle=Math.PI;
   assert.equal(world.attack(attacker.id),true);
-  assert.equal(owner.hp,90,'15 melee becomes 10 after 35% protection');
+  assert.equal(owner.hp,95,'wood shield lets through 20% of 25 melee damage');
   advance(501);
   owner.angle=Math.PI;
   assert.equal(world.attack(attacker.id),true);
-  assert.equal(owner.hp,75,'attacks from behind bypass the shield');
+  assert.equal(owner.hp,70,'attacks from behind deal the full 25 damage');
   advance(501);
   assert.equal(world.attack(owner.id),false,'shield selection must not fall back to hammer');
   assert.equal(attacker.hp,100);
@@ -40,12 +40,12 @@ test('shield protects frontally against player arrows but not back shots',()=>{
   owner.x=1170;owner.y=2000;owner.angle=Math.PI;
   assert.equal(world.attack(attacker.id),true);
   world.tick(0.1);
-  assert.equal(owner.hp,84,'25 ranged becomes 16 after shield absorption');
+  assert.equal(owner.hp,95,'wood shield lets through 5 of 25 projectile damage');
   advance(601);
   owner.angle=0;
   assert.equal(world.attack(attacker.id),true);
   world.tick(0.1);
-  assert.equal(owner.hp,59,'rear projectile deals the full 25');
+  assert.equal(owner.hp,70,'rear projectile deals the full 25');
   assert.equal(attacker.resources.wood,0);
 });
 
