@@ -51,3 +51,20 @@ test('account life stats do not survive a completed death/respawn',()=>{
  assert.equal(p.lifeStats.kills,0);
  assert.equal(p.lifeStats.damage,0);
 });
+
+test('original Tribe Q packet can remove members only by their current owner',()=>{
+ const w=new World({seed:18});
+ const owner=w.join(null,'Owner'),other=w.join(null,'Another'),guest=w.join(null,'Guest');
+ assert.equal(w.createTribe(owner.id,'TEAM'),true);
+ assert.equal(w.requestTribe(other.id,'TEAM'),true);
+ assert.equal(w.answerTribe(owner.id,other.sid,true),true);
+ assert.equal(w.requestTribe(guest.id,'TEAM'),true);
+ assert.equal(w.answerTribe(owner.id,guest.sid,true),true);
+ assert.equal(w.kickTribe(other.id,guest.sid),false,'non-owner cannot kick');
+ assert.equal(w.kickTribe(owner.id,owner.sid),false,'cannot kick self');
+ assert.equal(w.kickTribe(owner.id,guest.sid),true);
+ assert.equal(guest.team,null);
+ assert.equal(w.kickTribe(owner.id,guest.sid),false);
+ assert.equal(w.tribes.get('TEAM').members.has(guest.id),false);
+ assert.equal(w.tribes.get('TEAM').members.has(owner.id),true);
+});
