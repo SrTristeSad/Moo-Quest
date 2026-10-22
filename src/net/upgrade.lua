@@ -44,8 +44,17 @@ function M.expectedAccept(key,sha1binary)
   return base64(digest)
 end
 function M.validateResponse(header,expected)
-  if type(header)~="string" or #header>16384 then return false,"invalid response size" end
-  if not header:match("^HTTP/1%.[01] 101[ \r\n]") then return false,"server did not switch protocols" end
+  if type(header)~="string" or #header>16384 then return false,"invalid response size" end  if not header:match("^HTTP/1%.[01] 101[ \r\n]") then
+    local code=tonumber(header:match("^HTTP/1%.[01] (%d%d%d)[ \r\n]"))
+    if code==403 then return false,"WebSocket HTTP 403: proxy bloqueou /s/LC" end
+    if code==404 then return false,"WebSocket HTTP 404: rota /s/LC nao encaminhada ao Node" end
+    if code==400 then return false,"WebSocket HTTP 400: upgrade ou Origin nao aceito" end
+    if code==502 or code==503 or code==504 then
+      return false,"WebSocket HTTP "..code..": proxy nao alcanca o servidor do jogo"
+    end
+    if code then return false,"WebSocket HTTP "..code..": upgrade recusado" end
+    return false,"Resposta de upgrade WebSocket invalida"
+  end
   local fields={}
   for line in header:gmatch("\r\n([^\r\n]+)") do
     local k,v=line:match("^([^:]+):%s*(.-)%s*$")
