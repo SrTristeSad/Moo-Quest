@@ -7,7 +7,8 @@ import { dataDirectory, loadJSON } from './storage.js';
 
 export const freshState=()=>({
   schema:1,owner:null,settings:{title:'MooQuest',motd:'Bem-vindo ao mundo!',
-    maxPlayers:60,maintenance:false,publicRegistration:false},
+    maxPlayers:60,maintenance:false,publicRegistration:false,
+    allowGuests:true},
   bans:{},announcements:[],audit:[]
 });
 function validate(data){
