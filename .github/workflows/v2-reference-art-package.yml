@@ -66,29 +66,35 @@ jobs:
           test -d /tmp/moomoo-reference/client/public/img
           cp -a /tmp/moomoo-reference/client/public/img/. \
             dist/MooQuest-LUA-ONLINE-REF/assets/reference/img/
-      - name: Validate reference art and packaging completeness
+      - name: Validate reference art and convert mislabelled WebP images
         shell: bash
         run: |
-          python3 - <<'PY'
-          import pathlib, struct, zlib
+          set -euo pipefail
+          python3 -m venv /tmp/mq-art-venv
+          /tmp/mq-art-venv/bin/pip install -q pillow
+          /tmp/mq-art-venv/bin/python - <<'PY'
+          import pathlib
+          from PIL import Image
           root=pathlib.Path("dist/MooQuest-LUA-ONLINE-REF/assets/reference/img")
-          pngs=list(root.rglob("*.png"))
-          good,bad=[],[]
-          for file in pngs:
-              data=file.read_bytes()
-              if not data.startswith(b'\x89PNG\r\n\x1a\n') or len(data)<33 or data[12:16]!=b'IHDR':
-                  bad.append(file.relative_to(root).as_posix());continue
-              w,h=struct.unpack(">II",data[16:24])
-              if not(0<w<8193 and 0<h<8193):
-                  bad.append(file.relative_to(root).as_posix());continue
-              good.append(file.relative_to(root).as_posix())
-          print(f"Reference sprites: {len(good)} valid headers; invalid: {bad}")
-          assert len(good)>=160, "Reference art checkout unexpectedly incomplete"
-          must=['animals/boar_1.png','animals/bull_1.png','animals/bull_2.png',
-                'animals/cow_1.png','animals/pig_1.png','animals/wolf_1.png',
-                'weapons/hammer_1.png']
-          assert all(name in good for name in must), "Core sprites missing/invalid"
-          assert not bad, "Some upstream PNG files invalid: "+str(bad)
+          pngs=sorted(root.rglob("*.png"))
+          assert len(pngs)>=180,f"Incomplete reference art: {len(pngs)} files"
+          converted=[]
+          for p in pngs:
+              with Image.open(p) as im:
+                  im.load()
+                  if im.format!='PNG':
+                      assert im.format=='WEBP', f"Unexpected image format in {p}"
+                      im.convert('RGBA').save(p,format='PNG')
+                      converted.append(p.relative_to(root).as_posix())
+              with Image.open(p) as im:
+                  im.verify()
+                  assert im.format=='PNG'
+          required=['animals/boar_1.png','animals/bull_1.png','animals/bull_2.png',
+                    'animals/cow_1.png','animals/pig_1.png','animals/wolf_1.png',
+                    'weapons/hammer_1.png','weapons/sword_1.png']
+          assert all((root/p).is_file() for p in required)
+          print(f"VALID_PNG={len(pngs)}; CONVERTED_WEBP={len(converted)}")
+          for path in converted: print("CONVERTED",path)
           PY
           cat > dist/MooQuest-LUA-ONLINE-REF/ORIGEM-DAS-ARTES.txt <<'EOF'
           TESTE PESSOAL - MooQuest cliente Lua com assets de referência.
