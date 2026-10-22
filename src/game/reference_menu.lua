@@ -72,6 +72,7 @@ function Menu.new()
     startPending=false,status="",authMode=nil,authStep="email",
     authEmail="",authCode="",authFocus="email",authFlow=nil,
     authMessage="",accountEmail=nil,accountBackend="legacy",onlineMode=false,
+    guestEnabled=nil,registrationEnabled=nil,capabilitiesError=nil,
     connectionState="connecting",showTechnical=false,
     technicalMessage=""},Menu)
 end
@@ -124,6 +125,9 @@ function Menu:click(sx,sy,w,h)
       self.authMessage="";return "auth_open"
     end
     if hot(x,y,1011,444,172,42) then
+      if self.accountBackend=="v2" and self.registrationEnabled==false then
+        return "registration_closed"
+      end
       self.authMode="register";self.authStep="email";self.authFocus="email"
       self.authMessage="";return "auth_open"
     end
@@ -170,7 +174,8 @@ function Menu:connectionInfo(connectionState,details)
   local state=connectionState or "connecting"
   self.connectionState=state
   self.technicalMessage=tostring(details or "")
-  if self.onlineMode and state=="auth_required" then
+  if (self.onlineMode or (self.accountBackend=="v2" and
+      self.guestEnabled==false)) and state=="auth_required" then
     return "Faca login","Entre na CONTA V2 para conectar ao servidor online.", "working"
   end
   if state=="keyed_transport" or state=="spawn_confirmed" then
@@ -311,7 +316,8 @@ function Menu:draw(connectionState,status)
       396,enabled and 482 or 487,112,enabled and 23 or 15,
       enabled and {0.1,0.22,0.11} or {0.4,0.4,0.4})
     if not enabled and not waiting then
-      center(self.onlineMode and not self.accountEmail
+      center((self.onlineMode or (self.accountBackend=="v2" and
+        self.guestEnabled==false)) and not self.accountEmail
         and "Entre na CONTA V2" or "Aguardando servidor",
         396,521,133,11,{0.4,0.4,0.4})
     end
@@ -413,13 +419,18 @@ function Menu:draw(connectionState,status)
     text(self.accountBackend=="v2" and "CONTA V2" or "CONTA LOCAL",839,402,17,{0.22,0.22,0.22})
     rect(839,444,161,42,0.49,0.90,0.35,1,6)
     center("Entrar",839,456,161,16,{0.12,0.25,0.11})
+    local registrationClosed=self.accountBackend=="v2" and
+      self.registrationEnabled==false
     rect(1011,444,172,42,0.88,0.88,0.88,1,6)
-    center("Cadastrar",1011,456,172,16,{0.25,0.25,0.25})
+    center(registrationClosed and "Cadastro fechado" or "Cadastrar",
+      1011,456,172,registrationClosed and 13 or 16,{0.25,0.25,0.25})
     font(12);love.graphics.setColor(0.42,0.42,0.42)
     love.graphics.printf(self.accountBackend=="v2"
-      and (self.onlineMode and
-        "Servidor online exige login; convidados nao estao liberados." or
-        "Conta com senha e progresso salvo; convidado permitido no modo local.")
+      and ((self.guestEnabled==false) and
+        "Convidados desativados pelo administrador; faca login." or
+        (self.onlineMode and
+          "Modo online: entre com sua conta V2 para jogar." or
+          "Conta com senha e progresso salvo; convidado permitido no modo local."))
       or "Ou jogue como convidado usando Play. Contas apenas para testes locais.",
       839,498,344,"left")
   end
