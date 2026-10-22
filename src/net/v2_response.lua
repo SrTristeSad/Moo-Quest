@@ -20,9 +20,15 @@ local function describe(status,reason)
   if not http then return "Resposta HTTP invalida da API V2" end
   return "API V2 HTTP "..http..": "..reason
 end
-function M.decode(chunks,status,headers,limit)
+function M.decode(chunks,status,headers,limit,statusLine)
   local http=numberCode(status)
   if not http then return nil,"API V2 nao retornou status HTTP valido" end
+  -- The local HTTPS relay uses this fixed status phrase for its own 403.
+  -- Do not confuse that with Cloudflare/Nginx's remote 403 response.
+  if http==403 and type(statusLine)=="string"
+      and statusLine:find("403 Local relay request denied",1,true) then
+    return nil,"Ponte HTTPS local recusou a requisicao (HTTP 403). Atualize o cliente."
+  end
   local raw=type(chunks)=="table" and table.concat(chunks) or ""
   if #raw>(limit or 16384) then
     return nil,describe(http,"resposta excede limite")
