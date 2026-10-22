@@ -117,3 +117,18 @@ A ponte executa só a parte física do método original: dano, veneno,
 teleporte, clãs e autenticação permanecem autoritativos na V2.
 A colisão física entre jogadores ainda usa as regras existentes da
 V2 e será tratada à parte; não há promessa de paridade integral.
+## Colisão dinâmica entre jogadores (22/10/2026)
+
+`reference-player-collision.js` executa a função original
+`ObjectManager.checkCollision()` para cada par de jogadores vivos.
+A separação da referência é simétrica: os dois corpos se afastam
+até que seus raios somados deixem de se sobrepor. Isto substitui
+o bloqueio unilateral antigo da V2 e preserva o cliente Lua.
+
+Os novos deslocamentos são verificados contra os limites do mapa,
+região secreta e obstáculos sólidos; se um jogador está encostado
+em uma parede, o outro assume a correção, quando possível. O ataque
+e o knockback continuam calculados separadamente pelo servidor,
+e jogadores mortos não exercem colisão. O controle de sessões,
+contas PostgreSQL e Redis não foi alterado.
+

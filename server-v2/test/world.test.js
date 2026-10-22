@@ -11,7 +11,10 @@ test('server owns positions, speed, boundaries and life; clients only submit inp
   assert.equal(w.input(a.id,{dx:1000,dy:1,x:999999}),false);
   assert.equal(w.input(a.id,{dx:1,dy:0,x:999999}),true);
   w.tick(0.1);
-  assert.equal(a.x,500,'collision prevents walking into Bob from overlapping starting positions');
+  assert.ok(Math.hypot(a.x-b.x,a.y-b.y)>=69.999,
+    'reference collision splits overlapping players into two movable bodies');
+  assert.ok(a.x<500&&b.x>540,
+    'both players receive the original equal-and-opposite displacement');
   assert.equal(w.snapshot().players.length,2);
   assert.equal(w.attack(a.id),true);
   assert.equal(b.hp,75);

@@ -58,3 +58,21 @@ export function resolveSolidContact(player,x,y,resources,structures,raisedOrigin
   }
   return {x:probe.x,y:probe.y,motionX:probe.xVel,motionY:probe.yVel,contacts};
 }
+
+export function originalStaticSpotClear(player,x,y,resources,structures,raisedOrigin=null){
+  if(!Number.isFinite(x)||!Number.isFinite(y))return false;
+  for(const [source,isItem] of [[resources,false],[structures,true]]){
+    for(const obj of source.values()){
+      if(isItem&&NON_SOLID.has(obj.id))continue;
+      if(isItem&&raisedOrigin&&[3,4,5].includes(obj.id)&&
+        Math.hypot(x-raisedOrigin.x,y-raisedOrigin.y)<200)continue;
+      const collider=asOriginal(obj,isItem);
+      if(!collider)continue;
+      const min=PLAYER_SCALE+collider.getScale();
+      const newDist=Math.hypot(x-obj.x,y-obj.y);
+      const originalDist=Math.hypot(player.x-obj.x,player.y-obj.y);
+      if(newDist<min-0.0001&&newDist<originalDist-0.0001)return false;
+    }
+  }
+  return true;
+}

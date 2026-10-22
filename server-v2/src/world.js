@@ -7,7 +7,8 @@ import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 import { UTILS } from './vendor/al007ex/utils.js';
 import { GameObject } from './vendor/al007ex/gameObject.js';
 import { referenceNaturalPlacementClear } from './reference-object-placement.js';
-import {resolveSolidContact} from './reference-solid-collision.js';
+import {resolveSolidContact,originalStaticSpotClear} from './reference-solid-collision.js';
+import {resolveReferencePlayerPairs} from './reference-player-collision.js';
 import { referenceObjectVisibleToPlayer } from './reference-object-visibility.js';
 import { AI_TYPES } from './vendor/al007ex/aiManager.js';
 import { Projectile } from './vendor/al007ex/projectile.js';
@@ -1049,20 +1050,12 @@ export class World {
         p.raisedUntil=at+1200;
         p.raisedOrigin={x:platform.x,y:platform.y};
       }
-      const blockedByPlayer=(x,y)=>{
-        for(const other of this.players.values()){
-          if(other===p||other.hp<=0)continue;
-          const dist=Math.hypot(x-other.x,y-other.y);
-          if(dist<PLAYER_RADIUS*2&&
-            dist<Math.hypot(p.x-other.x,p.y-other.y)-0.0001)return true;
-        }
-        return false;
-      };
-      // Use the original ObjectManager collision resolver at each physics
-      // substep. The existing V2 player-to-player protection is unchanged.
+      // Static objects are resolved at each substep. Dynamic player pairs
+      // are separated after everybody has advanced, using the original
+      // ObjectManager.checkCollision() instead of hard-stopping one player.
       for(let n=0;n<depth;n++){
         const nextX=Math.max(-4500,Math.min(this.size-24,p.x+deltaX/depth));
-        if(secretWalkable(nextX,p.y,this.size)&&!blockedByPlayer(nextX,p.y)){
+        if(secretWalkable(nextX,p.y,this.size)){
           const raised=at<p.raisedUntil?p.raisedOrigin:null;
           const hit=resolveSolidContact(p,nextX,p.y,
             this.resources,this.structures,raised);
@@ -1072,7 +1065,7 @@ export class World {
           }else p.motionX=0;
         }else p.motionX=0;
         const nextY=Math.max(24,Math.min(this.size-24,p.y+deltaY/depth));
-        if(secretWalkable(p.x,nextY,this.size)&&!blockedByPlayer(p.x,nextY)){
+        if(secretWalkable(p.x,nextY,this.size)){
           const raised=at<p.raisedUntil?p.raisedOrigin:null;
           const hit=resolveSolidContact(p,p.x,nextY,
             this.resources,this.structures,raised);
@@ -1244,6 +1237,13 @@ export class World {
         this.events.push({kind:'income',player:p.id,amount:income});
       }
     }
+    resolveReferencePlayerPairs(this.players,(player,x,y)=>{
+      if(!finite(x)||!finite(y)||x < -4500||x>this.size-24||
+        y<24||y>this.size-24||!secretWalkable(x,y,this.size))return false;
+      const raised=at<player.raisedUntil?player.raisedOrigin:null;
+      return originalStaticSpotClear(player,x,y,
+        this.resources,this.structures,raised);
+    });
     this.fireTurrets(at);
     this.advanceProjectiles(step,at);
     this.tickNumber++;
