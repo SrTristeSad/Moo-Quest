@@ -73,6 +73,26 @@ admin do servidor. Se a conexão falhar mesmo após autenticar,
 clique em **Detalhes** e copie a mensagem técnica, que identifica
 se a falha ocorreu no HTTPS, no ticket V2 ou no WebSocket.
 
+## Falha confirmada de cadastro/login no domínio — 22/10/2026
+
+O teste ao vivo pelo mesmo relay HTTPS identificou
+`POST /api/account/register`, `POST /api/account/login` e
+`POST /api/join` respondendo **403 text/html**, em vez de JSON.
+`/ping` e `/api/capabilities` funcionam (200 JSON).
+O problema acontece **antes do retorno normal da API V2** e
+precisa ser corrigido no proxy/regras de segurança do domínio
+aaPanel. Nenhum cadastro ou login real foi realizado por esses
+testes. Consulte o procedimento:
+
+[Diagnóstico aaPanel: 403 HTML bloqueando API](../server-v2/docs/PROXY-AAPANEL-403-API.md).
+
+O cliente agora diferencia o status HTTP, resposta HTML, resposta
+vazia e JSON malformado sem imprimir conteúdos ou senhas. Não
+tente contornar desativando a proteção do Windows ou o firewall
+da VPS. Após o proxy retornar JSON, a resposta
+`registration_disabled` indica separadamente que o painel
+administrativo ainda não habilitou cadastros.
+
 ## Quando não conecta
 
 - Erro "API V2 ...": verifique se o domínio está apontando ao Node.js

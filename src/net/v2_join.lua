@@ -1,6 +1,7 @@
 -- Authenticated/guest join against the independent V2 endpoint.
 -- Never send access tokens inside URL parameters or the JSON request body.
 local Json=require("src.net.json")
+local Response=require("src.net.v2_response")
 local M={}
 local function isLocal(host) return host=="127.0.0.1" or host=="localhost" end
 function M.guest(options)
@@ -27,13 +28,15 @@ function M.guest(options)
   local ltn12=options.ltn12 or require("ltn12")
   local headers={
     ["Content-Type"]="application/json",
+    ["Accept"]="application/json",
+    ["Accept-Encoding"]="identity",
     ["Content-Length"]=tostring(#body),
     ["Connection"]="close"
   }
   if authToken then headers["Authorization"]="Bearer "..authToken end
   local chunks,oldTimeout={},http.TIMEOUT
   http.TIMEOUT=5
-  local ok,result,status=pcall(http.request,{
+  local ok,result,status,responseHeaders=pcall(http.request,{
     url="http://"..host..":"..port.."/api/join",method="POST",
     headers=headers,source=ltn12.source.string(body),
     sink=ltn12.sink.table(chunks)
@@ -41,14 +44,10 @@ function M.guest(options)
   http.TIMEOUT=oldTimeout
   if not ok then return nil,"Erro de ingresso V2: "..tostring(result) end
   if not result then return nil,"API V2 indisponivel: "..tostring(status) end
-  local raw=table.concat(chunks)
-  if #raw>8192 then return nil,"Ticket V2 excede limite" end
-  local response,why=Json.decode(raw)
-  if type(response)~="table" then
-    return nil,"Ticket V2 invalido: "..tostring(why)
-  end
-  if tonumber(status)~=200 then
-    return nil,"API V2 HTTP "..tostring(status)..": "..tostring(response.error or "recusado"),tonumber(status)
+  local response,why,httpStatus=Response.decode(chunks,status,responseHeaders,8192)
+  if not response then return nil,why end
+  if httpStatus~=200 then
+    return nil,"API V2 HTTP "..httpStatus..": "..tostring(response.error or "recusado"),httpStatus
   end
   local ticket,did=response.ticket,response.did
   if type(ticket)~="string" or #ticket~=36

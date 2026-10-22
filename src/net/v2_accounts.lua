@@ -2,6 +2,7 @@
 -- Never use the obsolete e-mail/6-digit demo emulator for real accounts.
 -- Local HTTP is intentionally loopback-only until HTTPS/WSS transport exists.
 local Json=require("src.net.json")
+local Response=require("src.net.v2_response")
 local M={}
 local function origin(options)
   options=options or {}
@@ -40,6 +41,8 @@ local function request(route,method,data,token,options)
   end
   local headers={
     ["Content-Type"]="application/json",
+    ["Accept"]="application/json",
+    ["Accept-Encoding"]="identity",
     ["Content-Length"]=tostring(#body),
     ["Connection"]="close"
   }
@@ -50,7 +53,7 @@ local function request(route,method,data,token,options)
   local chunks={}
   local oldTimeout=http.TIMEOUT
   http.TIMEOUT=5
-  local ok,success,status=pcall(http.request,{
+  local ok,success,status,responseHeaders=pcall(http.request,{
     url=url.."/api/account/"..route,method=method,
     headers=headers,source=ltn12.source.string(body),
     sink=ltn12.sink.table(chunks)
@@ -58,14 +61,11 @@ local function request(route,method,data,token,options)
   http.TIMEOUT=oldTimeout
   if not ok then return nil,"API de conta V2 indisponivel: "..tostring(success) end
   if not success then return nil,"API de conta V2 falhou: "..tostring(status) end
-  local raw=table.concat(chunks)
-  if #raw>16384 then return nil,"Resposta de conta V2 muito grande" end
-  local decoded,why=Json.decode(raw)
-  if type(decoded)~="table" then
-    return nil,"Resposta da API V2 invalida: "..tostring(why)
-  end
-  if tonumber(status)~=200 and tonumber(status)~=201 then
-    return nil,tostring(decoded.error or "requisicao_recusada")
+  local decoded,why,httpStatus=Response.decode(chunks,status,responseHeaders,16384)
+  if not decoded then return nil,why end
+  if httpStatus~=200 and httpStatus~=201 then
+    local reason=type(decoded.error)=="string" and decoded.error or "requisicao_recusada"
+    return nil,"API V2 HTTP "..httpStatus..": "..reason
   end
   return decoded
 end
