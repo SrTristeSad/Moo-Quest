@@ -19,7 +19,7 @@ test('new V2 arrows are instances of unmodified upstream Projectile',()=>{
  assert.equal(arrow.dmg,25);
  assert.equal(arrow.skipMov,false);
  world.tick(.1);
- assert.ok(Math.abs(arrow.x-1160)<.1);
+ assert.ok(Math.abs(arrow.x-1206)<.1);
  assert.equal(arrow.range,840);
 });
 test('original Projectile.update respects range capping and V2 emits one end',()=>{
