@@ -14,6 +14,34 @@ async function api(path, body) {
   if (!response.ok) throw new Error(value.error || `HTTP ${response.status}`);
   return value;
 }
+async function uploadReleaseZip(){
+  const file=$('updateZipFile').files?.[0];
+  if(!file)throw new Error('Escolha um ZIP do servidor V2.');
+  if(!/\.zip$/i.test(file.name)||file.size<22||file.size>16*1024*1024)
+    throw new Error('O arquivo deve ser .zip, com tamanho máximo de 16 MB.');
+  if(!$('updateZipConsent').checked)
+    throw new Error('Confirme que confia na origem do ZIP antes de enviar.');
+  const control=$('uploadUpdateZip');
+  control.disabled=true;
+  $('zipUpdateInfo').textContent='Enviando e verificando ZIP...';
+  try{
+    const response=await fetch('/api/admin/updates/upload-zip',{
+      method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/zip','X-CSRF-Token':csrf},
+      body:file
+    });
+    const type=response.headers.get('content-type')||'';
+    if(!type.startsWith('application/json'))
+      throw new Error('A API retornou uma página em vez de JSON (HTTP '+response.status+'). Verifique o Cloudflare/aaPanel.');
+    const value=await response.json();
+    if(!response.ok)throw new Error(value.error||'HTTP '+response.status);
+    $('zipUpdateInfo').textContent='ZIP conferido: '+value.upload.files+
+      ' arquivos · SHA-256: '+value.upload.sha256;
+    $('updateZipConsent').checked=false;
+    notice('ZIP preparado. Clique em Ativar versão preparada e reinicie o Node pelo aaPanel.');
+    await refreshStatus();
+  }finally{control.disabled=false;}
+}
 async function safe(action) { try { return await action(); } catch (error) { notice('Erro: ' + error.message); } }
 async function refreshStatus() {
   const s=await api('/api/admin/status');
@@ -69,6 +97,12 @@ async function init(){
     notice('Configurações salvas.');await refreshStatus();});});
   $('noticeForm').addEventListener('submit',e=>{e.preventDefault();safe(async()=>{
     await api('/api/admin/announce',{message:$('announcement').value});$('announcement').value='';notice('Anúncio enviado.');});});
+  $('uploadUpdateZip').addEventListener('click',()=>safe(uploadReleaseZip));
+  $('discardUpdate').addEventListener('click',()=>safe(async()=>{
+    await api('/api/admin/updates/discard',{});
+    $('zipUpdateInfo').textContent='Atualização preparada descartada.';
+    notice('Atualização pendente descartada.');await refreshStatus();
+  }));
   const updateButtons={checkUpdate:'check',stageUpdate:'stage',activateUpdate:'activate',rollbackUpdate:'rollback'};
   for(const [id,action] of Object.entries(updateButtons))$(id).addEventListener('click',()=>safe(async()=>{
     const result=await api('/api/admin/updates/'+action,{});
