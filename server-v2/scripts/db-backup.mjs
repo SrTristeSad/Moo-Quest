@@ -8,6 +8,7 @@ import path from 'node:path';
 import { randomBytes, createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { savedInfrastructure } from '../setup-server.js';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 // Also protects the dump while pg_dump is still writing it.
@@ -17,8 +18,8 @@ const TABLES=['mq_admin_state','mq_player_accounts','mq_clans','mq_clan_members'
 const USAGE='Use: node scripts/db-backup.mjs backup | verify <file.dump> | restore <file.dump>';
 
 function target(){
-  const value=process.env.MOO_DATABASE_URL;
-  if(!value)throw new Error('MOO_DATABASE_URL is required');
+  const value=process.env.MOO_DATABASE_URL||savedInfrastructure(root)?.databaseURL;
+  if(!value)throw new Error('PostgreSQL connection not configured: install via /setup or set MOO_DATABASE_URL');
   let url;
   try{url=new URL(value);}catch{throw new Error('Invalid MOO_DATABASE_URL');}
   if(!['postgresql:','postgres:'].includes(url.protocol)||!url.hostname)
