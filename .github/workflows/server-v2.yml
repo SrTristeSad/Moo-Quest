@@ -57,5 +57,6 @@ jobs:
           node --check server-v2/src/index.js
           node --check server-v2/src/http.js
           node --check server-v2/src/updates.js
+          node --check server-v2/scripts/db-backup.mjs
           test -f server-v2/public/admin.html
           test -f server-v2/scripts/make-release.mjs

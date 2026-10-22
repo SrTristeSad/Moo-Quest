@@ -119,6 +119,28 @@ conexões HTTP de loopback direto**, sem cabeçalhos de proxy. Em instalações
 públicas, configure corretamente `MOO_PUBLIC_MODE=1` e Turnstile, ou
 utilize contas autenticadas. Nunca publique a porta Node diretamente.
 
+## Backup e restauração verificáveis (aaPanel)
+
+A operação do PostgreSQL V2 agora conta com ferramenta própria em
+`scripts/db-backup.mjs`: cria dump privado em formato PGDMP,
+manifesto SHA-256, verifica integridade e exige confirmação manual e
+Node parado para uma restauração destrutiva. O script não coloca
+a senha do PostgreSQL nos argumentos do processo.
+
+- `npm run db:backup`
+- `npm run db:verify -- /caminho/privado/arquivo.dump`
+- `npm run db:restore -- /caminho/privado/arquivo.dump` — **somente**
+  depois de confirmar o alvo, fazer backup da base atual e parar o Node.
+
+Instruções de operação, variáveis `MOO_BACKUP_DIR`,
+`MOO_CONFIRM_RESTORE` e `MOO_SERVER_STOPPED`, e riscos:
+[docs/DB-BACKUP-RESTORE.md](docs/DB-BACKUP-RESTORE.md).
+
+**Os testes automatizados verificam o contrato da ferramenta**, mas
+restauração numa VPS real ainda exige ensaio em banco isolado. Redis,
+o mundo em RAM e os arquivos privados fora do banco exigem suas
+próprias medidas de backup/segurança.
+
 ## Administração e atualizações
 
 O painel oferece, nesta fase: sessões HttpOnly, scrypt, CSRF, limites de
