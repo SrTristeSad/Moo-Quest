@@ -1,0 +1,117 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import https from 'node:https';
+import net from 'node:net';
+import { createSecureRelay } from './v2-https-relay.mjs';
+
+function certificate(t){
+  const directory=mkdtempSync(join(tmpdir(),'mooquest-relay-'));
+  t.after(()=>rmSync(directory,{recursive:true,force:true}));
+  const key=join(directory,'key.pem'),cert=join(directory,'cert.pem');
+  const openssl=spawnSync('openssl',['req','-x509','-nodes','-newkey','rsa:2048',
+    '-keyout',key,'-out',cert,'-days','1','-subj','/CN=localhost',
+    '-addext','subjectAltName=DNS:localhost,IP:127.0.0.1'],{encoding:'utf8'});
+  assert.equal(openssl.status,0,openssl.stderr);
+  return {key:readFileSync(key),ca:readFileSync(cert)};
+}
+async function listen(server){
+  return await new Promise((ok,fail)=>{
+    server.once('error',fail);
+    server.listen(0,'::',()=>{server.off('error',fail);ok(server.address().port);});
+  });
+}
+async function stop(server){
+  server.closeAllConnections?.();
+  await new Promise(resolve=>server.close(resolve));
+}
+function raw(port,request){
+  return new Promise((resolve,reject)=>{
+    const socket=net.connect(port,'127.0.0.1',()=>socket.write(request));
+    socket.setTimeout(4000,()=>socket.destroy(Error('timeout')));
+    const chunks=[];
+    socket.on('data',buffer=>chunks.push(buffer));
+    socket.once('end',()=>resolve(Buffer.concat(chunks).toString('latin1')));
+    socket.once('error',reject);
+  });
+}
+test('TLS relay transports remote account API and WebSocket upgrade',async t=>{
+  const {key,ca}=certificate(t);
+  const requests=[];
+  const secure=https.createServer({key,cert:ca},(req,res)=>{
+    let body='';
+    req.on('data',x=>body+=x);
+    req.on('end',()=>{
+      requests.push({method:req.method,url:req.url,host:req.headers.host,
+        authorization:req.headers.authorization,body});
+      res.setHeader('Content-Type','application/json');
+      res.setHeader('Connection','close');
+      res.end(JSON.stringify(req.url==='/ping'?{status:'ok',build:'mqv2native'}:
+        {token:'test-account-token'}));
+    });
+  });
+  secure.on('upgrade',(req,socket)=>{
+    requests.push({upgrade:true,host:req.headers.host,origin:req.headers.origin,url:req.url});
+    socket.end('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n');
+  });
+  const port=await listen(secure);
+  const relay=createSecureRelay({remoteHost:'localhost',remotePort:port,listenPort:0,ca});
+  const local=(await relay.listen()).port;
+  t.after(async()=>{await relay.close();await stop(secure);});
+  const ping=await raw(local,'GET /ping HTTP/1.1\r\nHost: 127.0.0.1:8080\r\nConnection: close\r\n\r\n');
+  assert.match(ping,/200 OK/);
+  assert.match(ping,/mqv2native/);
+  assert.equal(requests[0].host,'localhost:'+port);
+
+  const credentials='{"username":"Tester","password":"top-secret-pass"}';
+  const request='POST /api/account/login HTTP/1.1\r\nHost: 127.0.0.1:8080\r\n'
+    +'Authorization: Bearer aabbcc\r\nContent-Type: application/json\r\nContent-Length: '
+    +Buffer.byteLength(credentials)+'\r\nConnection: close\r\n\r\n'+credentials;
+  const response=await raw(local,request);
+  assert.match(response,/200 OK/);
+  assert.equal(requests[1].authorization,'Bearer aabbcc');
+  assert.equal(requests[1].body,credentials);
+
+  const ws=await raw(local,'GET /s/LC?b=mqv2native&token=tk:abababab HTTP/1.1\r\n'
+    +'Host: 127.0.0.1:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n'
+    +'Origin: http://127.0.0.1:8080\r\nSec-WebSocket-Key: SGVsbG8xMjM0NTY3ODkwIQ==\r\n'
+    +'Sec-WebSocket-Version: 13\r\n\r\n');
+  assert.match(ws,/101 Switching Protocols/);
+  assert.equal(requests[2].origin,'https://localhost:'+port);
+  assert.equal(requests[2].host,'localhost:'+port);
+  assert.match(requests[2].url,/token=tk:abababab/);
+});
+test('relay blocks forbidden HTTP routes and rejects untrusted remote TLS',async t=>{
+  const {key,ca}=certificate(t);
+  let reached=0;
+  const secure=https.createServer({key,cert:ca},(req,res)=>{
+    reached++;res.setHeader('Connection','close');res.end('test');
+  });
+  const port=await listen(secure);
+  const relay=createSecureRelay({remoteHost:'localhost',remotePort:port,listenPort:0});
+  const local=(await relay.listen()).port;
+  t.after(async()=>{await relay.close();await stop(secure);});
+  const denied=await raw(local,'GET /private/.env HTTP/1.1\r\nHost: localhost:8080\r\nConnection: close\r\n\r\n');
+  assert.match(denied,/403 Local relay request denied/);
+  assert.equal(reached,0);
+  const deniedHeader=await raw(local,'GET /ping HTTP/1.1\r\nHost: localhost:8080\r\n'
+    +'X-Forwarded-For: 1.2.3.4\r\nConnection: close\r\n\r\n');
+  assert.match(deniedHeader,/403 Local relay request denied/);
+  assert.equal(reached,0);
+  const forgedOrigin=await raw(local,'GET /s/LC?b=mqv2native&token=tk:abababab HTTP/1.1\r\n'
+    +'Host: 127.0.0.1:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n'
+    +'Origin: https://malicious.example\r\nSec-WebSocket-Key: SGVsbG8xMjM0NTY3ODkwIQ==\r\n'
+    +'Sec-WebSocket-Version: 13\r\n\r\n');
+  assert.match(forgedOrigin,/403 Local relay request denied/);
+  assert.equal(reached,0);
+  const tlsError=await raw(local,'GET /ping HTTP/1.1\r\nHost: localhost:8080\r\nConnection: close\r\n\r\n');
+  assert.match(tlsError,/502 TLS connection failed/);
+  assert.equal(reached,0,'server routes must never receive credentials before TLS verification');
+});
+test('relay cannot listen on a public interface',()=>{
+  assert.throws(()=>createSecureRelay({listenHost:'0.0.0.0'}),/127.0.0.1/);
+  assert.throws(()=>createSecureRelay({remoteHost:'https://example.org'}),/Invalid pinned/);
+});

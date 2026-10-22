@@ -1,0 +1,76 @@
+name: MooQuest V2 Windows Online Client Package
+on:
+  push:
+    branches: [main, 'feat/v2-windows-remote-https-client']
+    paths:
+      - 'tools/v2-https-relay.mjs'
+      - 'tools/v2-https-relay.test.mjs'
+      - 'tools/run-v2-online.ps1'
+      - 'JOGAR-V2-ONLINE-WINDOWS.bat'
+      - 'main.lua'
+      - 'src/**'
+      - 'shared/**'
+      - 'docs/CLIENTE-V2-ONLINE-AAPANEL.md'
+      - '.github/workflows/v2-client-online-package.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Syntax check secured relay
+        run: node --check tools/v2-https-relay.mjs
+      - name: Functional HTTPS TLS and WebSocket end-to-end tests
+        run: node --test tools/v2-https-relay.test.mjs
+      - name: Check the configured public server without blocking packaging
+        continue-on-error: true
+        run: |
+          node --input-type=module -e 'try {const r=await fetch("https://app.snusnu.com.br/ping",{signal:AbortSignal.timeout(8000)});const j=await r.json();if(r.status!==200||j.build!=="mqv2native")throw Error("Unexpected remote /ping response: "+r.status);console.log("REMOTE_API_OK build="+j.build)}catch(e){console.error("REMOTE_API_UNVERIFIED: "+e.message);process.exitCode=1}'
+      - name: Smoke-test the actual pinned TLS relay with the remote /ping
+        continue-on-error: true
+        run: |
+          node --input-type=module -e 'import {createSecureRelay} from "./tools/v2-https-relay.mjs"; const bridge=createSecureRelay({listenPort:0});try{const address=await bridge.listen();const r=await fetch("http://127.0.0.1:"+address.port+"/ping",{signal:AbortSignal.timeout(8000)});const j=await r.json();if(r.status!==200||j.build!=="mqv2native")throw Error("Unexpected bridge /ping");console.log("PINNED_HTTPS_RELAY_OK "+j.build)}catch(e){console.error("PINNED_HTTPS_RELAY_UNVERIFIED: "+e.message);process.exitCode=1}finally{await bridge.close()}'
+      - name: Package all first-party Lua client sources
+        run: |
+          set -euo pipefail
+          mkdir -p dist/MooQuest-V2-ONLINE/tools
+          cp main.lua conf.lua JOGAR-V2-ONLINE-WINDOWS.bat dist/MooQuest-V2-ONLINE/
+          cp -a src shared tests support dist/MooQuest-V2-ONLINE/
+          cp tools/v2-https-relay.mjs tools/run-v2-online.ps1 dist/MooQuest-V2-ONLINE/tools/
+          cp docs/CLIENTE-V2-ONLINE-AAPANEL.md dist/MooQuest-V2-ONLINE/LEIA-PRIMEIRO.md
+          test -s dist/MooQuest-V2-ONLINE/main.lua
+          test -s dist/MooQuest-V2-ONLINE/tools/v2-https-relay.mjs
+          test -s dist/MooQuest-V2-ONLINE/src/net/v2_accounts.lua
+          test -s dist/MooQuest-V2-ONLINE/src/net/websocket_client.lua
+          test ! -d dist/MooQuest-V2-ONLINE/server
+          test ! -d dist/MooQuest-V2-ONLINE/server-v2
+          cd dist
+          zip -qr MooQuest-V2-CLIENTE-ONLINE-WINDOWS.zip MooQuest-V2-ONLINE
+          unzip -tq MooQuest-V2-CLIENTE-ONLINE-WINDOWS.zip
+          sha256sum MooQuest-V2-CLIENTE-ONLINE-WINDOWS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MooQuest-V2-CLIENTE-ONLINE-WINDOWS
+          path: dist/MooQuest-V2-CLIENTE-ONLINE-WINDOWS.zip
+          retention-days: 14
+          if-no-files-found: error
+
+  windows-launcher-syntax:
+    runs-on: windows-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check PowerShell Windows entrypoint without launching games
+        shell: pwsh
+        run: |
+          $tokens=$null
+          $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile('tools/run-v2-online.ps1',[ref]$tokens,[ref]$errors) | Out-Null
+          if($errors.Count -gt 0){$errors | Format-List;exit 1}
+          Write-Host 'Windows online client launcher syntax OK'
