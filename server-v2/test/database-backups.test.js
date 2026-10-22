@@ -14,6 +14,14 @@ const fakePg=`#!/bin/sh
 for arg in "$@"; do
   case "$arg" in *safe-secret*) exit 88 ;; esac
 done
+# pg_restore --list is an offline validation and needs no DB credentials.
+if [ "$1" = "--list" ]; then
+  printf '1; 1259 1 TABLE public mq_admin_state mooquest\\n'
+  printf '2; 1259 2 TABLE public mq_player_accounts mooquest\\n'
+  printf '3; 1259 3 TABLE public mq_clans mooquest\\n'
+  printf '4; 1259 4 TABLE public mq_clan_members mooquest\\n'
+  exit 0
+fi
 if [ "$PGPASSWORD" != "safe-secret" ]; then exit 87; fi
 if [ "$PGDATABASE" != "mooquest" ]; then exit 86; fi
 if [ "${0##*/}" = "pg_dump" ]; then
