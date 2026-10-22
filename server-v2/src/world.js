@@ -258,7 +258,7 @@ export class World {
       resources:{...p.resources},score:p.score,
       inventory:{weapons:[...p.inventory.weapons],items:[...p.inventory.items]},
       weaponXp:Object.fromEntries(Object.entries(p.weaponXp||{}).filter(([k,v])=>
-        /^\\d+$/.test(k)&&Number.isSafeInteger(v)&&v>=0&&v<=100000000)),
+        Number.isSafeInteger(Number(k))&&String(Number(k))===k&&Number.isSafeInteger(v)&&v>=0&&v<=100000000)),
       ownedHats:[...p.ownedHats],ownedAccessories:[...p.ownedAccessories],
       hat:p.hat,tail:p.tail,weaponIndex:p.weaponIndex,skinColor:p.skinColor,
       // Structures are saved only for an authenticated account; disconnected
@@ -307,7 +307,7 @@ export class World {
     p.weaponXp={};
     if(data.weaponXp&&typeof data.weaponXp==='object'&&!Array.isArray(data.weaponXp)){
       for(const [key,value] of Object.entries(data.weaponXp).slice(0,16)){
-        if(/^\\d+$/.test(key)&&Number.isSafeInteger(value)&&value>=0&&value<=100000000)
+        if(Number.isSafeInteger(Number(key))&&String(Number(key))===key&&Number.isSafeInteger(value)&&value>=0&&value<=100000000)
           p.weaponXp[key]=value;
       }
     }
