@@ -1,7 +1,7 @@
 name: MooQuest V2 Windows Online Client Package
 on:
   push:
-    branches: [main, 'feat/v2-windows-remote-https-client']
+    branches: [main, 'feat/v2-windows-remote-https-client', 'fix/windows-client-safe-node-launcher']
     paths:
       - 'tools/v2-https-relay.mjs'
       - 'tools/v2-https-relay.test.mjs'
