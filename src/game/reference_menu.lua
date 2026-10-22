@@ -71,7 +71,7 @@ function Menu.new()
     nameFocus=false,grid=true,world=menuView(),
     startPending=false,status="",authMode=nil,authStep="email",
     authEmail="",authCode="",authFocus="email",authFlow=nil,
-    authMessage="",accountEmail=nil,accountBackend="legacy",
+    authMessage="",accountEmail=nil,accountBackend="legacy",onlineMode=false,
     connectionState="connecting",showTechnical=false,
     technicalMessage=""},Menu)
 end
@@ -170,6 +170,9 @@ function Menu:connectionInfo(connectionState,details)
   local state=connectionState or "connecting"
   self.connectionState=state
   self.technicalMessage=tostring(details or "")
+  if self.onlineMode and state=="auth_required" then
+    return "Faca login","Entre na CONTA V2 para conectar ao servidor online.", "working"
+  end
   if state=="keyed_transport" or state=="spawn_confirmed" then
     return "Conectado","Pronto para jogar.", "ready"
   elseif state=="joining" then
@@ -181,9 +184,16 @@ function Menu:connectionInfo(connectionState,details)
     end
     return "Bloqueado","Handshake recusado. Veja os detalhes tecnicos.", "error"
   elseif state=="failed" then
-    return "Falha","Nao foi possivel conectar. Confira o servidor.", "error"
+    return "Falha",self.onlineMode
+      and "Nao conectou ao servidor remoto. Abra Detalhes para ver o erro."
+      or "Nao foi possivel conectar. Confira o servidor.", "error"
   elseif state=="closed" then
-    return "Desconectado","Conexao encerrada. Pressione R para tentar novamente.", "error"
+    return "Desconectado",self.onlineMode and
+      "Conexao encerrada. Pressione R ou entre na conta novamente."
+      or "Conexao encerrada. Pressione R para tentar novamente.", "error"
+  end
+  if self.onlineMode and (state=="idle" or state=="auth_required") then
+    return "Faca login","Entre na CONTA V2 para conectar ao servidor online.", "working"
   end
   return "Conectando","Preparando a conexao com o servidor...", "working"
 end
@@ -301,7 +311,9 @@ function Menu:draw(connectionState,status)
       396,enabled and 482 or 487,112,enabled and 23 or 15,
       enabled and {0.1,0.22,0.11} or {0.4,0.4,0.4})
     if not enabled and not waiting then
-      center("Aguardando servidor",396,521,112,11,{0.4,0.4,0.4})
+      center(self.onlineMode and not self.accountEmail
+        and "Entre na CONTA V2" or "Aguardando servidor",
+        396,521,133,11,{0.4,0.4,0.4})
     end
     text("SKIN COLOR",530,383,14)
     for i=0,9 do
@@ -329,10 +341,11 @@ function Menu:draw(connectionState,status)
   end
   -- Server panel: short operational status above a separately aligned
   -- account section. Technical errors never print over clickable buttons.
-  text("LOCAL SERVER",839,229,19)
+  text(self.onlineMode and "SERVIDOR ONLINE" or "LOCAL SERVER",839,229,19)
   love.graphics.setColor(0.87,0.87,0.87,1)
   love.graphics.rectangle("fill",839,263,344,1)
-  text("LC  -  127.0.0.1:8080",839,274,16,{0.27,0.28,0.29})
+  text(self.onlineMode and "LC  -  app.snusnu.com.br" or
+    "LC  -  127.0.0.1:8080",839,274,16,{0.27,0.28,0.29})
   local statusColors={
     ready={0.16,0.47,0.24},
     working={0.61,0.40,0.11},
@@ -404,7 +417,9 @@ function Menu:draw(connectionState,status)
     center("Cadastrar",1011,456,172,16,{0.25,0.25,0.25})
     font(12);love.graphics.setColor(0.42,0.42,0.42)
     love.graphics.printf(self.accountBackend=="v2"
-      and "Conta com senha e progresso salvo; convidado permitido no modo local."
+      and (self.onlineMode and
+        "Servidor online exige login; convidados nao estao liberados." or
+        "Conta com senha e progresso salvo; convidado permitido no modo local.")
       or "Ou jogue como convidado usando Play. Contas apenas para testes locais.",
       839,498,344,"left")
   end
