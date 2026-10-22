@@ -52,6 +52,16 @@ an official client bundle. The repository's Apache-2.0 LICENSE alone does
 not establish rights over third-party material. Review that provenance
 before commercial redistribution or treating this as legally cleared.
 
+## Projectile movement reuse (22 October 2026)
+
+`src/world.js` now creates real `Projectile` instances from the original
+upstream module. The original `init()` and `update(deltaMs)` determine
+projectile position, speed, and remaining range. The V2 still resolves
+swept collisions, team protection, damage, rewards and Lua events in its
+own server-owned code. The first-tick `skipMov` flag is disabled to retain
+the already tested V2 protocol timing. This is **directly reused runtime
+code**, not a second unconnected copy of the algorithm.
+
 ## Revogação de tickets sociais via Redis
 
 O ticket temporário do WebSocket social registra o número de revisão da
