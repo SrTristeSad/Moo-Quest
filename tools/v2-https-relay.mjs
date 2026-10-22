@@ -38,9 +38,17 @@ function parsedRequest(header,remoteHost,remotePort){
     if(key==='host'){hosts++;continue;}
     if(key==='origin'){origins++;localOrigin=value;continue;}
     if(key==='authorization')authorization++;
+    // LuaSocket adds "TE: trailers" to all HTTP/1.1 requests by default,
+    // even when the caller sets Connection: close. TE is hop-by-hop, so
+    // accept exactly that harmless default and STRIP it before forwarding.
+    // Other TE values and the Transfer-Encoding/Trailer headers stay denied.
+    if(key==='te'){
+      if(websocket||value.trim().toLowerCase()!=='trailers')return null;
+      continue;
+    }
     if(['proxy-authorization','proxy-connection','forwarded','x-forwarded-for',
       'x-forwarded-host','x-forwarded-proto','x-real-ip','transfer-encoding',
-      'content-encoding','expect','te','trailer'].includes(key))return null;
+      'content-encoding','expect','trailer'].includes(key))return null;
     if(!websocket&&['upgrade','sec-websocket-key','sec-websocket-version'].includes(key))
       return null;
     if(websocket&&key==='content-length')return null;
