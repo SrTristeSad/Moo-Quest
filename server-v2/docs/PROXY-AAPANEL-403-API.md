@@ -19,13 +19,44 @@ pelo cliente, enviando apenas dados JSON vazios (sem login/senha):
 | `GET /api/account/login` | **403** | **HTML** |
 
 Trocando o User-Agent para `Mozilla/5.0` na rota de cadastro,
-o bloqueio **permaneceu**. O código `server-v2/src/http.js` emite
+o bloqueio **permaneceu**. Também foi confirmado que
+`GET /api/status` retorna 403 HTML, mas
+`GET /api/capabilities` retorna 200 JSON.
+
+**Todas essas respostas públicas incluem `Server: cloudflare` e
+um identificador de borda Cloudflare (`cf-ray`).**
+Isso confirma que o domínio usa **proxy Cloudflare**; não identifica
+sozinho se a regra 403 é do WAF Cloudflare ou foi transmitida pelo
+Nginx/aaPanel na origem. A inspeção de eventos Cloudflare e logs
+da VPS distingue as camadas. O código `server-v2/src/http.js` emite
 **JSON para todas essas rotas**, inclusive erros e cadastros
 desabilitados. Portanto a resposta HTML provavelmente vem
 de uma regra de proxy, WAF ou roteamento antes de chegar ao
 servidor Node.js. A confirmação do componente exato exige os
 logs da VPS. Não conclua que esse bloqueio seja malware ou
 um problema do parser Lua.
+
+## Verifique primeiro os eventos do Cloudflare
+
+Na conta que gerencia `app.snusnu.com.br`, abra
+**Security → Events** (ou eventos/analytics do WAF na interface
+atual) e filtre pelo hostname, horário do erro e rotas
+`/api/account/register`, `/api/account/login`,
+`/api/join` e `/api/status`. Verifique se há ações
+`Block`, `Managed Challenge` ou `JS Challenge`
+das regras gerenciadas, personalizadas ou mitigação de bots.
+
+Se o Cloudflare estiver bloqueando indevidamente essas rotas,
+**corrija somente a regra responsável**, mantendo os limites de
+taxa e outras proteções ativas. Clientes de jogo Lua não
+conseguem resolver desafios HTML do navegador. Não use
+`under attack mode` indiscriminadamente nas rotas JSON,
+não desabilite a proteção do domínio inteiro, nem inclua
+credenciais em logs ou capturas.
+
+Se os eventos do Cloudflare não mostrarem bloqueio, confira
+os logs Nginx/WAF do aaPanel, que podem estar originando
+o HTML 403 retransmitido pelo Cloudflare.
 
 ## Primeiro compare Node local e domínio público
 
