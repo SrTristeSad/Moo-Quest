@@ -34,7 +34,8 @@ test('XP levels and upgrade selection use Lua numeric action indices',()=>{
   assert.equal(p.upgradePoints,1);
   assert.equal(p.upgradeAge,2);
   assert.equal(w.upgrade(p.id,1),true);
-  assert.deepEqual(p.inventory.weapons,[0,1]);
+  assert.deepEqual(p.inventory.weapons,[1],'chosen axe REPLACES starting hammer');
+  assert.equal(p.weaponIndex,1);
   assert.equal(p.upgradePoints,0);
   assert.equal(p.upgradeAge,3);
   assert.equal(w.upgrade(p.id,3),false,'no extra stage-two choice');
@@ -54,26 +55,22 @@ test('XP levels and upgrade selection use Lua numeric action indices',()=>{
   assert.ok(w.takeEvents().some(e=>e.kind==='upgrade'&&e.equipmentKind==='item'&&e.id===4));
 });
 
-test('depleted resource comes back at same location, and not inside a player',()=>{
-  let at=30000;
-  const w=new World({seed:59,now:()=>at});
-  const p=w.join(null,'Lumberjack');
-  const obj=[...w.resources.values()].find(v=>v.kind==='tree');
-  p.x=obj.x-170;p.y=obj.y;p.angle=0;
-  for(let i=0;i<7&&w.resources.has(obj.sid);i++){
-    assert.equal(w.attack(p.id),true);
-    at+=501;
-  }
-  assert.equal(w.resources.has(obj.sid),false);
-  assert.ok(w.depleted.has(obj.sid));
-  p.x=obj.x-20;p.y=obj.y;
-  at+=31000;w.tick(0.1);
-  assert.equal(w.resources.has(obj.sid),false,'blocked resource should wait for a clear area');
-  p.x=obj.x-350;
-  at+=2100;w.tick(0.1);
-  assert.equal(w.resources.has(obj.sid),true);
-  assert.equal(w.resources.get(obj.sid).hp,obj.maxHp);
-  assert.ok(w.takeEvents().some(e=>e.kind==='resource_return'&&e.sid===obj.sid));
+test('natural tree stays solid and visible after unlimited valid hits',()=>{
+ let at=30000;const w=new World({seed:59,now:()=>at});
+ const p=w.join(null,'Lumberjack');
+ const obj=[...w.resources.values()].find(v=>v.kind==='tree');
+ for(const [sid] of w.resources)if(sid!==obj.sid)w.resources.delete(sid);
+ p.x=obj.x-170;p.y=obj.y;p.angle=0;
+ const startHp=obj.hp;
+ for(let i=0;i<12;i++){assert.equal(w.attack(p.id),true);at+=501;}
+ assert.equal(p.resources.wood,12);
+ assert.equal(w.resources.get(obj.sid),obj);
+ assert.equal(obj.hp,startHp);
+ assert.equal(w.depleted.has(obj.sid),false);
+ assert.ok(!w.takeEvents().some(e=>e.kind==='destroy'&&e.sid===obj.sid));
+ p.x=obj.x-180;p.y=obj.y;p.vx=1;p.vy=0;
+ w.tick(0.1);
+ assert.ok(Math.hypot(p.x-obj.x,p.y-obj.y)>=35+obj.scale*.6);
 });
 
 test('building damage and spikes are server-side, cannot hurt allies',()=>{
@@ -111,32 +108,17 @@ test('building damage and spikes are server-side, cannot hurt allies',()=>{
   assert.equal(b.hp,90,'tribe members are protected against friendly spikes');
 });
 
-test('collecting all berries keeps the bush in place until fruit regrows',()=>{
-  let at=42000;
-  const w=new World({seed:59,now:()=>at});
-  const p=w.join(null,'Berry Picker');
-  const bush=[...w.resources.values()].find(o=>o.kind==='bush');
-  for(const [sid,obj] of w.resources){
-    if(sid!==bush.sid&&Math.hypot(obj.x-bush.x,obj.y-bush.y)<300)w.resources.delete(sid);
-  }
-  p.x=bush.x-140;p.y=bush.y;p.angle=0;
-  for(let i=0;i<4;i++){assert.equal(w.attack(p.id),true);at+=501;}
-  assert.equal(p.resources.food,8);
-  assert.equal(w.resources.has(bush.sid),true);
-  assert.equal(w.resources.get(bush.sid).type,5);
-  assert.equal(w.depleted.has(bush.sid),false);
-  const packets=w.objectPacket();
-  assert.equal(packets[packets.indexOf(bush.sid)+5],5);
-  assert.ok(w.takeEvents().some(e=>e.kind==='bush_empty'&&e.sid===bush.sid));
-  const earned=p.resources.food;
-  at+=501;assert.equal(w.attack(p.id),true);
-  assert.equal(p.resources.food,earned);
-  at+=28000;w.tick(0.05);
-  assert.equal(bush.type,5);
-  at+=2500;w.tick(0.05);
-  assert.equal(bush.type,1);
-  assert.equal(bush.hp,bush.maxHp);
-  assert.ok(w.takeEvents().some(e=>e.kind==='bush_ready'&&e.sid===bush.sid));
-  at+=501;assert.equal(w.attack(p.id),true);
-  assert.ok(p.resources.food>earned);
+test('bush berries remain available without deleting their parent bush',()=>{
+ let at=42000;const w=new World({seed:59,now:()=>at});
+ const p=w.join(null,'Berry Picker');
+ const bush=[...w.resources.values()].find(o=>o.kind==='bush');
+ for(const [sid] of w.resources)if(sid!==bush.sid)w.resources.delete(sid);
+ p.x=bush.x-125;p.y=bush.y;p.angle=0;
+ for(let i=0;i<12;i++){assert.equal(w.attack(p.id),true);at+=501;}
+ assert.equal(p.resources.food,12);
+ assert.equal(w.resources.get(bush.sid),bush);
+ assert.equal(bush.type,1);
+ assert.equal(bush.hp,bush.maxHp);
+ assert.equal(w.depleted.size,0);
+ assert.ok(!w.takeEvents().some(e=>e.kind==='bush_empty'||e.kind==='destroy'));
 });

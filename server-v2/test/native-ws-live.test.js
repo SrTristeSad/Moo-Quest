@@ -100,7 +100,7 @@ test('actual current Lua binary wire: /ping + /api/join + io-init + M -> C,D,H,a
   await waitFor(()=>packets.some(pkt=>pkt.name==='U'&&pkt.args[0]===1));
   ws.send(session.makeTestRequest('H',[1],seq+8));
   await waitFor(()=>packets.some(pkt=>pkt.name==='V'&&pkt.args[1]===1&&pkt.args[0].includes(1)));
-  assert.deepEqual(p.inventory.weapons,[0,1]);
+  assert.deepEqual(p.inventory.weapons,[1],'client receives only its upgraded primary');
 
   // Exercise the actual Lua-compatible projectile stream over binary WS.
   // Age and stage are injected by the fixture; the rules for reaching them

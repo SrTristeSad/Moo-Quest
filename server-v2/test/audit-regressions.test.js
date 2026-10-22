@@ -52,7 +52,7 @@ test('great hammer structure multiplier and great axe harvesting are server-auth
   world.resources.set(124,{sid:124,kind:'tree',type:0,x:2580,y:1000,scale:60,hp:150,maxHp:150});
   assert.equal(world.select(player.id,2,true),true);
   advance();assert.equal(world.attack(player.id),true);
-  assert.equal(player.resources.wood,208,'great axe fourfold gathering');
+  assert.equal(player.resources.wood,204,'great axe gives four wood on a resource hit');
 });
 
 test('blocked saved buildings are retained, not silently deleted, and later restored',()=>{
