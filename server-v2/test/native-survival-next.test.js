@@ -84,7 +84,7 @@ test('building damage and spikes are server-side, cannot hurt allies',()=>{
   assert.equal(built,true);
   const wall=[...w.structures.values()][0];
   a.x=8000;a.y=8000;
-  b.x=wall.x-125;b.y=wall.y;b.angle=0;
+  b.x=wall.x-105;b.y=wall.y;b.angle=0;
   wall.hp=15;
   assert.equal(w.attack(b.id),true);
   assert.equal(w.structures.has(wall.sid),false);
