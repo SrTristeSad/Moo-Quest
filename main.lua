@@ -152,7 +152,12 @@ function love.load()
     end
     return
   end
-  local ok,result=pcall(Original.new,{host="127.0.0.1",port=8080,server="LC",autoSpawn=false,
+  local localPort=v2Online and tonumber(os.getenv("MOOQUEST_LOCAL_PORT")) or 8080
+  if not localPort or localPort<1 or localPort>65535 or localPort~=math.floor(localPort) then
+    startupError="Porta local de comunicacao invalida."
+    return
+  end
+  local ok,result=pcall(Original.new,{host="127.0.0.1",port=localPort,server="LC",autoSpawn=false,
     expectedBuild=v2Mode and "mqv2native" or nil,
     join=v2Mode and V2Join or nil,
     nativeSession=v2Mode,
