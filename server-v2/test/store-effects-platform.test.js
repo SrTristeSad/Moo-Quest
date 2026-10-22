@@ -72,7 +72,7 @@ test('boost and soldier helmets alter movement and damage; switching to none rem
   equip(w,owner,12);
   owner.vx=1;owner.vy=0;
   w.tick(0.1);
-  assert.equal(owner.x,2029,'250 movement with +16% speed');
+  assert.equal(owner.x,2021.75,'snow (0.75) times +16% speed');
   owner.x=2000;owner.vx=0;
   owner.hat=0;
   rival.x=2070;rival.y=1100;rival.angle=Math.PI;
@@ -189,7 +189,7 @@ test('the age-seven platform is priced, has a limit and permits only local raise
   assert.equal(w.place(owner.id,18),false,'overlapping pad rejected');
   assert.equal(owner.resources.wood,before);
   rival.x=platform.x;rival.y=platform.y;rival.vx=-1;rival.vy=0;
-  for(let i=0;i<8;i++)w.tick(0.1);
+  for(let i=0;i<12;i++)w.tick(0.1);
   assert.ok(rival.x<wall.x-75,'can walk across nearby wall on platform');
   advance(1500);
   rival.x=wall.x-90;rival.y=wall.y;rival.vx=1;rival.vy=0;
