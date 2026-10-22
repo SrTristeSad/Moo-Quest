@@ -46,6 +46,11 @@ function parsedRequest(header,remoteHost,remotePort){
       if(websocket||value.trim().toLowerCase()!=='trailers')return null;
       continue;
     }
+    if(key==='connection'&&!websocket){
+      if(!/^close(?:,\s*te)?$/i.test(value.trim()))return null;
+      headers.push('Connection: close');
+      continue;
+    }
     if(['proxy-authorization','proxy-connection','forwarded','x-forwarded-for',
       'x-forwarded-host','x-forwarded-proto','x-real-ip','transfer-encoding',
       'content-encoding','expect','trailer'].includes(key))return null;
