@@ -1,7 +1,7 @@
 name: MooQuest V2 complete aaPanel installation ZIP
 on:
   push:
-    branches: [main, 'feat/v2-guided-first-install-aapanel']
+    branches: [main, 'fix/**', 'feat/**']
     paths: ['server-v2/**', '.github/workflows/aapanel-v2-package.yml']
   workflow_dispatch:
 permissions:
@@ -24,6 +24,17 @@ jobs:
           cp -a server-v2/. dist/package/
           rm -rf dist/package/var
           rm -f dist/package/.env
+          test -s dist/package/bootstrap.js
+          test -s dist/package/setup-server.js
+          test -s dist/package/public/setup-infrastructure.html
+          test -s dist/package/public/setup-infrastructure.css
+          test -s dist/package/public/setup-infrastructure.js
+          test -d dist/package/node_modules/pg
+          test -d dist/package/node_modules/redis
+          test -d dist/package/node_modules/ws
+          ! grep -Eq '<style([ >])|style="' dist/package/public/setup-infrastructure.html
+          node --check dist/package/bootstrap.js
+          node --check dist/package/setup-server.js
           cat > dist/package/LEIA-PRIMEIRO.txt <<'EOF'
           MOO-QUEST V2 - INSTALACAO GUIADA PARA AAPANEL
           
@@ -32,13 +43,17 @@ jobs:
           painel, scripts, dependencias Linux e testes. Nenhum download do
           repositorio GitHub e feito durante a instalacao.
 
-          1. Extraia o conteudo na VPS, em uma pasta controlada.
+          1. PARE o Node no aaPanel e copie seus dados/bancos atuais.
+             Extraia na RAIZ do projeto ja usado (bootstrap.js e package.json
+             ficam diretamente na raiz, sem subpasta extra).
+             NAO APAGUE o diretorio var, MOO_DATA_DIR ou o .env existente.
           2. Instale PostgreSQL 17 e Redis 7 no aaPanel ou por Docker
              usando o compose.yaml incluido, e inicie esses servicos.
           3. Crie um projeto Node.js >=22 no aaPanel, com diretorio
              a pasta do site (onde estao bootstrap.js e package.json).
              Use MOO_PORT=8100 e MOO_HOST=127.0.0.1.
           4. Crie um site HTTPS com proxy reverso para 127.0.0.1:8100.
+             Restrinja a porta 8100 e o Nginx nao deve servir var/ ou .env.
              Recomendado: MOO_DATA_DIR fora do webroot do Nginx.
           5. Execute o projeto. Abra /setup no dominio e use o codigo
              de 6 digitos que o aaPanel exibira nos logs do Node.
@@ -46,7 +61,10 @@ jobs:
              teste os dois servicos. Crie o administrador e finalize.
              O instalador grava as credenciais em arquivo privado 0600 e
              inicia automaticamente o motor do jogo.
-          7. Em partidas publicas, o cliente Lua ainda exige evolucao
+          7. A nova tela tem CSS externo. Se a interface antiga permanecer,
+             limpe cache do navegador com Ctrl+F5 e confira que a rota
+             /setup/infrastructure.css carrega com HTTP 200.
+          8. Em partidas publicas, o cliente Lua ainda exige evolucao
              para HTTPS/WSS e Turnstile; use a VPS para homologacao,
              painel e bancos, nao como jogo publico concluido.
 
