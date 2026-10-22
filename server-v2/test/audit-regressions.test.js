@@ -27,11 +27,11 @@ test('all four previously unimplemented weapon IDs have their own authorized mec
     assert.equal(world.attack(player.id),true,'weapon '+id+' attacks');
     assert.equal(victim.hp,100-damage,'weapon '+id+' must not become the hammer');
     if(id===14){
-      assert.equal(player.resources.wood,200+90);
-      assert.equal(player.resources.stone,200+80);
-      assert.equal(player.resources.food,200+70);
-      assert.equal(player.resources.points,10,'steal must transfer, not mint');
-      assert.equal(victim.resources.points,50);
+      assert.equal(player.resources.wood,200,'thief tool cannot steal wood');
+      assert.equal(player.resources.stone,200,'thief tool cannot steal stone');
+      assert.equal(player.resources.food,200,'thief tool cannot steal food');
+      assert.equal(player.resources.points,60,'thief transfers only existing points');
+      assert.equal(victim.resources.points,0);
     }
   }
   // A corrupted/unsupported weapon index must never hit with hammer stats.
