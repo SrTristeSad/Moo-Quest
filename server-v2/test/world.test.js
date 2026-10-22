@@ -7,7 +7,7 @@ test('server owns positions, speed, boundaries and life; clients only submit inp
   const a = w.join(null,'Alice');
   const b = w.join(null,'Bob');
   assert.throws(()=>w.join(null,'Third'),/server_full/);
-  a.x=500;a.y=500;b.x=540;b.y=500;
+  a.x=500;a.y=5000;b.x=540;b.y=5000;
   assert.equal(w.input(a.id,{dx:1000,dy:1,x:999999}),false);
   assert.equal(w.input(a.id,{dx:1,dy:0,x:999999}),true);
   w.tick(0.1);
