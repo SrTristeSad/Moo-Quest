@@ -74,7 +74,7 @@ test('live social websocket sends upstream presence and invitations only to frie
  assert.deepEqual(seenInvites,[{from:A,to:B}]);
  game.disconnectAccount(A);
  await new Promise(resolve=>alice.ws.once('close',resolve));
- assert.equal(game.socialHub.clients.has(A),false);
+ await until(()=>!game.socialHub.clients.has(A));
  bob.ws.close();
  await new Promise(resolve=>bob.ws.once('close',resolve));
  const rejected=new WebSocket(base+'one');
