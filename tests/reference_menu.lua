@@ -70,4 +70,20 @@ assert(v2.authCode=="Long Password 123!")
 v2:keypressed("backspace")
 assert(v2.authCode=="Long Password 123")
 assert(v2:isEditingText())
+local online=Menu.new()
+online.accountBackend="v2"
+online.onlineMode=true
+local title,notice,kind=online:connectionInfo("auth_required",
+  "Entre na conta V2 para conectar ao servidor remoto.")
+assert(title=="Faca login" and kind=="working")
+assert(notice:find("CONTA V2",1,true))
+assert(not online:canPlay())
+local offlineTitle,offlineNotice,offlineKind=online:connectionInfo("failed",
+  "API V2 HTTP 401: invalid_player_token")
+assert(offlineTitle=="Falha" and offlineKind=="error")
+assert(offlineNotice:find("Detalhes",1,true))
+assert(online.technicalMessage:find("invalid_player_token",1,true))
+online.accountEmail="TestAccount"
+online:connectionInfo("keyed_transport","Acesso autenticado")
+assert(online:canPlay())
 print("legacy and V2 menu credential input tests passed")
