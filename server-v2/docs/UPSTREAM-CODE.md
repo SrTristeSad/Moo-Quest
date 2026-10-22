@@ -8,6 +8,8 @@ Copied verbatim from the original Apache-2.0 repository:
 - `src/vendor/al007ex/utils.js` from `server/src/moomoo/libs/utils.js`
 - `src/vendor/al007ex/filterchat.js` from `server/src/moomoo/libs/filterchat.js` (unmodified, depends on `bad-words`, same major version as upstream)
 - `src/vendor/al007ex/nameFilter.js` from `server/src/moomoo/libs/nameFilter.js` (unmodified, depends on `bad-words`)
+- `src/vendor/al007ex/gameObject.js` from `server/src/moomoo/modules/gameObject.js` (unmodified; `getScale()` used for collision)
+- `src/vendor/al007ex/limit.js` from `server/src/moomoo/libs/limit.js` (unmodified; used to limit concurrent social sockets by account)
 - `src/vendor/al007ex/LICENSE` is the upstream license.
 
 Moo-Quest modifications are **not** made inside the copied modules.

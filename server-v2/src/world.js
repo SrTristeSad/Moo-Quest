@@ -5,6 +5,7 @@ import { randomUUID, randomInt } from 'node:crypto';
 import { secretWalkable, tickCrabKing } from './boss-logic.js';
 import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 import { UTILS } from './vendor/al007ex/utils.js';
+import { GameObject } from './vendor/al007ex/gameObject.js';
 import { referenceGatherBonus, referenceSnowFactor, referenceCowMultiplier, referenceThornsHeal, referenceBleed } from './reference-bridge.js';
 
 const TYPE={tree:0,bush:1,stone:2,ore:3};
@@ -141,7 +142,12 @@ const PLAYER_RADIUS=35;
 const PLAYER_ACCEL=1600;
 const RIVER_ACCEL=1100;
 const MOVE_DECEL_PER_MS=0.993;
-const RESOURCE_RADIUS=o=>o.kind==='tree'||o.kind==='bush'?o.scale*0.6:o.scale;
+// Invoke the original GameObject.getScale() directly for native
+// tree/bush/ore/rock collision radii without replacing world entity IDs.
+const upstreamCollider=new GameObject(0);
+const RESOURCE_RADIUS=o=>upstreamCollider.getScale.call({
+  scale:o.scale,isItem:false,type:o.type,colDiv:o.colDiv??1
+});
 const finite=Number.isFinite;
 function boundedName(s){return String(s||'Visitante').replace(/[^\p{L}\p{N}_ -]/gu,'').slice(0,15)||'Visitante';}
 const round=n=>Math.round(n*10)/10;
