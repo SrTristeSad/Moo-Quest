@@ -156,3 +156,31 @@ válido e tokens não são expostos nos logs.
 automaticamente as configurações do aaPanel na sua VPS.
 É preciso corrigir a regra do proxy/WAF se o domínio
 continuar retornando HTML 403.
+
+
+## Falha apos login V2: WebSocket /s/LC com HTTP 404
+
+Em 22/10/2026 um teste HTTPS/WebSocket usando **somente um ticket
+deliberadamente invalido** obteve HTTP 404 no dominio publico em
+`/s/LC?b=mqv2native&token=tk:<ticket_invalido>`, embora
+`/ping`, `/api/capabilities`, login e cadastro com respostas de
+validacao estivessem chegando normalmente a API HTTP.
+
+Um ticket invalido no Node V2 resulta em socket encerrado antes do
+upgrade, nao uma pagina HTTP 404. Isso aponta para roteamento,
+WebSocket desabilitado ou headers `Upgrade`/`Connection` omitidos no
+proxy, ou outra intermediacao equivalente. Nao conclua que o Redis
+de tickets esteja quebrado a partir desse 404.
+
+**Solucao grafica:** no aaPanel, procure **Website → Proxy Project →
+[dominio] → Modify → URL Proxy → Websocket** e habilite o recurso,
+ou habilite o suporte na configuracao de proxy atual. Confirme
+`proxy_pass http://127.0.0.1:8100` (porta real do Node), preserve
+a terminacao TLS no site e encaminhe os headers WebSocket. Salve e
+recarregue Nginx usando as opcoes do painel. Nao altere o banco nem
+crie contas novas para resolver este erro.
+
+O teste invalido **nao testa uma entrada autenticada bem-sucedida**:
+depois que /s/LC chegar ao Node, pode aparecer outro erro de
+ticket/IP ou sessao e exigir diagnostico especifico. Consulte os logs
+da VPS caso isso ocorra.
