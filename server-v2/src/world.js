@@ -6,6 +6,7 @@ import { secretWalkable, tickCrabKing } from './boss-logic.js';
 import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 import { UTILS } from './vendor/al007ex/utils.js';
 import { GameObject } from './vendor/al007ex/gameObject.js';
+import { AI_TYPES } from './vendor/al007ex/aiManager.js';
 import { referenceGatherBonus, referenceSnowFactor, referenceCowMultiplier, referenceThornsHeal, referenceBleed } from './reference-bridge.js';
 
 const TYPE={tree:0,bush:1,stone:2,ore:3};
@@ -26,33 +27,39 @@ const COW_PIG_NAMES=[
   'Stallion','Allison','Meaty','Sophia','Vaja','Joey','Pendy',
   'Murdoch','Jared','July','Sonia','Mel','Dexter','Quinn','Milky'
 ];
-// Authoritative V2 equivalents of the original client's animal categories and
-// region spawn contracts. No scripts or artwork from the legacy server.
-// Original aiTypes speed/turnSpeed are expressed in world units and
-// radians per millisecond; convert them into per-second V2 integration.
-const AI_MOTION=Object.freeze({
-  0:[950,1],1:[850,1],2:[940,0.74],3:[1000,0.8],
-  4:[1000,2],5:[1800,6],6:[700,10],7:[0,0],
-  8:[1500,2],9:[1050,1.2],10:[800,0.8],
-  11:[450,0.7],12:[900,1]
-});
-const WILDLIFE=[
-  {index:0,count:10,hp:500,speed:65,damage:0,food:50,score:150,scale:72},
-  {index:1,count:8,hp:800,speed:59,damage:0,food:80,score:200,scale:72},
-  {index:12,count:6,hp:650,speed:63,damage:0,food:150,score:200,scale:72},
-  {index:2,count:5,hp:1800,speed:235,damage:20,viewRange:800,hostile:true,food:100,score:1000,scale:78},
-  {index:3,count:2,hp:2800,speed:250,damage:20,viewRange:900,hostile:true,food:400,score:2000,scale:90},
-  {index:4,count:6,hp:300,speed:245,damage:8,viewRange:800,hostile:true,food:200,score:500,scale:84,area:'snow'},
-  {index:5,count:4,hp:300,speed:100,damage:8,food:100,score:2000,scale:70,area:'river'},
-  {index:9,count:4,hp:900,speed:240,damage:14,viewRange:700,hostile:true,food:150,score:800,scale:76},
-  {index:10,count:2,hp:3200,speed:230,damage:25,viewRange:750,hostile:true,food:800,score:4500,scale:95,area:'snow'},
-  {index:6,count:1,hp:18000,speed:215,damage:40,viewRange:1000,hostile:true,food:100,score:8000,scale:80,
-    fixed:true},
-  {index:7,count:1,hp:20000,speed:0,damage:0,food:0,score:5000,scale:70,fixed:true},
-  {index:8,count:1,hp:7000,speed:265,damage:10,viewRange:800,hostile:true,food:1000,score:3000,scale:90,fixed:true},
-  {index:11,count:1,hp:480000,speed:170,damage:45,viewRange:1800,hostile:true,food:0,score:4000,scale:280,
-    fixed:true,boss:true}
+// The upstream AiManager catalog is now authoritative for actual creature
+// statistics. Moo-Quest retains its existing spawn counts, areas and V2
+// movement integration until the full AI state machine can be bridged safely.
+const AI_MOTION=Object.freeze(Object.fromEntries(AI_TYPES.map((kind,index)=>[
+  index,[Math.round((kind.speed??0)*1_000_000),(kind.turnSpeed??0)*1000]
+])));
+const SPAWNS=[
+  {index:0,count:10,speed:65},
+  {index:1,count:8,speed:59},
+  {index:12,count:6,speed:63},
+  {index:2,count:5,speed:235},
+  {index:3,count:2,speed:250},
+  {index:4,count:6,speed:245,area:'snow'},
+  {index:5,count:4,speed:100,area:'river'},
+  {index:9,count:4,speed:240},
+  {index:10,count:2,speed:230,area:'snow'},
+  {index:6,count:1,speed:215},
+  {index:7,count:1,speed:0},
+  {index:8,count:1,speed:265},
+  {index:11,count:1,speed:170}
 ];
+const WILDLIFE=Object.freeze(SPAWNS.map(({index,count,speed,area})=>{
+  const original=AI_TYPES[index];
+  if(!original||original.id!==index)throw new Error('Invalid upstream AI index '+index);
+  return Object.freeze({
+    index,count,speed,area,
+    hp:original.health,damage:original.dmg??0,
+    food:original.drop?.[0]==='food'?original.drop[1]:0,
+    score:original.killScore??0,scale:original.scale,
+    viewRange:original.viewRange??0,hostile:!!original.hostile,
+    fixed:!!original.fixedSpawn,boss:!!original.boss
+  });
+}));
 // These definitions are independent gameplay rules; numeric IDs serve as
 // presentation contracts with the installed LÖVE inventory, not imported JS.
 const RECIPES={

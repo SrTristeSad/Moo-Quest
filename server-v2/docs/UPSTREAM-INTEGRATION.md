@@ -36,3 +36,18 @@ V2 resource collision shapes. `src/social-realtime.js` uses the original
 `ConnectionLimit` to cap WebSocket connections at four per authenticated
 account, not per proxy IP. Both vendor modules are unchanged, licensed
 under Apache-2.0, with original source URL in `UPSTREAM-CODE.md`.
+
+## Creature data from upstream AI source (22 October 2026)
+
+The runtime loads the original upstream `AiManager.AI_TYPES` array. Animal
+health, damage, rewards, size, hostility, respawn behavior, boss flags, view
+range and AI movement coefficients are taken from those definitions directly.
+The V2 maintains existing spawn counts, biomes and its independent AI
+state machine; the imported `AI` class is not yet the active movement driver.
+This avoids reimplementing or duplicating all original balance constants,
+but it is **not** a claim of complete upstream AI compatibility.
+
+Upstream source comments describe portions of AI code/data as derived from
+an official client bundle. The repository's Apache-2.0 LICENSE alone does
+not establish rights over third-party material. Review that provenance
+before commercial redistribution or treating this as legally cleared.
