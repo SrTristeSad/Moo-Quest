@@ -32,6 +32,24 @@ export class PlayerAccounts{
     )`);
     return this;
   }
+  // Admin-only paginated metadata; never query or serialize password_hash/profile.
+  async listRegistered({page=1,limit=25,search=''}={}){
+    const safePage=Number.isSafeInteger(page)?Math.min(100000,Math.max(1,page)):1;
+    const safeLimit=Number.isSafeInteger(limit)?Math.min(50,Math.max(1,limit)):25;
+    const safeSearch=typeof search==='string'?search.trim().slice(0,40).toLowerCase():'';
+    const where="WHERE ($1::text = '' OR position($1 in username_key)>0)";
+    const count=await this.pool.query(
+      `SELECT count(*)::integer AS total FROM mq_player_accounts ${where}`,[safeSearch]);
+    const result=await this.pool.query(
+      `SELECT id,username,created_at,saved_at FROM mq_player_accounts ${where}
+       ORDER BY created_at DESC,id DESC LIMIT $2 OFFSET $3`,
+      [safeSearch,safeLimit,(safePage-1)*safeLimit]);
+    return {
+      total:Number(count.rows[0]?.total||0),page:safePage,limit:safeLimit,
+      accounts:result.rows.map(r=>({id:r.id,username:r.username,
+        createdAt:r.created_at,savedAt:r.saved_at}))
+    };
+  }
   async listClanTags(){
     const result=await this.pool.query('SELECT tag FROM mq_clans');
     return result.rows.map(r=>r.tag);
