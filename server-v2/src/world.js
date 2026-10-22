@@ -405,6 +405,19 @@ export class World {
     else if(tribe.owner===id)tribe.owner=tribe.members.values().next().value;
     this.events.push({kind:'tribe_left',name,sid:p.sid});return true;
   }
+  kickTribe(id,requestedSid){
+    const owner=this.players.get(id);
+    const tribe=owner?.team&&this.tribes.get(owner.team);
+    if(!tribe||tribe.owner!==id)return false;
+    const member=[...this.players.values()].find(p=>p.sid===requestedSid);
+    if(!member||member.id===id||member.team!==owner.team||
+      !tribe.members.has(member.id))return false;
+    tribe.members.delete(member.id);
+    tribe.requests.delete(member.id);
+    member.team=null;
+    this.events.push({kind:'tribe_left',name:owner.team,sid:member.sid});
+    return true;
+  }
   requestTribe(id,name){
     const p=this.players.get(id),tribe=this.tribes.get(name);if(!p||p.team||!tribe)return false;
     tribe.requests.add(id);this.events.push({kind:'tribe_request',name,from:p.sid,to:tribe.owner});return true;
