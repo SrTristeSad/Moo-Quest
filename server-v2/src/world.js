@@ -120,15 +120,40 @@ export class World {
     this.projectiles=new Map();this.nextProjectileSid=1;
     this.nextObjectSid=1;this.nextPlayerSid=0;
     const rng=seededRandom(seed);
-    // Stable procedural resources, not an editable or NPC-driven map.
-    for(const [kind,count,scale,health] of [
-      ['tree',48,150,150],['bush',24,85,100],['stone',24,85,200],['ore',7,85,300]]) {
-      for(let i=0;i<count;i++) {
-        const {x,y}=randomPlacement(size,rng,kind);
-        const sid=this.nextObjectSid++;
-        this.resources.set(sid,{sid,kind,type:TYPE[kind],x,y,scale,hp:health,maxHp:health,owner:null});
+    // Preserve the original 7 x 7 area layout: counts are PER AREA,
+    // not global map totals. The authoritative server owns all objects.
+    const areas=7,cell=size/areas;
+    const riverTop=size/2-724/2,riverBottom=size/2+724/2;
+    const scales={tree:[150,160,165,175],bush:[80,85,95],
+      stone:[80,85,90],ore:[80,85,90]};
+    const health={tree:150,bush:100,stone:200,ore:300};
+    const place=(kind,x,y,scale)=>{
+      if(x<scale||x>size-scale||y<scale||y>size-scale)return false;
+      if(kind==='tree'&&(y>=size-2400||
+          (y>=riverTop-100&&y<=riverBottom+100)))return false;
+      if(kind==='bush'&&y>=riverTop-50&&y<=riverBottom+50)return false;
+      if([...this.resources.values()].some(o=>
+        Math.hypot(o.x-x,o.y-y)<(o.scale+scale)*0.6))return false;
+      const sid=this.nextObjectSid++;
+      this.resources.set(sid,{sid,kind,type:TYPE[kind],x,y,scale,
+        hp:health[kind],maxHp:health[kind],owner:null});
+      return true;
+    };
+    const fill=(kind,count,areaX=null,areaY=null,attempts=200)=>{
+      let placed=0;
+      for(let i=0;i<attempts&&placed<count;i++){
+        const x=areaX===null?250+rng()*(size-500):(areaX+rng())*cell;
+        const y=areaY===null?250+rng()*(size-500):(areaY+rng())*cell;
+        const variants=scales[kind],scale=variants[Math.floor(rng()*variants.length)];
+        if(place(kind,x,y,scale))placed++;
       }
+    };
+    for(let ax=0;ax<areas;ax++)for(let ay=0;ay<areas;ay++){
+      fill('tree',9,ax,ay);
+      fill('bush',3,ax,ay);
     }
+    fill('stone',32,null,null,5000);
+    fill('ore',7,null,null,5000);
     // Wildlife is part of the existing survival game; these are not NPCs,
     // quests or editable map actors. Combat/movement is authoritative.
     const templates=[
@@ -722,9 +747,14 @@ export class World {
       const boosted=[...this.structures.values()].some(o=>o.id===16&&
         Math.hypot(p.x-o.x,p.y-o.y)<o.scale+32);
       const {hat,tail}=gearEffects(p);
+      // The old Lua renderer draws the river in the middle of the map.
+      // The V2 server must ALSO enforce real river movement, not just paint it.
+      const inRiver=p.x>=0&&
+        p.y>=this.size/2-724/2&&p.y<=this.size/2+724/2;
       const speed=at<p.rootedUntil?0:250*(boosted?1.5:1)*
-        (hat.speed??1)*(tail.speed??1);
-      const x=Math.max(24,Math.min(this.size-24,p.x+p.vx*speed*step));
+        (hat.speed??1)*(tail.speed??1)*(inRiver?0.33:1);
+      const x=Math.max(24,Math.min(this.size-24,
+        p.x+p.vx*speed*step+(inRiver?1.1*step:0)));
       const y=Math.max(24,Math.min(this.size-24,p.y+p.vy*speed*step));
       // Platforms provide a short, local raised state for crossing a
       // nearby wall. It expires away from the platform: no global phasing.
