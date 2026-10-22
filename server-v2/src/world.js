@@ -653,7 +653,7 @@ export class World {
     for(const a of this.animals.values()){
       if(a.health<=0)continue;
       const d=Math.hypot(a.x-p.x,a.y-p.y);
-      const edgeDistance=Math.max(0,d-a.scale*0.55);
+      const edgeDistance=Math.max(0,d-a.scale);
       if(edgeDistance>animalDistance)continue;
       const direction=Math.atan2(a.y-p.y,a.x-p.x);
       if(Math.cos(direction-p.angle)<MELEE_ARC_COS)continue;
@@ -704,10 +704,11 @@ export class World {
       const owner=[...this.players.values()].find(other=>other.sid===obj.owner);
       if(obj.owner===p.sid || (p.team && owner?.team===p.team))continue;
       const d=Math.hypot(obj.x-p.x,obj.y-p.y);
-      if(d>=structureDistance+obj.scale*0.35)continue;
+      const edgeDistance=Math.max(0,d-obj.scale);
+      if(edgeDistance>structureDistance)continue;
       const direction=Math.atan2(obj.y-p.y,obj.x-p.x);
-      if(Math.cos(direction-p.angle)<0.15)continue;
-      targetStructure=obj;structureDistance=d;
+      if(Math.cos(direction-p.angle)<MELEE_ARC_COS)continue;
+      targetStructure=obj;structureDistance=edgeDistance;
     }
     if(targetStructure){
       const damage=Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
@@ -727,7 +728,7 @@ export class World {
     let resource=null,best=weapon.reach;
     for(const obj of this.resources.values()){
       const d=Math.hypot(obj.x-p.x,obj.y-p.y);
-      const edgeDistance=Math.max(0,d-RESOURCE_RADIUS(obj));
+      const edgeDistance=Math.max(0,d-obj.scale);
       if(edgeDistance>best)continue;
       const angle=Math.atan2(obj.y-p.y,obj.x-p.x);
       if(Math.cos(angle-p.angle)<MELEE_ARC_COS)continue;
