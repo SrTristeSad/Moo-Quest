@@ -45,6 +45,8 @@ async function refreshPlayers() {
 async function refreshSettings() {
   const s=await api('/api/admin/settings');
   $('title').value=s.title;$('motd').value=s.motd;$('maxPlayers').value=s.maxPlayers;$('maintenance').checked=s.maintenance;
+  $('allowGuests').checked=s.allowGuests!==false;
+  $('publicRegistration').checked=s.publicRegistration===true;
 }
 async function refreshAudit(){const s=await api('/api/admin/audit');$('auditLog').textContent=s.map(e=>`${e.at} · ${e.kind} · ${e.owner||e.playerId||e.version||''}`).join('\n')||'Nenhuma operação registrada.';}
 function openView(id){
