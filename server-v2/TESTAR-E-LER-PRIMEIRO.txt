@@ -6,7 +6,7 @@ Nao possui NPCs, missoes ou editor de mapa.
 1) Use Node.js 22 ou superior.
 2) Na pasta server-v2, execute npm install --omit=dev.
 3) Execute npm test. O teste completo necessita do modulo ws, obtido por npm.
-4) Execute npm start para iniciar o instalador local na porta 8100.
+4) Execute npm start: sem banco configurado, o instalador guiado inicia na porta 8100.
 5) Visite http://127.0.0.1:8100/setup e copie o codigo exibido no log.
 6) Painel em http://127.0.0.1:8100/admin.
 
