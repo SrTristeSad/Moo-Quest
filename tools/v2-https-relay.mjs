@@ -47,7 +47,10 @@ function parsedRequest(header,remoteHost,remotePort){
       continue;
     }
     if(key==='connection'&&!websocket){
-      if(!/^close(?:,\s*te)?$/i.test(value.trim()))return null;
+      // Node's built-in fetch uses keep-alive, while LuaSocket uses
+      // close or close, TE. Each request gets its own TLS connection:
+      // normalize these harmless variants to Connection: close.
+      if(!/^(?:close|keep-alive)(?:,\s*te)?$/i.test(value.trim()))return null;
       headers.push('Connection: close');
       continue;
     }
