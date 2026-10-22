@@ -29,7 +29,7 @@ test('XP levels and upgrade selection use Lua numeric action indices',()=>{
   const w=new World({seed:15,now:()=>at});
   const p=w.join(null,'XP'),target=w.join(null,'Target');
   assert.equal(w.upgrade(p.id,1),false,'weapons cannot be unlocked before gaining a level');
-  assert.equal(w.awardXp(p.id,60),true);
+  assert.equal(w.awardXp(p.id,300),true);
   assert.equal(p.age,2);
   assert.equal(p.upgradePoints,1);
   assert.equal(p.upgradeAge,2);
@@ -42,12 +42,12 @@ test('XP levels and upgrade selection use Lua numeric action indices',()=>{
   assert.equal(w.select(p.id,1,true),true);
   p.x=1000;p.y=1000;p.angle=0;target.x=1090;target.y=1000;
   assert.equal(w.attack(p.id),true);
-  assert.equal(target.hp,77,'weapon damage is authoritative');
+  assert.equal(target.hp,70,'reference hand axe deals 30 damage');
   at+=600;target.x=900;target.y=1000;
   assert.equal(w.attack(p.id),true);
-  assert.equal(target.hp,77,'cannot hit a player behind you');
+  assert.equal(target.hp,70,'cannot hit a player behind you');
   // Item upgrade offsets match the existing Lua upgrade UI: 16+item ID.
-  w.awardXp(p.id,150);
+  w.awardXp(p.id,360);
   assert.ok(p.age>=3);
   assert.ok(p.upgradePoints>0);
   assert.equal(w.upgrade(p.id,20),true);
