@@ -34,6 +34,7 @@ export const HEAD_EFFECTS=Object.freeze({
   53:{speed:0.7,turret:{projectile:1,range:700,rate:2500}},
   58:{healOnHit:0.4},
   55:{damageDone:1.2,healOnHit:0.25},
+  27:{killScoreMultiplier:2},52:{killGoldSteal:0.5},
   59:{speed:1.08,damageTaken:1.12},
   60:{speed:0.94,damageTaken:0.88}
 });

@@ -171,3 +171,11 @@ derivados de `shared/config/store.js` do al007ex. O cliente Lua,
 a persistência PostgreSQL e as sessões Redis continuam intactos.
 Ainda é uma adaptação de rotinas de Player, não um porte completo
 da classe de 809 linhas.
+
+## Recompensas PvP do Player.kill()
+
+Kills pagam idade da vítima × 100 pontos de ouro; Scavenger Gear
+duplica o prêmio, Thief Gear ganha metade dos pontos da vítima
+em vez de prêmio por idade. Kills por projéteis, veneno ou golpes
+compartilham a mesma função autoritativa, atualizam o placar e
+notificam a loja Lua com `N(points)`. O saldo vem do servidor.
