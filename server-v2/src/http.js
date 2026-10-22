@@ -56,6 +56,10 @@ function sanitizeSettings(existing, patch) {
     if (typeof patch.publicRegistration !== 'boolean') throw new Error('Invalid publicRegistration');
     next.publicRegistration = patch.publicRegistration;
   }
+  if ('allowGuests' in patch) {
+    if (typeof patch.allowGuests !== 'boolean') throw new Error('Invalid allowGuests');
+    next.allowGuests = patch.allowGuests;
+  }
   return next;
 }
 export function createHTTP({ root, storage, auth, updates, game = null,
@@ -83,7 +87,10 @@ export function createHTTP({ root, storage, auth, updates, game = null,
         build:'mqv2native',registeredAccounts:true,
         accountAPI:'v2-session-1',tokenRefresh:true,logoutAll:true,
         persistentClans:true,
-        guestAdmission:guestVerifier.publicMode?'verified_challenge':'direct_loopback_only',
+        guestAdmission:storage.data.settings.allowGuests===false?'disabled':
+          guestVerifier.publicMode?'verified_challenge':'direct_loopback_only',
+        guestEnabled:storage.data.settings.allowGuests!==false,
+        registrationEnabled:storage.data.settings.publicRegistration===true,
         tlsRequiredForRemote:true,
         mode:guestVerifier.publicMode?'public':'local_development'
       });
@@ -97,11 +104,17 @@ export function createHTTP({ root, storage, auth, updates, game = null,
           accountId=match&&playerTokens?await playerTokens.get(match[1]):null;
           if(!accountId)return respond(res,401,{error:'invalid_player_token'});
         }
+        // Server policy is enforced before challenge verification and ticket
+        // issuance. Authenticated accounts remain permitted when guests stop.
+        if(!accountId && storage.data.settings.allowGuests===false)
+          return respond(res,403,{error:'guests_disabled'});
         // A boolean captcha field from an untrusted client is not proof.
         // In public mode, the guest must pass provider-side verification
         // before any single-use WebSocket admission ticket is issued.
         if(!accountId && !await guestVerifier.verify(req,body))
           return respond(res,403,{error:'guest_verification_failed'});
+        // GameServer re-checks guest mode when issuing and consuming a
+        // ticket, so admin changes also invalidate outstanding guest tickets.
         const token=await gameRef.issueTicket(req,body,accountId);
         return token?respond(res,200,token):respond(res,429,{error:'join_rejected'});
       }
@@ -267,7 +280,10 @@ export function createHTTP({ root, storage, auth, updates, game = null,
         if (req.method === 'GET' && pathname === '/api/admin/status') return respond(res, 200,
           { uptimeSeconds: Math.floor(process.uptime()), title: storage.data.settings.title,
             players: players.length, maxPlayers: storage.data.settings.maxPlayers,
-            maintenance: storage.data.settings.maintenance, version: '0.1.0',
+            maintenance: storage.data.settings.maintenance,
+            allowGuests: storage.data.settings.allowGuests!==false,
+            publicRegistration: storage.data.settings.publicRegistration===true,
+            version: '0.1.0',
             updates: updates.status() });
         if (req.method === 'GET' && pathname === '/api/admin/settings') return respond(res, 200, storage.data.settings);
         if (req.method === 'GET' && pathname === '/api/admin/players') return respond(res, 200,
@@ -275,10 +291,27 @@ export function createHTTP({ root, storage, auth, updates, game = null,
         if (req.method === 'GET' && pathname === '/api/admin/audit') return respond(res, 200, storage.data.audit.slice(-100).reverse());
         if (req.method === 'GET' && pathname === '/api/admin/updates') return respond(res, 200, updates.status());
         if (req.method === 'POST' && pathname === '/api/admin/settings') {
-          storage.data.settings = sanitizeSettings(storage.data.settings, await readBody(req));
-          await storage.audit('settings_changed');
-          if (gameRef) gameRef.room.maxPlayers = storage.data.settings.maxPlayers;
-          return respond(res, 200, storage.data.settings);
+          const before=storage.data.settings;
+          const next=sanitizeSettings(before,await readBody(req));
+          const guestsWereAllowed=before.allowGuests!==false;
+          storage.data.settings=next;
+          try {
+            await storage.audit('settings_changed',{
+              allowGuests:next.allowGuests!==false,
+              publicRegistration:next.publicRegistration===true
+            });
+          }catch(error){
+            storage.data.settings=before;
+            throw error;
+          }
+          if(gameRef){
+            gameRef.room.maxPlayers=next.maxPlayers;
+            // Do not leave existing anonymous sessions running after an
+            // explicit guest shutdown. Persistent accounts are unaffected.
+            if(guestsWereAllowed&&next.allowGuests===false)
+              gameRef.disconnectGuests?.('guests_disabled');
+          }
+          return respond(res,200,next);
         }
         if (req.method === 'POST' && pathname === '/api/admin/announce') {
           const body = await readBody(req);

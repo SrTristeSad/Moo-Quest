@@ -45,6 +45,8 @@ async function refreshPlayers() {
 async function refreshSettings() {
   const s=await api('/api/admin/settings');
   $('title').value=s.title;$('motd').value=s.motd;$('maxPlayers').value=s.maxPlayers;$('maintenance').checked=s.maintenance;
+  $('allowGuests').checked=s.allowGuests!==false;
+  $('publicRegistration').checked=s.publicRegistration===true;
 }
 async function refreshAudit(){const s=await api('/api/admin/audit');$('auditLog').textContent=s.map(e=>`${e.at} · ${e.kind} · ${e.owner||e.playerId||e.version||''}`).join('\n')||'Nenhuma operação registrada.';}
 function openView(id){
@@ -62,7 +64,8 @@ async function init(){
   $('refreshPlayers').addEventListener('click',()=>safe(refreshPlayers));
   $('refreshAudit').addEventListener('click',()=>safe(refreshAudit));
   $('settingsForm').addEventListener('submit',e=>{e.preventDefault();safe(async()=>{
-    await api('/api/admin/settings',{title:$('title').value,motd:$('motd').value,maxPlayers:Number($('maxPlayers').value),maintenance:$('maintenance').checked});
+    await api('/api/admin/settings',{title:$('title').value,motd:$('motd').value,maxPlayers:Number($('maxPlayers').value),maintenance:$('maintenance').checked,
+      allowGuests:$('allowGuests').checked,publicRegistration:$('publicRegistration').checked});
     notice('Configurações salvas.');await refreshStatus();});});
   $('noticeForm').addEventListener('submit',e=>{e.preventDefault();safe(async()=>{
     await api('/api/admin/announce',{message:$('announcement').value});$('announcement').value='';notice('Anúncio enviado.');});});

@@ -34,7 +34,7 @@ export class Storage {
     this.data = loadJSON(this.file, {
       schema: 1, owner: null, settings: {
         title: 'MooQuest', motd: 'Bem-vindo ao mundo!', maxPlayers: 60,
-        maintenance: false, publicRegistration: false
+        maintenance: false, publicRegistration: false, allowGuests: true
       }, bans: {}, announcements: [], audit: []
     });
     if (this.data.schema !== 1 || !this.data.settings || !this.data.bans) {
