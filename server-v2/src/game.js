@@ -38,7 +38,8 @@ export class GameServer {
       catch { socket.destroy(); return; }
       if (!['/play','/s/LC'].includes(location.pathname) ||
           (location.pathname==='/play' &&
-            (process.env.MOO_DEV_JSON!=='1'||process.env.MOO_PUBLIC_MODE==='1')) ||
+            (process.env.MOO_DEV_JSON!=='1'||process.env.MOO_PUBLIC_MODE==='1'||
+              this.storage.data.settings.allowGuests===false)) ||
           this.storage.data.settings.maintenance ||
           this.room.players.size >= this.room.maxPlayers) { socket.destroy(); return; }
       const origin = req.headers.origin;
@@ -58,7 +59,9 @@ export class GameServer {
             await this.ticketStore.consumeDetails(ticket.slice(3),ipHash):
             await this.consumeTicket(ticket.slice(3),ipHash)?{accountId:null}:null;
         }
-        if(!claim) {socket.destroy();return;}
+        if(!claim||(!claim.accountId&&this.storage.data.settings.allowGuests===false)) {
+          socket.destroy();return;
+        }
         this.nativeWss.handleUpgrade(req,socket,head,
           ws=>this.connectNative(ws,ipHash,trustedOrigin,claim.accountId));
         return;
@@ -71,7 +74,8 @@ export class GameServer {
     });
   }
   async issueTicket(req, body, accountId=null) {
-    if (this.storage.data.settings.maintenance || this.room.players.size >= this.room.maxPlayers)
+    if (this.storage.data.settings.maintenance || this.room.players.size >= this.room.maxPlayers ||
+        (!accountId&&this.storage.data.settings.allowGuests===false))
       return null;
     if (!body || (!accountId && body.captcha !== true) || typeof body.host !== 'string' ||
         !/\/s\/LC\/?$/.test(body.host)) return null;
@@ -124,6 +128,9 @@ export class GameServer {
       if(state.spawning)return;
       if(name==='M'){
         if(!state.p){
+          if(!accountId&&this.storage.data.settings.allowGuests===false){
+            ws.close(1008,'guests_disabled');return;
+          }
           const profile=args[0];
           if(!profile||typeof profile.name!=='string'){ws.close(1008,'bad_spawn');return;}
           state.spawning=true;
@@ -156,6 +163,9 @@ export class GameServer {
               if(!saved){ws.close(1008,'unknown_account');return;}
             }
             if(ws.readyState!==ws.OPEN)return;
+            if(!accountId&&this.storage.data.settings.allowGuests===false){
+              ws.close(1008,'guests_disabled');return;
+            }
             state.p=this.room.join(ws,saved?.username||profile.name,saved?.profile,state.accountId);
             if(saved?.clan&&!this.room.restoreClan(state.p,saved.clan)){
               throw new Error('Persisted clan conflicts with existing online clan tag');
@@ -448,6 +458,9 @@ export class GameServer {
       catch { ws.close(1003, 'invalid_json'); return; }
       if (!payload || typeof payload !== 'object') return;
       if (payload.kind === 'join' && !me) {
+        if(this.storage.data.settings.allowGuests===false){
+          ws.close(1008,'guests_disabled');return;
+        }
         try {
           me = this.room.join(ws, payload.name);
           me.ipHash = ipHash;
@@ -510,6 +523,15 @@ export class GameServer {
     }
   }
   kick(id, reason = 'admin') { const ws = this.online.get(id); if (!ws) return false; ws.close(1008, String(reason).slice(0, 100)); return true; }
+  disconnectGuests(reason='guests_disabled'){
+    // Closing anonymous sessions includes pending handshakes and JSON/dev
+    // clients; authenticated sessions are explicitly exempt.
+    for(const [ws,state] of this.nativeClients)
+      if(!state.grantedAccountId && ws.readyState===ws.OPEN)
+        ws.close(1008,String(reason).slice(0,100));
+    for(const ws of this.wss.clients)
+      if(ws.readyState===ws.OPEN)ws.close(1008,String(reason).slice(0,100));
+  }
   disconnectAccount(accountId) {
     if(!accountId)return;
     for(const state of this.nativeClients.values()){
