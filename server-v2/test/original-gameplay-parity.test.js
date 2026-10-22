@@ -96,3 +96,13 @@ test('old registered profiles with hammer and sword are migrated on login',()=>{
  assert.deepEqual(saved.inventory.weapons,[3,9],
    'subsequent saves must not reintroduce the hammer');
 });
+
+test('legacy server-owned animal records without scale never become NaN',()=>{
+ const {w,advance}=isolated(12);
+ const a={sid:919,index:2,x:2000,y:4000,dir:0,homeX:2000,homeY:4000,
+   health:200,maxHealth:200,speed:0,damage:12,nextAttack:0,deadUntil:0};
+ w.animals.set(a.sid,a);
+ advance(100);w.tick(0.1);
+ assert.ok(Number.isFinite(a.x)&&Number.isFinite(a.y));
+ assert.equal(a.x,2000);assert.equal(a.y,4000);
+});
