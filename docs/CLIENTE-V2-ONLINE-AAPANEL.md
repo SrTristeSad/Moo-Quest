@@ -100,3 +100,38 @@ o `.bat` transparente e documentação; não inclui arquivos
 executáveis do LÖVE ou Node. Ainda pode haver alertas no download
 por origem desconhecida ou por outros motivos; não afirmamos que um
 alerta é falso positivo sem saber qual arquivo e detecção ocorreram.
+
+
+## Microsoft Defender detectou `Trojan:Win32/MalUri.A!cl` no catálogo legado
+
+Em 22/10/2026 o Windows Defender identificou especificamente
+`shared/config/items.js` dentro do ZIP do cliente. O relatório marcou
+a correção como incompleta. Uma inspeção estática do arquivo original
+(hash SHA-256 `e5f203c49aa0e916852ce0367b9e92a65626a2608a2ac2adce7075fcae956abe`)
+encontrou definições de armas, itens e construções; não foram
+identificadas nele chamadas diretas de rede ou execução de processos.
+**Essa inspeção não demonstra que o arquivo é seguro e não invalida
+a detecção do Microsoft Defender.**
+
+O Lua tem seu próprio catálogo em `src/game/catalog.lua`.
+O antigo `shared/config/items.js`, `shared/config/store.js`,
+`shared/config.js` e a configuração JS de referência do anticheat
+não são carregados pelo runtime Lua. O pacote Windows passou a
+**excluir** todos esses arquivos JavaScript de referência. O código
+de referência permanece no repositório para auditoria, mas não faz
+parte do programa instalado no Windows.
+
+Não execute o ZIP que foi sinalizado. Mantenha a proteção do
+Defender ativa; apague as cópias antigas depois de deixar o
+antivírus lidar com a detecção, atualize as definições e execute
+uma verificação completa. Se o Defender disser
+**"Correção incompleta"**, execute as ações recomendadas pelo
+Windows e, se persistir, uma verificação offline do Microsoft Defender.
+Não permita a ameaça nem adicione exclusões.
+
+A confirmação definitiva sobre um potencial falso positivo depende
+de análise da Microsoft. Amostras podem ser enviadas para análise em
+https://www.microsoft.com/wdsi/filesubmission — selecione o
+arquivo individual detectado, não o projeto inteiro. A exclusão
+do catálogo não constitui prova de limpeza do restante do sistema
+ou do pacote; o Windows Defender continua sendo uma barreira ativa.
