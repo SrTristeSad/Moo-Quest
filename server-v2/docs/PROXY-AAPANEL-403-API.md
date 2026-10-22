@@ -220,3 +220,63 @@ que o aaPanel encaminha os cabeçalhos `Upgrade` e
 `Connection: upgrade` por HTTPS e que o Cloudflare
 permite WebSockets para o domínio. Corrija apenas a regra
 necessária, sem desabilitar o WAF inteiro.
+
+## WebSocket 404 confirmado no domínio público — 22/10/2026
+
+A sondagem do cliente Windows, usando a mesma ponte TLS verificada,
+enviou um **handshake WebSocket real** para a rota
+`/s/LC?b=mqv2native&token=tk:000…` (ticket propositalmente
+inválido, sem dados de conta). A resposta foi **HTTP 404**.
+Já `/ping` e as rotas HTTP da API responderam em JSON normalmente.
+Isso indica que o ingresso por WebSocket **não está chegando ao
+tratamento de upgrade do Node.js** como esperado.
+
+O Node.js V2 encerra a conexão para um ticket inválido, em vez
+de devolver uma página 404. Logo, a publicação do proxy deve
+ser verificada primeiro. O 404 também pode surgir se o Nginx
+retirar o cabeçalho `Upgrade`, transformando o pedido em
+GET HTTP comum que o Node responde 404.
+
+### Correção no aaPanel sem terminal
+
+1. Abra **aaPanel → Website → app.snusnu.com.br → Reverse Proxy**.
+   Localize a regra que aponta ao servidor Node (`127.0.0.1:8100`,
+   ou a porta real configurada).
+2. Ative **WebSocket** nessa regra caso o aaPanel ofereça a opção.
+   Se não oferecer, faça backup do arquivo de configuração do site
+   e abra a configuração Nginx do domínio.
+3. No bloco HTTPS `server { … }` já existente, dentro dele
+   e **sem criar outro server nem duplicar location existente**,
+   adicione um bloco dedicado à rota WS:
+
+```nginx
+location = /s/LC {
+    proxy_pass http://127.0.0.1:8100;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+}
+```
+
+4. Confirme que `/api/join` e `/api/account/*` continuam
+   encaminhados ao mesmo Node. Se já houver `location = /s/LC`,
+   **edite o existente** em vez de criar outro.
+5. Salve, faça o teste/validação da configuração do Nginx
+   no aaPanel antes de aplicar e recarregue o serviço. Se
+   houver erro de sintaxe, restaure o backup. No Cloudflare,
+   mantenha WebSockets permitidos e revise regras que neguem
+   `/s/LC` e qualquer challenge incompatível com cliente nativo.
+6. No cliente Windows que já está autenticado, pressione
+   **R** na tela inicial para reconectar e tente **Play**.
+
+Não precisa alterar o banco de dados, o registro da conta
+ou o aplicativo Android/Windows para corrigir a rota. Se o
+domínio continuar retornando 404 mesmo após ajustar Nginx,
+verifique a configuração e eventos da borda Cloudflare:
+a resposta HTTP pode ter sido produzida antes de chegar ao Node.
