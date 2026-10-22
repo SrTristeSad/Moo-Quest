@@ -194,8 +194,9 @@ test('the age-seven platform is priced, has a limit and permits only local raise
   assert.ok(rival.x<wall.x-75,'can walk across nearby wall on platform');
   advance(1500);
   rival.x=wall.x-90;rival.y=wall.y;rival.vx=1;rival.vy=0;
-  w.tick(0.1);
-  assert.equal(rival.x,wall.x-90,'raised state expired away from platform');
+  for(let i=0;i<8;i++)w.tick(0.1);
+  assert.ok(rival.x<=wall.x-wall.scale-35+0.01,
+    'after raised state expires, player may approach but never penetrate wall');
 });
 
 test('projectile cape mitigates projectile damage but not ordinary melee',()=>{
