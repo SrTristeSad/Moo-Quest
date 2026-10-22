@@ -189,9 +189,22 @@ function Menu:connectionInfo(connectionState,details)
     end
     return "Bloqueado","Handshake recusado. Veja os detalhes tecnicos.", "error"
   elseif state=="failed" then
-    return "Falha",self.onlineMode
-      and "Nao conectou ao servidor remoto. Abra Detalhes para ver o erro."
-      or "Nao foi possivel conectar. Confira o servidor.", "error"
+    if self.onlineMode then
+      if self.technicalMessage:find("WebSocket",1,true) or
+          self.technicalMessage:find("websocket",1,true) or
+          self.technicalMessage:find("socket closed",1,true) then
+        return "Falha WebSocket",
+          "Login confirmado. Partida /s/LC recusada; abra Detalhes.", "error"
+      elseif self.technicalMessage:find("/api/join",1,true) or
+          self.technicalMessage:find("API V2 HTTP",1,true) or
+          self.technicalMessage:find("ingresso",1,true) then
+        return "Falha ingresso",
+          "Nao foi possivel emitir o ticket /api/join. Abra Detalhes.", "error"
+      end
+      return "Falha",
+        "Nao conectou ao jogo remoto. Abra Detalhes para ver o erro.", "error"
+    end
+    return "Falha","Nao foi possivel conectar. Confira o servidor.", "error"
   elseif state=="closed" then
     return "Desconectado",self.onlineMode and
       "Conexao encerrada. Pressione R ou entre na conta novamente."
