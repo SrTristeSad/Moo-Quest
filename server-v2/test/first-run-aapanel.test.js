@@ -21,6 +21,9 @@ test('first-run input normalizes encoded credentials and rejects unsafe remote p
   const encoded=normalizeSetup({...form(),pgPassword:'s3cret@/a:b'});
   assert.ok(encoded.databaseURL.includes('s3cret%40%2Fa%3Ab'),
     'reserved password characters must be percent-encoded');
+  assert.equal(new URL(normalizeSetup({...form(),pgHost:'db.example.com',pgTls:true})
+    .databaseURL).searchParams.get('sslmode'),'verify-full',
+    'remote PostgreSQL TLS must validate the hostname');
   const bad={...form(),pgHost:'db.example.com'};
   assert.throws(()=>normalizeSetup(bad),/exige TLS/);
   bad.pgTls=true;bad.redisHost='redis.example.com';
@@ -34,7 +37,7 @@ test('first launch offers /setup with isolated code, tests two services and comp
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'mq-first-run-'));
   t.after(()=>fs.rmSync(temp,{recursive:true,force:true}));
   fs.mkdirSync(path.join(temp,'public'));
-  for(const ext of ['html','js'])fs.copyFileSync(
+  for(const ext of ['html','js','css'])fs.copyFileSync(
     path.join(project,'public','setup-infrastructure.'+ext),
     path.join(temp,'public','setup-infrastructure.'+ext));
   let testsPg=0,testsRedis=0,installs=0,activated=null;
@@ -62,6 +65,22 @@ test('first launch offers /setup with isolated code, tests two services and comp
   assert.equal(html.headers.get('x-frame-options'),'DENY');
   const text=await html.text();
   assert.match(text,/PostgreSQL/);
+  assert.match(text,/href="\/setup\/infrastructure\.css"/);
+  assert.doesNotMatch(text,/<style\b|style="/i,
+    'inline CSS is blocked by the strict CSP');
+  const policy=html.headers.get('content-security-policy');
+  assert.match(policy,/style-src 'self'/);
+  assert.doesNotMatch(policy,/unsafe-inline/);
+  const stylesheet=await fetch(base+'/setup/infrastructure.css');
+  assert.equal(stylesheet.status,200);
+  assert.match(stylesheet.headers.get('content-type'),/text\/css/);
+  const css=await stylesheet.text();
+  assert.match(css,/\.cols\s*\{/);
+  assert.match(css,/@media\s*\(max-width:680px\)/);
+  const script=await fetch(base+'/setup/infrastructure.js');
+  assert.equal(script.status,200);
+  assert.match(script.headers.get('content-type'),/javascript/);
+  assert.match(await script.text(),/\/setup\/install/);
   assert.ok(!text.includes('123456'),'setup code is not sent in HTML');
   const post=(route,payload)=>fetch(base+route,{method:'POST',
     headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
