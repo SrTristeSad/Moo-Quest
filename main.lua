@@ -35,6 +35,8 @@ local uiAuthStarted=false
 local uiSmokeTime=0
 local uiSmokeClicked=false
 local uiSmokeDrawn=false
+-- F6 toggles the missing-art details without hiding or inventing sprites.
+local showMissingArt=true
 local world=World.new()
 local camera=nil
 local menuCamera=nil
@@ -425,7 +427,7 @@ function love.draw()
     -- When a reference PNG is absent, report the missing local source.
     -- Never substitute a generated image or fabricated gameplay entity.
     local absent,total=Assets.missingSummary(3)
-    if total>0 then
+    if total>0 and showMissingArt then
       love.graphics.setColor(0,0,0,0.78)
       love.graphics.rectangle("fill",12,12,620,47+18*#absent,4,4)
       love.graphics.setColor(1,0.82,0.62)
@@ -433,7 +435,12 @@ function love.draw()
       for i,file in ipairs(absent) do
         love.graphics.print(file,20,20+i*18)
       end
-      love.graphics.print("Copie suas artes PNG para assets/custom/img/",20,23+(#absent+1)*18)
+      love.graphics.print("IMPORTAR-ARTES-ANTIGAS.bat | F6: ocultar aviso",20,23+(#absent+1)*18)
+    elseif total>0 then
+      love.graphics.setColor(0,0,0,0.78)
+      love.graphics.rectangle("fill",12,12,350,30,4,4)
+      love.graphics.setColor(1,0.82,0.62)
+      love.graphics.print("PNG ausentes: "..total.." | F6: detalhes",20,19)
     end
     return
   end
@@ -712,6 +719,10 @@ local function openProfile(sid)
 end
 
 function love.keypressed(key)
+  if key=="f6" and phase=="playing" then
+    showMissingArt=not showMissingArt
+    return
+  end
   if phase=="death" then return end
   if phase=="menu" and needsLoginScreen() then
     menuAction(Login.keypressed(menu,key))
