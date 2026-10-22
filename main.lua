@@ -163,8 +163,10 @@ function love.load()
     -- Remote mode requires an account. When guests are administratively
     -- disabled, local V2 also waits for login instead of retrying tickets.
     client.state="auth_required"
-    client.status="Servidor remoto HTTPS/WSS: entre na conta V2 para jogar."
-    menu.status="Entre na conta V2 para conectar com app.snusnu.com.br."
+    client.status=v2Online
+      and "Servidor remoto HTTPS/WSS: entre na conta V2 para jogar."
+      or "Convidados desativados pela API V2. Entre na sua conta."
+    menu.status=client.status
   else
     local connected,err=client:connect()
     if not connected then startupError=err end
@@ -564,7 +566,8 @@ local function accountAction(action)
       clans:reset()
       menu.accountEmail=nil
       world=World.new()
-      if v2Online then
+      refreshV2Policy()
+      if v2Online or menu.guestEnabled==false then
         client:close()
         client.state="auth_required"
         client.status="Sessao encerrada. Entre novamente na conta V2."
