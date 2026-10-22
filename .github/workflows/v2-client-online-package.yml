@@ -5,6 +5,7 @@ on:
     paths:
       - 'tools/v2-https-relay.mjs'
       - 'tools/v2-https-relay.test.mjs'
+      - 'tools/v2-live-api-check.mjs'
       - 'tools/run-v2-online.mjs'
       - 'tools/run-v2-online.test.mjs'
       - 'JOGAR-V2-ONLINE-WINDOWS.bat'
