@@ -7,6 +7,7 @@ import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 import { UTILS } from './vendor/al007ex/utils.js';
 import { GameObject } from './vendor/al007ex/gameObject.js';
 import { AI_TYPES } from './vendor/al007ex/aiManager.js';
+import { Projectile } from './vendor/al007ex/projectile.js';
 import { referenceGatherBonus, referenceSnowFactor, referenceCowMultiplier, referenceThornsHeal, referenceBleed } from './reference-bridge.js';
 
 const TYPE={tree:0,bush:1,stone:2,ore:3};
@@ -637,7 +638,14 @@ export class World {
   spawnProjectile({owner,ownerSid,team,x,y,dir,range,speed,damage,type,layer=0,
     sourceSid=null,ammo={}}){
     const sid=this.nextProjectileSid++;
-    this.projectiles.set(sid,{sid,owner,ownerSid,team,x,y,dir,range,speed,damage,type,layer,sourceSid});
+    // Use the unmodified original Projectile.init() for the authoritative
+    // spawn state, with the same units (speed in world units per ms).
+    // The V2 native client expects immediate movement on the next tick.
+    const projectile=new Projectile([],[],null,null,null,null,false);
+    projectile.init(type,x,y,dir,speed,damage,range,20,owner);
+    projectile.skipMov=false;
+    Object.assign(projectile,{sid,ownerSid,team,damage,type,layer,sourceSid});
+    this.projectiles.set(sid,projectile);
     this.events.push({kind:'projectile_spawn',sid,player:owner,x,y,dir,range,speed,type,layer,ammo});
     return sid;
   }
@@ -1251,38 +1259,44 @@ export class World {
   }
   advanceProjectiles(step,at){
     for(const [sid,arrow] of this.projectiles){
-      const distance=Math.min(arrow.range,arrow.speed*1000*step);
-      const nx=arrow.x+distance*Math.cos(arrow.dir);
-      const ny=arrow.y+distance*Math.sin(arrow.dir);
+      const x0=arrow.x,y0=arrow.y,range0=arrow.range;
+      // Advance using the original Projectile.update(deltaMs), then sweep
+      // collisions along that segment using the V2 authoritative hit rules.
+      arrow.update(step*1000);
+      const nx=arrow.x,ny=arrow.y;
+      const distance=Math.hypot(nx-x0,ny-y0);
       let first=null;
       const offer=(kind,target,t)=>{
         if(t!==null&&(!first||t<first.t))first={kind,target,t};
       };
       for(const p of this.players.values()){
         if(p.id===arrow.owner||p.hp<=0||arrow.team&&p.team===arrow.team)continue;
-        offer('player',p,segmentHit(arrow.x,arrow.y,nx,ny,p.x,p.y,34));
+        offer('player',p,segmentHit(x0,y0,nx,ny,p.x,p.y,34));
       }
       for(const animal of this.animals.values()){
         if(animal.health<=0||animal.index===11&&
           (animal.state===1||animal.state===2))continue;
-        offer('animal',animal,segmentHit(arrow.x,arrow.y,nx,ny,
+        offer('animal',animal,segmentHit(x0,y0,nx,ny,
           animal.x,animal.y,Math.max(42,(animal.scale??70)*.5)));
       }
       for(const structure of this.structures.values()){
         // Automatic defenses must not collide with the structure from which
         // their projectile originated, even at zero distance.
         if(structure.sid===arrow.sourceSid)continue;
-        offer('structure',structure,segmentHit(arrow.x,arrow.y,nx,ny,
+        offer('structure',structure,segmentHit(x0,y0,nx,ny,
           structure.x,structure.y,Math.max(15,structure.scale*0.6)));
       }
       for(const resource of this.resources.values()){
-        offer('resource',resource,segmentHit(arrow.x,arrow.y,nx,ny,
+        offer('resource',resource,segmentHit(x0,y0,nx,ny,
           resource.x,resource.y,Math.max(20,resource.scale*0.47)));
       }
       const travelled=distance*(first?.t??1);
-      arrow.x+=travelled*Math.cos(arrow.dir);
-      arrow.y+=travelled*Math.sin(arrow.dir);
-      arrow.range-=travelled;
+      // A collision can terminate the sweep earlier than update() predicted;
+      // clamp the original runtime state to the server-verified contact point.
+      arrow.x=x0+travelled*Math.cos(arrow.dir);
+      arrow.y=y0+travelled*Math.sin(arrow.dir);
+      arrow.range=Math.max(0,range0-travelled);
+      arrow.active=!first&&arrow.range>0;
       let end=Boolean(first)||arrow.range<=0||
         arrow.x<0||arrow.x>this.size||arrow.y<0||arrow.y>this.size;
       if(first){
