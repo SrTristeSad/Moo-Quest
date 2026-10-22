@@ -1,0 +1,74 @@
+name: Package full MooQuest V2 aaPanel ZIP
+on:
+  push:
+    branches: ['build/aapanel-complete-zip']
+    paths:
+      - '.github/workflows/build-aapanel-zip.yml'
+      - 'server-v2/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install server runtime dependencies for complete offline-source ZIP
+        run: npm install --prefix server-v2 --omit=dev --no-audit --no-fund
+      - name: Assemble self-contained server tree and aaPanel notes
+        run: |
+          set -euo pipefail
+          mkdir -p dist/MooQuest-V2-aaPanel
+          cp -a server-v2 dist/MooQuest-V2-aaPanel/server-v2
+          rm -f dist/MooQuest-V2-aaPanel/server-v2/.env
+          rm -rf dist/MooQuest-V2-aaPanel/server-v2/var
+          cat > dist/MooQuest-V2-aaPanel/LEIA-PRIMEIRO.txt <<'EOF'
+          MOO-QUEST V2 - PACOTE COMPLETO PARA AAPANEL
+          ============================================
+          Este ZIP contem o codigo Node.js completo do servidor V2, painel web,
+          bibliotecas npm (node_modules Linux), scripts, testes, documentacao
+          e docker compose. NAO baixa codigo do GitHub na instalacao.
+
+          Requisitos: Node.js 22+ no aaPanel; PostgreSQL 17 e Redis 7
+          disponiveis na VPS (instalados separadamente).
+          
+          1. Extraia todo o ZIP numa pasta privada da VPS.
+          2. Em server-v2/.env.example veja as variaveis necessarias.
+             Configure MOO_DATABASE_URL e MOO_REDIS_URL no projeto Node.js
+             no aaPanel com credenciais reais e URLs locais.
+          3. Para PostgreSQL/Redis em Docker existe server-v2/compose.yaml.
+             Crie server-v2/.env com senhas fortes (a partir do exemplo).
+             A primeira criacao dos containers exige as imagens PostgreSQL/Redis.
+          4. aaPanel > Node.js Project:
+                Diretorio: /caminho/para/MooQuest-V2-aaPanel/server-v2
+                Startup: node bootstrap.js
+                Porta: 8100
+                Host: 127.0.0.1
+             Nginx deve expor somente HTTPS via proxy reverso.
+          5. Acesse /setup pelo dominio, use o codigo impresso nos logs para
+             configurar o administrador; depois teste /ready e /admin.
+          6. Os arquivos node_modules estao incluidos para Linux do runner.
+             Apos mudar a arquitetura/ambiente rode npm install --omit=dev.
+          7. MOO_PUBLIC_MODE=1 EXIGE integracao Turnstile no cliente Lua e
+             bloqueia convidados antigos; nao use para publico ainda.
+          8. O cliente Lua atual NAO implementa HTTPS/WSS remoto: os testes
+             pela internet ainda dependem dessa melhoria. Banco e painel
+             podem ser validados na VPS.
+          
+          Segredos nao estao incluidos. Nunca publique a porta 8100 ou
+          os bancos diretamente na internet. Nao ha executavel Node no ZIP.
+          EOF
+          cd dist
+          zip -q -r MooQuest-V2-aaPanel-COMPLETO.zip MooQuest-V2-aaPanel
+          unzip -tq MooQuest-V2-aaPanel-COMPLETO.zip
+          sha256sum MooQuest-V2-aaPanel-COMPLETO.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MooQuest-V2-aaPanel-COMPLETO
+          path: dist/MooQuest-V2-aaPanel-COMPLETO.zip
+          if-no-files-found: error
+          retention-days: 7
