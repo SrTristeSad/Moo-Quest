@@ -1,0 +1,57 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {PlayerAccounts} from '../src/player-accounts.js';
+import {Auth} from '../src/auth.js';
+import {Storage} from '../src/storage.js';
+import {Updates} from '../src/updates.js';
+import {createHTTP} from '../src/http.js';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const stored={id:'00000000-0000-4000-8000-000000000001',username:'alex2',
+  created_at:new Date('2026-10-21T00:00:00Z'),saved_at:new Date('2026-10-22T00:00:00Z'),
+  password_hash:'SHOULD_NOT_RETURN',profile:{private:'SHOULD_NOT_RETURN'}};
+const queries=[];
+const pool={async query(sql,args){queries.push({sql,args});
+  if(/count\(\*\)/i.test(sql))return {rows:[{total:1}]};
+  return {rows:[stored]};
+}};
+test('registered accounts list paginates, filters, never reads private columns',async()=>{
+  const accounts=new PlayerAccounts(pool);
+  queries.length=0;
+  const result=await accounts.listRegistered({page:2,limit:9999,search:'_ALEx2_'});
+  assert.equal(result.total,1);
+  assert.equal(result.page,2);assert.equal(result.limit,50);
+  assert.equal(result.accounts[0].username,'alex2');
+  assert.deepEqual(Object.keys(result.accounts[0]).sort(),['createdAt','id','savedAt','username']);
+  assert.equal(queries[0].args[0],'_alex2_');
+  assert.deepEqual(queries[1].args,['_alex2_',50,50]);
+  assert.ok(queries.every(q=>!q.sql.includes('password_hash')&&!q.sql.includes('profile')));
+});
+test('only authenticated admin can list registrations, and online status matches account identity',async t=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mq-admin-list-'));
+  const storage=new Storage(dir);storage.data.owner={username:'Owner',password:'dummy'};
+  const auth=new Auth(),updates=new Updates(dir,storage.dir,{manifestURL:null,publicKeyFile:null});
+  const accounts=new PlayerAccounts(pool);
+  const app=createHTTP({root,storage,auth,updates,accounts,httpsCookies:false});
+  const player={id:'p1',name:'alex2',accountId:stored.id,x:10,y:11,hp:100};
+  app.setGame({room:{players:new Map([[player.id,player]]),maxPlayers:12}});
+  await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));
+  t.after(async()=>{await new Promise(r=>app.server.close(r));fs.rmSync(dir,{recursive:true,force:true});});
+  const base='http://127.0.0.1:'+app.server.address().port;
+  assert.equal((await fetch(base+'/api/admin/accounts')).status,401);
+  const {token}=auth.issue();const headers={cookie:'mq_admin='+token};
+  let r=await fetch(base+'/api/admin/accounts?page=1&search=alex2',{headers});
+  assert.equal(r.status,200);const result=await r.json();
+  assert.equal(result.accounts[0].online,true);
+  assert.equal(result.accounts[0].username,'alex2');
+  assert.equal(JSON.stringify(result).includes('SHOULD_NOT_RETURN'),false);
+  assert.equal((await fetch(base+'/api/admin/accounts?page=0',{headers})).status,400);
+  assert.equal((await fetch(base+'/api/admin/accounts?page=1.1',{headers})).status,400);
+  assert.equal((await fetch(base+'/api/admin/accounts?search='+('a'.repeat(41)),{headers})).status,400);
+  player.accountId='another-account';
+  r=await fetch(base+'/api/admin/accounts',{headers});
+  assert.equal((await r.json()).accounts[0].online,false);
+});
