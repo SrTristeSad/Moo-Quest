@@ -330,7 +330,7 @@ export class GameServer {
         // Original filter_chat() is vendored under the upstream license;
         // a per-connection cooldown prevents flooding the native broadcast.
         if(now-state.lastChatAt<700)return;
-        const txt=filter_chat(args[0]);
+        const txt=filter_chat(args[0].replace(/[\x00-\x1f\x7f]/g,''));
         if(txt){
           state.lastChatAt=now;
           this._nativeBroadcast('6',[p.sid,txt]);

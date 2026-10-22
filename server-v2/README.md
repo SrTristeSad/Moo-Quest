@@ -160,6 +160,13 @@ Teste: `npm run test:core` (inclui `test/reference-reuse.test.js`).
 - Ping do minimapa é privado à própria equipe, com cooldown de 3 segundos.
 - Consulte `docs/UPSTREAM-CODE.md` para licenças e limitações.
 
+## APIs sociais adaptadas da referência
+A V2 agora possui amizades persistidas, convites de amigos, chat privado e
+de clã com histórico SQL, além de presença de jogadores online. Operações
+necessitam de tokens Bearer V2 e pertencem à conta autenticada; nenhuma
+senha/token é incluído nas URLs. Consulte
+`docs/UPSTREAM-INTEGRATION.md` para endpoints e funcionalidades pendentes.
+
 ## Protocolo do cliente Lua
 
 A implementação V2 tem seu próprio módulo `src/native-protocol.js`: handshake

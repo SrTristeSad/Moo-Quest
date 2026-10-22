@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { PostgresStorage } from './database.js';
 import { RedisAuth, RedisTickets, RedisPlayerTokens, connectRedis } from './redis-services.js';
 import { PlayerAccounts } from './player-accounts.js';
+import { SocialService } from './social.js';
 import { Updates } from './updates.js';
 import { createHTTP } from './http.js';
 import { GameServer } from './game.js';
@@ -19,10 +20,11 @@ catch(error) { await storage.close(); throw error; }
 const auth = new RedisAuth(redis);
 const playerTokens=new RedisPlayerTokens(redis);
 const accounts=await new PlayerAccounts(storage.pool).init();
+const social=await new SocialService(storage.pool).init();
 const updates = new Updates(root, storage.dir);
 let stopping = false;
 const app = createHTTP({ root: moduleRoot, storage, auth, updates,
-  accounts,playerTokens,stopStatus: () => stopping });
+  accounts,playerTokens,social,stopStatus: () => stopping });
 const reservedClanTags=await accounts.listClanTags();
 const game = new GameServer(app.server, storage, new RedisTickets(redis),
   {accounts,reservedClanTags});
