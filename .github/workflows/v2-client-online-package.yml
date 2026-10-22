@@ -1,11 +1,12 @@
 name: MooQuest V2 Windows Online Client Package
 on:
   push:
-    branches: [main, 'feat/v2-windows-remote-https-client', 'fix/windows-client-safe-node-launcher', 'fix/windows-client-remove-unused-legacy-js', 'fix/v2-online-login-connection-ui', 'fix/v2-online-api-nonjson-response', 'feat/client-v2-admission-policy-ui', 'fix/v2-luasocket-te-header-relay', 'fix/v2-relay-keepalive-compatibility', 'fix/v2-ws-handshake-diagnostics']
+    branches: [main, 'feat/v2-windows-remote-https-client', 'fix/windows-client-safe-node-launcher', 'fix/windows-client-remove-unused-legacy-js', 'fix/v2-online-login-connection-ui', 'fix/v2-online-api-nonjson-response', 'feat/client-v2-admission-policy-ui', 'fix/v2-luasocket-te-header-relay', 'fix/v2-authenticated-ws-proxy-ip-drift', 'fix/v2-relay-keepalive-compatibility', 'fix/v2-ws-handshake-diagnostics']
     paths:
       - 'tools/v2-https-relay.mjs'
       - 'tools/v2-https-relay.test.mjs'
       - 'tools/v2-live-api-check.mjs'
+      - 'tools/v2-live-ws-route-check.mjs'
       - 'tools/v2-public-ws-check.mjs'
       - 'tools/run-v2-online.mjs'
       - 'tools/run-v2-online.test.mjs'
@@ -49,6 +50,9 @@ jobs:
       - name: Probe public WebSocket upgrade path without using a real account
         continue-on-error: true
         run: node tools/v2-public-ws-check.mjs
+      - name: Probe remote /s/LC upgrade using invalid ticket (no credentials)
+        continue-on-error: true
+        run: node tools/v2-live-ws-route-check.mjs
       - name: Package all first-party Lua client sources
         run: |
           set -euo pipefail
