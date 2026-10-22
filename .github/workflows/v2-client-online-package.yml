@@ -28,6 +28,10 @@ jobs:
         run: node --check tools/v2-https-relay.mjs
       - name: Functional HTTPS TLS and WebSocket end-to-end tests
         run: node --test tools/v2-https-relay.test.mjs
+      - name: Check the configured public server without blocking packaging
+        continue-on-error: true
+        run: |
+          node --input-type=module -e 'try {const r=await fetch("https://app.snusnu.com.br/ping",{signal:AbortSignal.timeout(8000)});const j=await r.json();if(r.status!==200||j.build!=="mqv2native")throw Error("Unexpected remote /ping response: "+r.status);console.log("REMOTE_API_OK build="+j.build)}catch(e){console.error("REMOTE_API_UNVERIFIED: "+e.message);process.exitCode=1}'
       - name: Package all first-party Lua client sources
         run: |
           set -euo pipefail
@@ -52,3 +56,17 @@ jobs:
           path: dist/MooQuest-V2-CLIENTE-ONLINE-WINDOWS.zip
           retention-days: 14
           if-no-files-found: error
+
+  windows-launcher-syntax:
+    runs-on: windows-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check PowerShell Windows entrypoint without launching games
+        shell: pwsh
+        run: |
+          $tokens=$null
+          $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile('tools/run-v2-online.ps1',[ref]$tokens,[ref]$errors) | Out-Null
+          if($errors.Count -gt 0){$errors | Format-List;exit 1}
+          Write-Host 'Windows online client launcher syntax OK'
