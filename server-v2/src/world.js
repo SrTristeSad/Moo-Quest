@@ -3,6 +3,8 @@
 // expose only the game state required by the existing Lua renderer.
 import { randomUUID, randomInt } from 'node:crypto';
 import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
+import { UTILS } from './vendor/al007ex/utils.js';
+import { referenceGatherBonus, referenceSnowFactor, referenceCowMultiplier, referenceThornsHeal } from './reference-bridge.js';
 
 const TYPE={tree:0,bush:1,stone:2,ore:3};
 const SNOW_BIOME_TOP=2400;
@@ -138,7 +140,6 @@ const PLAYER_ACCEL=1600;
 const RIVER_ACCEL=1100;
 const MOVE_DECEL_PER_MS=0.993;
 const RESOURCE_RADIUS=o=>o.kind==='tree'||o.kind==='bush'?o.scale*0.6:o.scale;
-const MELEE_ARC_COS=Math.cos(Math.PI/2.6);
 const finite=Number.isFinite;
 function boundedName(s){return String(s||'Visitante').replace(/[^\p{L}\p{N}_ -]/gu,'').slice(0,15)||'Visitante';}
 const round=n=>Math.round(n*10)/10;
@@ -626,7 +627,9 @@ export class World {
     return sid;
   }
   creditAnimalKill(p,a){
-    const food=a.foodDrop??30,points=Math.max(0,a.score??20);
+    const cowMultiplier=referenceCowMultiplier(p,a.index);
+    const food=Math.round((a.foodDrop??30)*cowMultiplier);
+    const points=Math.round(Math.max(0,a.score??20)*cowMultiplier);
     p.resources.food+=food;p.resources.points+=points;p.score+=points;
     if(p.lifeStats){
       p.lifeStats.food+=food;p.lifeStats.gold+=points;
@@ -656,7 +659,7 @@ export class World {
       const dx=o.x-p.x,dy=o.y-p.y,dist=Math.hypot(dx,dy);
       if(!Number.isFinite(dist)||Math.max(0,dist-radius)>range)return null;
       const angle=dist>0?Math.atan2(dy,dx):p.angle;
-      if(Math.cos(angle-p.angle)<MELEE_ARC_COS)return null;
+      if(UTILS.getAngleDist(angle,p.angle)>Math.PI/2.6)return null;
       return angle;
     };
     const awardGather=(obj,key,amount,points)=>{
@@ -679,8 +682,7 @@ export class World {
       const friendly=obj.owner===p.sid||Boolean(p.team&&owner?.team===p.team);
       const crop=RECIPES[obj.id]?.harvest;
       if(crop&&friendly&&weapon.gather>0){
-        const amount=2*weapon.gather+(crop==='wood'?(tail.extraWood??0):
-          (tail.extraStone??0));
+        const amount=2*weapon.gather+referenceGatherBonus(p,crop==='wood'?0:2);
         const points=1+(hat.extraGold??0);
         awardGather(obj,crop,amount,points);
         this.creditWeaponXp(p,amount);
@@ -705,8 +707,7 @@ export class World {
       const gold=obj.kind==='ore';
       const key=gold?'points':obj.kind==='tree'?'wood':
         obj.kind==='bush'?'food':'stone';
-      const bonus=gold?0:key==='wood'?(tail.extraWood??0):
-        key==='stone'?(tail.extraStone??0):(tail.extraFood??0);
+      const bonus=gold?0:referenceGatherBonus(p,obj.type);
       const amount=weapon.gather+(gold?4:0)+bonus;
       const points=gold?amount:(hat.extraGold??0);
       awardGather(obj,key,amount,points);
@@ -738,6 +739,15 @@ export class World {
       this.events.push({kind:'hit',from:p.id,to:victim.id,
         damage:effective,hp:victim.hp,x:victim.x,y:victim.y});
       if(p.lifeStats)p.lifeStats.damage+=effective;
+      // The reference Thorns accessory returns a fraction of real PvP damage as HP.
+      const thornsHeal=referenceThornsHeal(p,effective);
+      if(thornsHeal>0&&p.hp<p.maxHp){
+        const amount=Math.min(p.maxHp-p.hp,thornsHeal);
+        p.hp+=amount;
+        if(p.lifeStats)p.lifeStats.healing+=amount;
+        this.events.push({kind:'heal',player:p.id,sid:p.sid,
+          amount,hp:p.hp,x:p.x,y:p.y});
+      }
       if(victim.hp===0){
         victim.deadUntil=time+3000;victim.vx=0;victim.vy=0;
         victim.motionX=0;victim.motionY=0;
@@ -959,7 +969,7 @@ export class World {
       // then damp velocity as playerDecel ^ elapsedMilliseconds. The client
       // still sends only directional intent; it never supplies a velocity.
       const inSnow=p.y<=SNOW_BIOME_TOP&&p.x>=0;
-      const snowFactor=!inSnow||p.hat===15?1:SNOW_SPEED;
+      const snowFactor=!inSnow?1:referenceSnowFactor(p,SNOW_SPEED);
       const waterImmune=p.hat===31;
       const waterFactor=inRiver?(waterImmune?0.75:0.33):1;
       const weaponMove=WEAPONS[p.weaponIndex]?.move??1;

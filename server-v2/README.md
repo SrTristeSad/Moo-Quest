@@ -141,6 +141,19 @@ de transporte ou inicialização futura **sem redesenhar o cliente**.
   para o personagem persistente e revogar a sessão. A validação visual
   Windows e o transporte HTTPS/WSS remoto ainda estão pendentes.
 
+## Reutilização real de módulos Apache-2.0 do servidor de referência
+
+A V2 utiliza diretamente os módulos `effects.js` e `utils.js` do
+`al007ex/moomoo-clone` (revision pinned), por meio de
+`src/reference-bridge.js`. A integração cobre bônus de coleta das capas
+(Tree/Stone/Cookie), mobilidade na neve (Winter/Snowball), bônus da Cow Cape
+e cura da Thorns Cape em ataques corpo a corpo. Os bônus são calculados
+no servidor, nunca recebidos do cliente. O restante do motor da V2,
+a API, PostgreSQL, Redis e o painel permanecem intactos.
+
+Licença, arquivos importados e limites: `docs/UPSTREAM-CODE.md`.
+Teste: `npm run test:core` (inclui `test/reference-reuse.test.js`).
+
 ## Protocolo do cliente Lua
 
 A implementação V2 tem seu próprio módulo `src/native-protocol.js`: handshake
