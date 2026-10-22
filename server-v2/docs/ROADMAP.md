@@ -150,3 +150,16 @@ Nenhum código do servidor antigo deve entrar no pacote comercial V2.
   habilitada para o jogador comum.
 - Teste: test/weapon-variants-status.test.js. Ainda faltam Crab King,
   transporte de eventos especiais no Lua e validação presencial Windows.
+
+## Região secreta e Crab King (22/10/2026)
+
+- Acesso pelo corredor a oeste do rio com limites derivados da geometria
+  das piscinas secretas da referência; barreiras preservam o mapa normal.
+- Crab King no local (-2500,7200), estados surface/dive/submerged/emerge;
+  imunidade a golpes e projéteis enquanto mergulhado/submerso.
+- Ataques SLAM/GEYSER/CLAW/SPLASH telegrafados com aviso antecipado.
+  Dano, knockback e mortes processados pelo Node; o Lua só renderiza.
+- Evento W adicionado como extensão no final da tabela de transporte V2,
+  sem modificar os IDs aleatorizados existentes.
+- Ainda exige conferência visual real no LÖVE, ajustes finos de IA e de
+  física das bordas secretas; não representa paridade final.
