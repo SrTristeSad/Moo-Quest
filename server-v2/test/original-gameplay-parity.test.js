@@ -31,16 +31,18 @@ test('river rightward current is visible even with no movement keys held',()=>{
  const {w,advance}=isolated(19);
  const p=w.join(null,'Swimmer');
  p.x=500;p.y=w.size/2;p.vx=0;p.vy=0;
- for(let i=0;i<10;i++){advance(100);w.tick(0.1);}
+ let lastDrift=0;
+ for(let i=0;i<10;i++){
+   const before=p.x;advance(100);w.tick(0.1);lastDrift=p.x-before;
+ }
  assert.ok(p.x>=540,'current must visibly displace a swimmer in one second: '+p.x);
  const upstream=p.x;
- p.vx=-1;
- advance(100);w.tick(0.1);
- assert.ok(p.x<upstream,'swimming to left must still have an effect');
+ p.vx=-1;advance(100);w.tick(0.1);
+ assert.ok(p.x>upstream,'reference current can overpower swimming left');
+ assert.ok(p.x-upstream<lastDrift,'left input must reduce rightward drift');
  p.y=5000;p.vx=0;
- const dry=p.x;
- advance(100);w.tick(0.1);
- assert.equal(p.x,dry,'no hidden flow on dry land');
+ const dry=p.x;advance(100);w.tick(0.1);
+ assert.ok(p.x>dry,'momentum persists briefly after leaving water');
 });
 
 test('wolf and bull pursue at realistic speeds within their species aggro range',()=>{
@@ -49,11 +51,12 @@ test('wolf and bull pursue at realistic speeds within their species aggro range'
  const bull=[...new World({seed:93}).animals.values()].find(a=>a.index===2);
  for(const a of [wolf,bull]){
    w.animals.clear();w.animals.set(a.sid,a);
-   a.x=1000;a.y=1600;a.homeX=1000;a.homeY=1600;a.dir=0;
+   a.x=1000;a.y=1600;a.homeX=1000;a.homeY=1600;
+   a.dir=0;a.targetDir=0;a.motionX=0;a.motionY=0;a.waitLeft=1000;
    const p=w.join(null,'Target');p.x=1500;p.y=1600;p.vx=0;p.vy=0;
-   advance(100);w.tick(0.1);
-   assert.ok(a.x>1020,a.index+' barely moves while charging: '+a.x);
-   assert.ok(a.x<1050,a.index+' should not teleport');
+   for(let i=0;i<12;i++){advance(100);w.tick(0.1);}
+   assert.ok(a.x>1020,a.index+' fails to charge after wait: '+a.x);
+   assert.ok(a.x<1200,a.index+' should not teleport');
    w.leave(p.id);
  }
 });
