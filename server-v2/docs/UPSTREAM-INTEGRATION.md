@@ -61,3 +61,11 @@ swept collisions, team protection, damage, rewards and Lua events in its
 own server-owned code. The first-tick `skipMov` flag is disabled to retain
 the already tested V2 protocol timing. This is **directly reused runtime
 code**, not a second unconnected copy of the algorithm.
+
+## Revogação de tickets sociais via Redis
+
+O ticket temporário do WebSocket social registra o número de revisão da
+conta em `mq:v2:ticket-revision:<id>`. Os mesmos eventos que invalidam
+tickets de entrada no jogo (logout, refresh e mudança de senha) impedem o
+uso tardio de um ticket social previamente emitido. A verificação ocorre
+depois do `GETDEL` atômico; tickets não podem ser reutilizados.
