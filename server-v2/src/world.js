@@ -119,6 +119,7 @@ const UPGRADES=new Map([
 ]);
 // Official progression starts at 300 and raises the threshold 20% each age.
 const MAX_AGE=100;
+const VARIANT_THRESHOLDS=[0,3000,7000,12000,30000];
 const LEVEL_XP=age=>Math.round(300*Math.pow(1.2,Math.max(0,age-1))*10)/10;
 // Natural trees, rocks, gold nodes and bushes yield on every legal hit.
 // Unlike player-built structures, they are not destructible.
@@ -240,7 +241,8 @@ export class World {
       resources:{wood:0,stone:0,food:0,points:0,kills:0},
       lifeStats:{kills:0,wood:0,food:0,stone:0,gold:0,damage:0,
         animalDamage:0,healing:0,animals:0,bosses:0},
-      inventory:{weapons:[0],items:[0,3,6,10]},weaponIndex:0,buildIndex:-1,score:0,
+      inventory:{weapons:[0],items:[0,3,6,10]},weaponIndex:0,buildIndex:-1,
+      weaponXp:{},score:0,
       rootedUntil:0,nextHealAt:0,nextTeleportAt:0,poison:null,regen:null,
       lastGearRegenAt:this.now(),raisedUntil:0,raisedOrigin:null,
        lastGeneratorAt:this.now(),generatorRemainder:0,deferredStructures:[]};
@@ -255,6 +257,8 @@ export class World {
       upgradePoints:p.upgradePoints,upgradeAge:p.upgradeAge,
       resources:{...p.resources},score:p.score,
       inventory:{weapons:[...p.inventory.weapons],items:[...p.inventory.items]},
+      weaponXp:Object.fromEntries(Object.entries(p.weaponXp||{}).filter(([k,v])=>
+        /^\\d+$/.test(k)&&Number.isSafeInteger(v)&&v>=0&&v<=100000000)),
       ownedHats:[...p.ownedHats],ownedAccessories:[...p.ownedAccessories],
       hat:p.hat,tail:p.tail,weaponIndex:p.weaponIndex,skinColor:p.skinColor,
       // Structures are saved only for an authenticated account; disconnected
@@ -285,7 +289,7 @@ export class World {
     p.age=number(data.age,1,MAX_AGE,1);
     p.maxXp=LEVEL_XP(p.age);
     p.xp=number(data.xp,0,p.maxXp-1,0);
-    p.upgradePoints=number(data.upgradePoints,0,8,0);
+    p.upgradePoints=number(data.upgradePoints,0,MAX_AGE,0);
     p.upgradeAge=number(data.upgradeAge,2,MAX_AGE,2);
     p.resources=Object.fromEntries(Object.keys(p.resources).map(key=>
       [key,number(data.resources?.[key],0,1_000_000_000,0)]));
@@ -300,6 +304,13 @@ export class World {
       n=>Object.hasOwn(FOOD,n)||Object.hasOwn(RECIPES,n),40,[0,3,6,10]);
     p.weaponIndex=data.weaponIndex>8&&p.inventory.weapons.includes(data.weaponIndex)?
       data.weaponIndex:primary;
+    p.weaponXp={};
+    if(data.weaponXp&&typeof data.weaponXp==='object'&&!Array.isArray(data.weaponXp)){
+      for(const [key,value] of Object.entries(data.weaponXp).slice(0,16)){
+        if(/^\\d+$/.test(key)&&Number.isSafeInteger(value)&&value>=0&&value<=100000000)
+          p.weaponXp[key]=value;
+      }
+    }
     const x=data.x,y=data.y;
     if(this.landingClear(x,y,p.sid)){p.x=x;p.y=y;}
     // All values below are server-generated snapshots, but still validate
@@ -516,6 +527,21 @@ export class World {
     this.events.push({kind:'heal',player:id,sid:p.sid,amount,hp:p.hp,x:p.x,y:p.y});
     return true;
   }
+  weaponVariant(p){
+    const xp=Math.max(0,Number(p.weaponXp?.[p.weaponIndex])||0);
+    // Emerald is membership-only in the reference. Do not issue it to
+    // ordinary accounts; V2 has no membership entitlement system yet.
+    let id=0;
+    for(let i=1;i<VARIANT_THRESHOLDS.length-1;i++)
+      if(xp>=VARIANT_THRESHOLDS[i])id=i;
+    return id;
+  }
+  creditWeaponXp(p,amount){
+    if(!p||!Number.isFinite(amount)||amount<=0)return;
+    const key=String(p.weaponIndex);
+    p.weaponXp??={};
+    p.weaponXp[key]=Math.min(100000000,Math.max(0,(p.weaponXp[key]||0)+amount));
+  }
   awardXp(id,amount){
     const p=this.players.get(id);
     if(!p||p.hp<=0||!Number.isSafeInteger(amount)||amount<1)return false;
@@ -551,6 +577,10 @@ export class World {
     }
     group.push(rule.id);
     if(rule.kind==='weapon'){p.weaponIndex=rule.id;p.buildIndex=-1;}
+    if(rule.kind==='weapon'){
+      // Primary/secondary variants grow independently from harvesting.
+      p.weaponXp[String(rule.id)]=0;
+    }
     p.upgradePoints--;
     p.upgradeAge=({2:3,3:4,4:5,5:6,6:7,7:8,8:9})[rule.age]??20;
     this.events.push({kind:'upgrade',player:id,equipmentKind:rule.kind,id:rule.id,
@@ -738,16 +768,26 @@ export class World {
       resource=obj;best=edgeDistance;
     }
     if(resource){
-      const key=resource.kind==='tree'?'wood':resource.kind==='bush'?'food':'stone';
-      const bonus=key==='wood'?(tail.extraWood??0):
+      const gold=resource.kind==='ore';
+      const key=gold?'points':resource.kind==='tree'?'wood':
+        resource.kind==='bush'?'food':'stone';
+      const bonus=gold?0:key==='wood'?(tail.extraWood??0):
         key==='stone'?(tail.extraStone??0):(tail.extraFood??0);
-      const amount=(resource.kind==='ore'?4:1)*(weapon.gather??1)+bonus;
-      const points=1+(hat.extraGold??0);
-      p.resources[key]+=amount;p.resources.points+=points;p.score+=points;
-      if(p.lifeStats){p.lifeStats[key]=(p.lifeStats[key]||0)+amount;p.lifeStats.gold+=points;}
-      // Natural object health is never reduced and no Q packet is generated.
-      this.events.push({kind:'gather',sid:resource.sid,player:p.id,key,amount,points});
-      this.awardXp(p.id,8);
+      // Ore gives gather + 4 points, never stone. Other resources grant
+      // wood, food or stone, plus gold only from an eligible accessory.
+      const amount=(weapon.gather??1)+(gold?4:0)+bonus;
+      const points=gold?amount:(hat.extraGold??0);
+      if(gold)p.resources.points+=amount;
+      else {p.resources[key]+=amount;p.resources.points+=points;}
+      p.score+=points;
+      if(p.lifeStats){
+        if(!gold)p.lifeStats[key]=(p.lifeStats[key]||0)+amount;
+        p.lifeStats.gold+=points;
+      }
+      this.events.push({kind:'gather',sid:resource.sid,player:p.id,
+        key:gold?'points':key,amount,points});
+      this.creditWeaponXp(p,amount);
+      this.awardXp(p.id,4*(weapon.gather??1));
     }
     return true;
   }
@@ -1181,7 +1221,7 @@ export class World {
     for(const p of this.players.values()){
       if(p.hp<=0)continue;
       pos.push(p.sid,round(p.x),round(p.y),Math.round(p.angle*100));
-      attrs.push(p.sid,p.buildIndex,p.weaponIndex,0,p.team,p.team===null?false:this.tribes.get(p.team)?.owner===p.id,p.hat,p.tail,0,0);
+      attrs.push(p.sid,p.buildIndex,p.weaponIndex,this.weaponVariant(p),p.team,p.team===null?false:this.tribes.get(p.team)?.owner===p.id,p.hat,p.tail,0,0);
     }
     return [pos,attrs,[]];
   }
