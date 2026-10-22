@@ -9,6 +9,7 @@ local Auth=require("src.net.local_auth")
 local V2Accounts=require("src.net.v2_accounts")
 local V2Join=require("src.net.v2_join")
 local v2Mode=os.getenv("MOOQUEST_REQUIRE_V2")=="1"
+local v2Online=v2Mode and os.getenv("MOOQUEST_V2_ONLINE")=="1"
 local Config=require("src.game.config")
 local Hud=require("src.game.reference_hud")
 local Panels=require("src.game.reference_panels")
@@ -137,8 +138,14 @@ function love.load()
     return
   end
   client=result
-  local connected,err=client:connect()
-  if not connected then startupError=err end
+  if v2Online then
+    -- Remote mode never attempts unverified guest admission automatically.
+    -- Account login obtains a token before issuing the remote /api/join.
+    client.status="Servidor remoto HTTPS/WSS: entre na conta V2 para jogar."
+  else
+    local connected,err=client:connect()
+    if not connected then startupError=err end
+  end
 end
 
 angle=function(y,x)
@@ -404,7 +411,9 @@ function love.draw()
   love.graphics.rectangle("fill",36,82,w-72,2)
   line(107,v2Mode and "Servidor: motor Node.js V2 independente" or
     "Servidor: Node legado para validacao")
-  line(144,"Endereco: 127.0.0.1:8080 | LC | WebSocket "..(v2Mode and "V2" or "legado"))
+  line(144,v2Online
+    and "Servidor: app.snusnu.com.br:443 | TLS verificado | LC"
+    or "Endereco: 127.0.0.1:8080 | LC | WebSocket "..(v2Mode and "V2" or "legado"))
   if startupError then
     love.graphics.setColor(1,0.65,0.46)
     love.graphics.printf(tostring(startupError),36,197,w-72)
@@ -432,7 +441,8 @@ function love.draw()
   end
   love.graphics.setColor(0.67,0.77,0.71)
   love.graphics.printf("R: tentar novamente/renascer   |   WASD: movimento apos spawn   |   ESC: sair\n"..
-    (v2Mode and "Servidor V2 independente; acesso local de testes." or
+    (v2Online and "Cliente V2 ONLINE: acesso seguro via HTTPS/WSS, requer login." or
+      v2Mode and "Servidor V2 independente; acesso local de testes." or
     "Servidor legado para testes de compatibilidade."),
     36,h-115,w-72)
 end
