@@ -24,6 +24,14 @@ const COW_PIG_NAMES=[
 ];
 // Authoritative V2 equivalents of the original client's animal categories and
 // region spawn contracts. No scripts or artwork from the legacy server.
+// Original aiTypes speed/turnSpeed are expressed in world units and
+// radians per millisecond; convert them into per-second V2 integration.
+const AI_MOTION=Object.freeze({
+  0:[950,1],1:[850,1],2:[940,0.74],3:[1000,0.8],
+  4:[1000,2],5:[1800,6],6:[700,10],7:[0,0],
+  8:[1500,2],9:[1050,1.2],10:[800,0.8],
+  11:[450,0.7],12:[900,1]
+});
 const WILDLIFE=[
   {index:0,count:10,hp:500,speed:65,damage:0,food:50,score:150,scale:72},
   {index:1,count:8,hp:800,speed:59,damage:0,food:80,score:200,scale:72},
@@ -218,8 +226,11 @@ export class World {
         [x,y]=loc;
       }
       const sid=animalId++;
+      const dir=rng()*Math.PI*2;
       this.animals.set(sid,{sid,index:species.index,x,y,homeX:x,homeY:y,
-        dir:rng()*Math.PI*2,health:species.hp,maxHealth:species.hp,
+        dir,targetDir:dir,waitLeft:1000,moveLeft:0,
+        motionX:0,motionY:0,chargeTargetId:null,runFromId:null,
+        health:species.hp,maxHealth:species.hp,
         scale:species.scale,score:species.score,foodDrop:species.food,
         boss:!!species.boss,fixed:!!species.fixed,area:species.area||null,
         speed:species.speed,damage:species.damage,
@@ -702,6 +713,14 @@ export class World {
         (tail.damageDone??1)));
       const effectiveDamage=Math.min(animal.health,damage);
       animal.lastAttackerId=p.id;animal.alertUntil=time+5000;
+      // Attacked hostiles charge their attacker; peaceful animals flee.
+      // Timers are in milliseconds, matching the original AI state machine.
+      if(animal.hostile){
+        animal.chargeTargetId=p.id;animal.runFromId=null;animal.moveLeft=8000;
+      }else{
+        animal.runFromId=p.id;animal.chargeTargetId=null;animal.moveLeft=2000;
+      }
+      animal.waitLeft=0;
       animal.health=Math.max(0,animal.health-damage);
       if(p.lifeStats)p.lifeStats.animalDamage+=effectiveDamage;
       this.events.push({kind:'animal_hit',sid:animal.sid,from:p.id,x:animal.x,y:animal.y,damage:effectiveDamage});
@@ -852,30 +871,75 @@ export class World {
         if(at>=a.deadUntil){a.health=a.maxHealth;a.x=a.homeX;a.y=a.homeY;this.events.push({kind:'animal_return',sid:a.sid});}
         continue;
       }
-      let target=null,best=a.viewRange;
-      if(a.hostile)for(const p of this.players.values()){
-        if(p.hp<=0)continue;
-        const dist=Math.hypot(a.x-p.x,a.y-p.y);
-        if(dist<best){best=dist;target=p;}
-      }
-      // Peaceful wildlife flees the last real attacker instead of acquiring
-      // every player as a target. Hostiles pursue with species-specific range.
-      const attacker=this.players.get(a.lastAttackerId);
-      const fleeing=!a.hostile&&attacker?.hp>0&&at<a.alertUntil;
-      if(fleeing){
-        a.dir=Math.atan2(a.y-attacker.y,a.x-attacker.x);
-      }else if(target){
-        a.dir=Math.atan2(target.y-a.y,target.x-a.x);
-      }else if(this.animalRandom()<step*0.4){
-        a.dir+=this.animalRandom()-0.5;
-      }
-      const speed=a.speed*(target?1.35:fleeing?1.6:0.45)*step;
+      // Reference AI state machine: wait -> select a target or wander ->
+      // rotate with a bounded turn rate -> accelerate -> wait again.
+      // This prevents wolves/bulls from instantly snapping their heading
+      // to the player and walking like peaceful cows.
+      const ms=step*1000;
       const body=Number.isFinite(a.scale)&&a.scale>0?a.scale:75;
-      const nextX=a.x+Math.cos(a.dir)*speed,nextY=a.y+Math.sin(a.dir)*speed;
+      const accel=AI_MOTION[a.index]?.[0]??(a.speed||0)*4;
+      const turnSpeed=AI_MOTION[a.index]?.[1]??1;
+      a.waitLeft??=1000;a.moveLeft??=0;
+      a.targetDir??=a.dir;a.motionX??=0;a.motionY??=0;
+      let charging=false,fleeing=false;
+      if(a.waitLeft>0){
+        a.waitLeft=Math.max(0,a.waitLeft-ms);
+        if(a.waitLeft===0){
+          let target=null,best=a.viewRange||0;
+          if(a.hostile&&a.damage>0)for(const p of this.players.values()){
+            if(p.hp<=0)continue;
+            // Hidden/repelled targets are not acquired by hostile wildlife.
+            const dist=Math.hypot(a.x-p.x,a.y-p.y);
+            if(dist<best){best=dist;target=p;}
+          }
+          if(target){
+            a.chargeTargetId=target.id;
+            a.moveLeft=8000+Math.floor(this.animalRandom()*4000);
+          }else{
+            a.chargeTargetId=null;
+            a.moveLeft=1000+Math.floor(this.animalRandom()*1000);
+            a.targetDir=this.animalRandom()*Math.PI*2-Math.PI;
+          }
+        }
+      }else if(a.moveLeft>0){
+        const target=this.players.get(a.chargeTargetId);
+        const attacker=this.players.get(a.runFromId);
+        if(attacker?.hp>0){
+          a.targetDir=Math.atan2(a.y-attacker.y,a.x-attacker.x);
+          fleeing=true;
+        }else if(target?.hp>0){
+          a.targetDir=Math.atan2(target.y-a.y,target.x-a.x);
+          charging=true;
+        }
+        const diff=Math.atan2(Math.sin(a.targetDir-a.dir),Math.cos(a.targetDir-a.dir));
+        const maxTurn=turnSpeed*step;
+        a.dir+=Math.max(-maxTurn,Math.min(maxTurn,diff));
+        a.dir=Math.atan2(Math.sin(a.dir),Math.cos(a.dir));
+        const inWater=a.x>=0&&Math.abs(a.y-this.size/2)<=362;
+        const waterFactor=inWater?0.33:1;
+        const force=accel*(charging?1.75:fleeing?1.42:1)*waterFactor*step;
+        a.motionX+=Math.cos(a.dir)*force;
+        a.motionY+=Math.sin(a.dir)*force;
+        a.moveLeft=Math.max(0,a.moveLeft-ms);
+        if(a.moveLeft===0){
+          a.chargeTargetId=null;a.runFromId=null;
+          a.waitLeft=a.hostile?1500:1500+Math.floor(this.animalRandom()*4500);
+        }
+      }
+      // Current acts on animals too. Their velocities survive movement input
+      // changes, and deceleration runs once per elapsed simulation time.
+      const inWater=a.x>=0&&Math.abs(a.y-this.size/2)<=362;
+      if(inWater)a.motionX+=RIVER_ACCEL*step;
+      const nextX=a.x+a.motionX*step,nextY=a.y+a.motionY*step;
       a.x=Math.max(body,Math.min(this.size-body,nextX));
       a.y=a.area==='snow'?Math.max(body,Math.min(2400-body,nextY)):
         a.area==='river'?Math.max(this.size/2-350,Math.min(this.size/2+350,nextY)):
         Math.max(body,Math.min(this.size-body,nextY));
+      const friction=Math.pow(MOVE_DECEL_PER_MS,ms);
+      a.motionX*=friction;a.motionY*=friction;
+      if(Math.abs(a.motionX)<0.01)a.motionX=0;
+      if(Math.abs(a.motionY)<0.01)a.motionY=0;
+      const target=this.players.get(a.chargeTargetId);
       // Contact damage uses both bodies' radii, not a universal 80-pixel box.
       if(target&&a.damage>0&&
         Math.hypot(a.x-target.x,a.y-target.y)<=PLAYER_RADIUS+body*0.55&&
