@@ -7,6 +7,7 @@ import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 import { UTILS } from './vendor/al007ex/utils.js';
 import { GameObject } from './vendor/al007ex/gameObject.js';
 import { referenceNaturalPlacementClear } from './reference-object-placement.js';
+import {resolveSolidContact} from './reference-solid-collision.js';
 import { referenceObjectVisibleToPlayer } from './reference-object-visibility.js';
 import { AI_TYPES } from './vendor/al007ex/aiManager.js';
 import { Projectile } from './vendor/al007ex/projectile.js';
@@ -1048,20 +1049,7 @@ export class World {
         p.raisedUntil=at+1200;
         p.raisedOrigin={x:platform.x,y:platform.y};
       }
-      const blocked=(x,y)=>{
-        const raised=at<p.raisedUntil&&p.raisedOrigin&&
-          Math.hypot(x-p.raisedOrigin.x,y-p.raisedOrigin.y)<200;
-        for(const o of this.resources.values()){
-          const dist=Math.hypot(x-o.x,y-o.y);
-          if(dist<PLAYER_RADIUS+RESOURCE_RADIUS(o)&&
-            dist<Math.hypot(p.x-o.x,p.y-o.y)-0.0001)return true;
-        }
-        for(const o of this.structures.values()){
-          if(![3,4,5].includes(o.id)||raised)continue;
-          const dist=Math.hypot(x-o.x,y-o.y);
-          if(dist<PLAYER_RADIUS+o.scale&&
-            dist<Math.hypot(p.x-o.x,p.y-o.y)-0.0001)return true;
-        }
+      const blockedByPlayer=(x,y)=>{
         for(const other of this.players.values()){
           if(other===p||other.hp<=0)continue;
           const dist=Math.hypot(x-other.x,y-other.y);
@@ -1070,13 +1058,25 @@ export class World {
         }
         return false;
       };
+      // Use the original ObjectManager collision resolver at each physics
+      // substep. The existing V2 player-to-player protection is unchanged.
       for(let n=0;n<depth;n++){
         const nextX=Math.max(-4500,Math.min(this.size-24,p.x+deltaX/depth));
-        if(secretWalkable(nextX,p.y,this.size)&&!blocked(nextX,p.y))p.x=nextX;
-        else p.motionX=0;
+        if(secretWalkable(nextX,p.y,this.size)&&!blockedByPlayer(nextX,p.y)){
+          const hit=resolveSolidContact(p,nextX,p.y,this.resources,this.structures);
+          if(hit&&secretWalkable(hit.x,hit.y,this.size)){
+            p.x=hit.x;p.y=hit.y;
+            p.motionX=hit.motionX;p.motionY=hit.motionY;
+          }else p.motionX=0;
+        }else p.motionX=0;
         const nextY=Math.max(24,Math.min(this.size-24,p.y+deltaY/depth));
-        if(secretWalkable(p.x,nextY,this.size)&&!blocked(p.x,nextY))p.y=nextY;
-        else p.motionY=0;
+        if(secretWalkable(p.x,nextY,this.size)&&!blockedByPlayer(p.x,nextY)){
+          const hit=resolveSolidContact(p,p.x,nextY,this.resources,this.structures);
+          if(hit&&secretWalkable(hit.x,hit.y,this.size)){
+            p.x=hit.x;p.y=hit.y;
+            p.motionX=hit.motionX;p.motionY=hit.motionY;
+          }else p.motionY=0;
+        }else p.motionY=0;
       }
       const friction=Math.pow(MOVE_DECEL_PER_MS,step*1000);
       p.motionX*=friction;p.motionY*=friction;

@@ -99,3 +99,21 @@ individualizados por usuário para não revelar a localização de
 armadilhas ocultas. Os efeitos `structure_hit` nos pacotes Lua
 também respeitam `GameObject.visibleToPlayer()`. Administradores
 continuam tendo acesso ao estado completo do mundo para depuração.
+
+## Colisão sólida por ObjectManager original (22/10/2026)
+
+`reference-solid-collision.js` chama de verdade
+`ObjectManager.checkCollision()` e `GameObject.getScale()` da fonte
+Apache-2.0 do al007ex durante o movimento do jogador. Árvores e
+arbustos têm raio 0,6 da copa, pedras e minérios raio integral e
+estruturas sólidas respeitam seu `colDiv` (ex.: sapling). Ao colidir,
+a posição retorna à circunferência e as velocidades são amortecidas
+em 25%, como no original. Agora também são sólidos: espinhos,
+moinhos, minas, saplings e torres. Pit Trap, boost, watchtower,
+healing, spawn, blocker e teleporter continuam atravessáveis,
+com seus efeitos V2 independentes.
+
+A ponte executa só a parte física do método original: dano, veneno,
+teleporte, clãs e autenticação permanecem autoritativos na V2.
+A colisão física entre jogadores ainda usa as regras existentes da
+V2 e será tratada à parte; não há promessa de paridade integral.
