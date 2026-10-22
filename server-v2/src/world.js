@@ -28,17 +28,17 @@ const WILDLIFE=[
   {index:0,count:10,hp:500,speed:65,damage:0,food:50,score:150,scale:72},
   {index:1,count:8,hp:800,speed:59,damage:0,food:80,score:200,scale:72},
   {index:12,count:6,hp:650,speed:63,damage:0,food:150,score:200,scale:72},
-  {index:2,count:5,hp:1800,speed:70,damage:20,food:100,score:1000,scale:78},
-  {index:3,count:2,hp:2800,speed:72,damage:20,food:400,score:2000,scale:90},
-  {index:4,count:6,hp:300,speed:76,damage:8,food:200,score:500,scale:84,area:'snow'},
+  {index:2,count:5,hp:1800,speed:235,damage:20,viewRange:800,hostile:true,food:100,score:1000,scale:78},
+  {index:3,count:2,hp:2800,speed:250,damage:20,viewRange:900,hostile:true,food:400,score:2000,scale:90},
+  {index:4,count:6,hp:300,speed:245,damage:8,viewRange:800,hostile:true,food:200,score:500,scale:84,area:'snow'},
   {index:5,count:4,hp:300,speed:100,damage:8,food:100,score:2000,scale:70,area:'river'},
-  {index:9,count:4,hp:900,speed:72,damage:14,food:150,score:800,scale:76},
-  {index:10,count:2,hp:3200,speed:58,damage:25,food:800,score:4500,scale:95,area:'snow'},
-  {index:6,count:1,hp:18000,speed:50,damage:40,food:100,score:8000,scale:80,
+  {index:9,count:4,hp:900,speed:240,damage:14,viewRange:700,hostile:true,food:150,score:800,scale:76},
+  {index:10,count:2,hp:3200,speed:230,damage:25,viewRange:750,hostile:true,food:800,score:4500,scale:95,area:'snow'},
+  {index:6,count:1,hp:18000,speed:215,damage:40,viewRange:1000,hostile:true,food:100,score:8000,scale:80,
     fixed:true},
   {index:7,count:1,hp:20000,speed:0,damage:0,food:0,score:5000,scale:70,fixed:true},
-  {index:8,count:1,hp:7000,speed:92,damage:10,food:1000,score:3000,scale:90,fixed:true},
-  {index:11,count:1,hp:480000,speed:32,damage:45,food:0,score:4000,scale:280,
+  {index:8,count:1,hp:7000,speed:265,damage:10,viewRange:800,hostile:true,food:1000,score:3000,scale:90,fixed:true},
+  {index:11,count:1,hp:480000,speed:170,damage:45,viewRange:1800,hostile:true,food:0,score:4000,scale:280,
     fixed:true,boss:true}
 ];
 // These definitions are independent gameplay rules; numeric IDs serve as
@@ -214,7 +214,10 @@ export class World {
         dir:rng()*Math.PI*2,health:species.hp,maxHealth:species.hp,
         scale:species.scale,score:species.score,foodDrop:species.food,
         boss:!!species.boss,fixed:!!species.fixed,area:species.area||null,
-        speed:species.speed,damage:species.damage,nextAttack:0,deadUntil:0,
+        speed:species.speed,damage:species.damage,
+        hostile:!!species.hostile,viewRange:species.viewRange||0,
+        alertUntil:0,lastAttackerId:null,staggerUntil:0,
+        nextAttack:0,deadUntil:0,
         nameIndex:[0,1].includes(species.index)?
           Math.floor(this.animalRandom()*COW_PIG_NAMES.length):-1,
         state:0});
@@ -655,6 +658,7 @@ export class World {
       const damage=Math.max(0,Math.round(weapon.damage*(hat.damageDone??1)*
         (tail.damageDone??1)));
       const effectiveDamage=Math.min(animal.health,damage);
+      animal.lastAttackerId=p.id;animal.alertUntil=time+5000;
       animal.health=Math.max(0,animal.health-damage);
       if(p.lifeStats)p.lifeStats.animalDamage+=effectiveDamage;
       this.events.push({kind:'animal_hit',sid:animal.sid,from:p.id,x:animal.x,y:animal.y,damage:effectiveDamage});
@@ -793,22 +797,33 @@ export class World {
         if(at>=a.deadUntil){a.health=a.maxHealth;a.x=a.homeX;a.y=a.homeY;this.events.push({kind:'animal_return',sid:a.sid});}
         continue;
       }
-      let target=null,best=480;
-      if(a.damage>0)for(const p of this.players.values()){
+      let target=null,best=a.viewRange;
+      if(a.hostile)for(const p of this.players.values()){
         if(p.hp<=0)continue;
         const dist=Math.hypot(a.x-p.x,a.y-p.y);
         if(dist<best){best=dist;target=p;}
       }
-      if(target)a.dir=Math.atan2(target.y-a.y,target.x-a.x);
-      else if(this.animalRandom()<step*0.4)a.dir+=this.animalRandom()-0.5;
-      const speed=a.speed*(target?1.15:0.5)*step;
-      // Region-restricted wildlife should not wander into the wrong biome.
+      // Peaceful wildlife flees the last real attacker instead of acquiring
+      // every player as a target. Hostiles pursue with species-specific range.
+      const attacker=this.players.get(a.lastAttackerId);
+      const fleeing=!a.hostile&&attacker?.hp>0&&at<a.alertUntil;
+      if(fleeing){
+        a.dir=Math.atan2(a.y-attacker.y,a.x-attacker.x);
+      }else if(target){
+        a.dir=Math.atan2(target.y-a.y,target.x-a.x);
+      }else if(this.animalRandom()<step*0.4){
+        a.dir+=this.animalRandom()-0.5;
+      }
+      const speed=a.speed*(target?1.35:fleeing?1.6:0.45)*step;
       const nextX=a.x+Math.cos(a.dir)*speed,nextY=a.y+Math.sin(a.dir)*speed;
-      a.x=Math.max(60,Math.min(this.size-60,nextX));
-      a.y=a.area==='snow'?Math.max(60,Math.min(2350,nextY)):
+      a.x=Math.max(a.scale,Math.min(this.size-a.scale,nextX));
+      a.y=a.area==='snow'?Math.max(a.scale,Math.min(2400-a.scale,nextY)):
         a.area==='river'?Math.max(this.size/2-350,Math.min(this.size/2+350,nextY)):
-        Math.max(60,Math.min(this.size-60,nextY));
-      if(target&&best<80&&at>=a.nextAttack){
+        Math.max(a.scale,Math.min(this.size-a.scale,nextY));
+      // Contact damage uses both bodies' radii, not a universal 80-pixel box.
+      if(target&&a.damage>0&&
+        Math.hypot(a.x-target.x,a.y-target.y)<=PLAYER_RADIUS+a.scale*0.55&&
+        at>=a.nextAttack){
         a.nextAttack=at+1100;
         const damage=this.protectedDamage(target,a.damage,a.x,a.y);
         target.hp=Math.max(0,target.hp-damage);
@@ -847,9 +862,22 @@ export class World {
       }
       const raised=at<p.raisedUntil&&p.raisedOrigin&&
         Math.hypot(x-p.raisedOrigin.x,y-p.raisedOrigin.y)<200;
+      // The renderer shows broad tree canopies but the reference uses a
+      // smaller physical trunk (0.6 scale). Stone/ore use their actual scale.
+      // Per-axis correction permits sliding along rocks instead of sticking.
+      const blockedByNature=(cx,cy)=>{
+        for(const o of this.resources.values()){
+          const d=Math.hypot(cx-o.x,cy-o.y);
+          const previous=Math.hypot(p.x-o.x,p.y-o.y);
+          if(d<PLAYER_RADIUS+RESOURCE_RADIUS(o)&&d<previous-0.0001)return true;
+        }
+        return false;
+      };
+      const cx=blockedByNature(x,p.y)?p.x:x;
+      const cy=blockedByNature(cx,y)?p.y:y;
       const blocking=[...this.structures.values()].some(o=>[3,4,5].includes(o.id)&&
-        Math.hypot(x-o.x,y-o.y)<o.scale+30&&!raised);
-      if(!blocking){p.x=x;p.y=y;}
+        Math.hypot(cx-o.x,cy-o.y)<o.scale+30&&!raised);
+      if(!blocking){p.x=cx;p.y=cy;}
       for(const trap of this.structures.values()){
         if(![6,7,8,9].includes(trap.id))continue;
         const owner=[...this.players.values()].find(other=>other.sid===trap.owner);
