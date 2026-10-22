@@ -49,7 +49,8 @@ function endpoint(value,kind){
     if(typeof value.pgPassword!=='string'||value.pgPassword.length===0)
       throw new Error('Senha PostgreSQL obrigatoria');
     u.username=user;u.password=value.pgPassword;u.pathname='/'+db;
-    u.searchParams.set('sslmode',tls?'require':'disable');
+    // Remote TLS must validate the server certificate and hostname.
+    u.searchParams.set('sslmode',tls?'verify-full':'disable');
   }else{
     const user=String(value.redisUsername||'').trim();
     const redisDB=Number(value.redisDatabase===undefined?0:value.redisDatabase);
@@ -151,8 +152,8 @@ export function createInfrastructureInstaller({root,
     res.setHeader('cache-control','no-store');
     res.setHeader('content-security-policy',
       "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
-    const pathname=new URL(req.url,'http://localhost').pathname;
     try{
+      const pathname=new URL(req.url,'http://localhost').pathname;
       if(completed)return json(res,503,{error:'Instalacao em finalizacao'});
       if(req.method==='GET'&&(pathname==='/'||pathname==='/setup')){
         res.writeHead(200,{'content-type':'text/html; charset=utf-8'});
@@ -161,6 +162,10 @@ export function createInfrastructureInstaller({root,
       if(req.method==='GET'&&pathname==='/setup/infrastructure.js'){
         res.writeHead(200,{'content-type':'application/javascript; charset=utf-8'});
         return res.end(fs.readFileSync(path.join(folder,'setup-infrastructure.js')));
+      }
+      if(req.method==='GET'&&pathname==='/setup/infrastructure.css'){
+        res.writeHead(200,{'content-type':'text/css; charset=utf-8'});
+        return res.end(fs.readFileSync(path.join(folder,'setup-infrastructure.css')));
       }
       if(req.method==='GET'&&pathname==='/health')
         return json(res,200,{status:'setup',installed:false,requires:['postgresql','redis']});

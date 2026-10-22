@@ -10,7 +10,10 @@ inventário, construções salvas, banimentos, painel e configurações.
 - PostgreSQL 17+ no servidor e os utilitários **pg_dump** e **pg_restore**
   instalados no PATH do usuário de execução do Node.js. O script não tenta
   instalar pacotes como root nem alterar o aaPanel.
-- `MOO_DATABASE_URL` deve apontar para o banco autoritativo V2.
+- O comando usa `MOO_DATABASE_URL` quando definida; alternativamente, após
+  a instalação guiada no `/setup`, lê a conexão salva em
+  `MOO_DATA_DIR/infrastructure.json` (ou `server-v2/var/infrastructure.json`)
+  sem precisar copiar a senha para o terminal.
 - `MOO_BACKUP_DIR` é opcional; por padrão os arquivos ficam em
   `MOO_DATA_DIR/backups` ou `server-v2/var/backups`. O diretório deve
   ficar **fora do webroot** do Nginx/aaPanel e não ser acessível pela web.

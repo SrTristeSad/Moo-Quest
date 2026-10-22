@@ -13,6 +13,28 @@ testes, e existe uma primeira implementação do formato binário do cliente Lua
 mas ainda não foi validada uma partida completa no LÖVE. Os efeitos e itens
 ainda não foram implementados integralmente. NÃO usar em produção pública.
 
+## Correções de interface e instalação — 22/10/2026
+
+A interface do primeiro acesso foi reconstruída com HTML sem estilos
+inline, CSS externo em `/setup/infrastructure.css` e layout adaptado
+para desktop e celular. A política CSP mantém `style-src 'self'`,
+sem liberar `unsafe-inline`. A API passou a servir o arquivo CSS
+com o MIME correto. Corrigida a exigência de validação de hostname
+no TLS de PostgreSQL, e `npm run db:backup` agora utiliza as
+credenciais privadas geradas pelo instalador, sem exigir que o
+administrador as copie de volta para o ambiente.
+
+**Ao atualizar o servidor existente no aaPanel:** desligue o projeto,
+faça backup do diretório privado `var/` ou `MOO_DATA_DIR`, da
+configuração `.env` e do banco PostgreSQL. Extraia o novo ZIP
+diretamente na pasta que contém `bootstrap.js` e `package.json`,
+sem excluir ou substituir os dados privados. Reinicie pelo aaPanel,
+abra `/setup` e atualize o navegador com Ctrl+F5, se necessário.
+O ZIP contém o servidor, interface e dependências Node Linux, mas
+PostgreSQL, Redis e Node.js são serviços que devem existir na VPS.
+
+Relatório técnico: [docs/AUDITORIA-INSTALADOR-2026-10-22.md](docs/AUDITORIA-INSTALADOR-2026-10-22.md).
+
 ## Primeira instalação guiada no aaPanel (sem configurar URLs de banco no Node)
 
 **Novo fluxo:** instale e inicie PostgreSQL e Redis na VPS antes do
