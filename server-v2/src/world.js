@@ -7,7 +7,7 @@ import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 import { UTILS } from './vendor/al007ex/utils.js';
 import { GameObject } from './vendor/al007ex/gameObject.js';
 import { referenceNaturalPlacementClear } from './reference-object-placement.js';
-import {resolveSolidContact,originalStaticSpotClear} from './reference-solid-collision.js';
+import {resolveSolidContact,originalStaticSpotClear,resolveCreatureContact} from './reference-solid-collision.js';
 import {resolveReferencePlayerPairs} from './reference-player-collision.js';
 import { referenceObjectVisibleToPlayer } from './reference-object-visibility.js';
 import { AI_TYPES } from './vendor/al007ex/aiManager.js';
@@ -991,11 +991,29 @@ export class World {
       // changes, and deceleration runs once per elapsed simulation time.
       const inWater=a.x>=0&&Math.abs(a.y-this.size/2)<=362;
       if(inWater)a.motionX+=RIVER_ACCEL*step;
-      const nextX=a.x+a.motionX*step,nextY=a.y+a.motionY*step;
-      a.x=Math.max(body,Math.min(this.size-body,nextX));
-      a.y=a.area==='snow'?Math.max(body,Math.min(2400-body,nextY)):
-        a.area==='river'?Math.max(this.size/2-350,Math.min(this.size/2+350,nextY)):
-        Math.max(body,Math.min(this.size-body,nextY));
+      // The reference AI updates object collisions in as many as four
+      // movement substeps. Keep the existing V2 state/biome limits but use
+      // ObjectManager.checkCollision() for natural and constructed solids.
+      const distance=Math.hypot(a.motionX*step,a.motionY*step);
+      const depth=Math.min(4,Math.max(1,Math.round(distance/40)));
+      for(let n=0;n<depth;n++){
+        const nx=Math.max(body,Math.min(this.size-body,
+          a.x+a.motionX*step/depth));
+        const rawY=a.y+a.motionY*step/depth;
+        const ny=a.area==='snow'?Math.max(body,Math.min(2400-body,rawY)):
+          a.area==='river'?Math.max(this.size/2-350,
+            Math.min(this.size/2+350,rawY)):
+          Math.max(body,Math.min(this.size-body,rawY));
+        const contact=resolveCreatureContact(a,nx,ny,
+          this.resources,this.structures);
+        if(!contact)break;
+        a.x=Math.max(body,Math.min(this.size-body,contact.x));
+        a.y=a.area==='snow'?Math.max(body,Math.min(2400-body,contact.y)):
+          a.area==='river'?Math.max(this.size/2-350,
+            Math.min(this.size/2+350,contact.y)):
+          Math.max(body,Math.min(this.size-body,contact.y));
+        a.motionX=contact.motionX;a.motionY=contact.motionY;
+      }
       const friction=Math.pow(MOVE_DECEL_PER_MS,ms);
       a.motionX*=friction;a.motionY*=friction;
       if(Math.abs(a.motionX)<0.01)a.motionX=0;
