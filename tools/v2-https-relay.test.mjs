@@ -101,6 +101,12 @@ test('relay blocks forbidden HTTP routes and rejects untrusted remote TLS',async
     +'X-Forwarded-For: 1.2.3.4\r\nConnection: close\r\n\r\n');
   assert.match(deniedHeader,/403 Local relay request denied/);
   assert.equal(reached,0);
+  const forgedOrigin=await raw(local,'GET /s/LC?b=mqv2native&token=tk:abababab HTTP/1.1\r\n'
+    +'Host: 127.0.0.1:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n'
+    +'Origin: https://malicious.example\r\nSec-WebSocket-Key: SGVsbG8xMjM0NTY3ODkwIQ==\r\n'
+    +'Sec-WebSocket-Version: 13\r\n\r\n');
+  assert.match(forgedOrigin,/403 Local relay request denied/);
+  assert.equal(reached,0);
   const tlsError=await raw(local,'GET /ping HTTP/1.1\r\nHost: localhost:8080\r\nConnection: close\r\n\r\n');
   assert.match(tlsError,/502 TLS connection failed/);
   assert.equal(reached,0,'server routes must never receive credentials before TLS verification');
