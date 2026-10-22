@@ -27,7 +27,8 @@ jobs:
           cat > dist/package/LEIA-PRIMEIRO.txt <<'EOF'
           MOO-QUEST V2 - INSTALACAO GUIADA PARA AAPANEL
           
-          Este ZIP pode ser extraido DIRETAMENTE na pasta do app no aaPanel.\n          Ele inclui TODO o codigo independente Node.js do servidor,
+          Este ZIP pode ser extraido DIRETAMENTE na pasta do app no aaPanel.
+          Ele inclui TODO o codigo independente Node.js do servidor,
           painel, scripts, dependencias Linux e testes. Nenhum download do
           repositorio GitHub e feito durante a instalacao.
 
