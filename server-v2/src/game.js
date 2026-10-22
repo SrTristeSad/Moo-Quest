@@ -566,7 +566,16 @@ export class GameServer {
         if(state.ws.bufferedAmount>512_000){state.ws.terminate();continue;}
         state.send('a',positions);
         state.send('I',this.room.animalPacket());
-        if(this.counter%30===0)state.send('G',[board]);
+        if(this.counter%30===0){
+          state.send('G',[board]);
+          // The pre-V2 minimap uses packet 7 for teammates, not guesses
+          // drawn by the client from potentially stale world positions.
+          const team=state.p.team;
+          const visible=team?[...this.room.players.values()]
+            .filter(p=>p!==state.p&&p.hp>0&&p.team===team)
+            .flatMap(p=>[Math.round(p.x),Math.round(p.y)]):[];
+          state.send('7',[visible]);
+        }
       }
       // A connection tracked for admin moderation may use either protocol.
       // Native Lua clients accept ONLY authenticated binary game packets.
