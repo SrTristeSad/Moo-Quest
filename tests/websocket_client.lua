@@ -53,4 +53,20 @@ assert(c:send("ok"))
 c:update()
 assert(#sent==2 and sent[2]:byte(1)==130)
 c:close()
-print("nonblocking websocket transport tests passed")
+local remoteClosed={
+  settimeout=function() end,
+  connect=function() return true end,
+  send=function(_,data) return #data end,
+  receive=function() return nil,"closed","" end,
+  close=function() end
+}
+local early=Client.new({
+  socket={tcp=function()return remoteClosed end},
+  secureRandom=function(n)return string.rep("a",n) end,
+  sha1=function()return string.rep("\0",20) end
+})
+assert(early:connect("127.0.0.1",8080,"/s/LC"))
+early:update()
+assert(early.state=="failed")
+assert(early.error:find("antes do HTTP 101",1,true))
+print("nonblocking websocket transport and pre-handshake closure tests passed")

@@ -80,8 +80,13 @@ assert(notice:find("CONTA V2",1,true))
 assert(not online:canPlay())
 local offlineTitle,offlineNotice,offlineKind=online:connectionInfo("failed",
   "API V2 HTTP 401: invalid_player_token")
-assert(offlineTitle=="Falha" and offlineKind=="error")
-assert(offlineNotice:find("Detalhes",1,true))
+assert(offlineTitle=="Falha ingresso" and offlineKind=="error")
+assert(offlineNotice:find("/api/join",1,true))
+local wsTitle,wsNote,wsKind=online:connectionInfo("failed",
+  "WebSocket encerrado antes do HTTP 101; verifique /s/LC, ticket e proxy.")
+assert(wsTitle=="Falha WebSocket" and wsKind=="error")
+assert(wsNote:find("/s/LC",1,true))
+online:connectionInfo("failed","API V2 HTTP 401: invalid_player_token")
 assert(online.technicalMessage:find("invalid_player_token",1,true))
 online.registrationEnabled=false
 online.guestEnabled=false

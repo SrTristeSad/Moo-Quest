@@ -239,3 +239,38 @@ A consulta passa pela ponte **HTTPS/WSS com TLS verificado** e nunca inclui
 senha nem tokens. Continua necessário liberar no Cloudflare/aaPanel as
 rotas `/api/account/*` e `/api/join` que anteriormente responderam
 HTML 403. O novo cliente não contorna esse bloqueio.
+
+
+## Login funciona, mas Play fica indisponivel: /s/LC retorna 404
+
+**Verificacao publica de 22/10/2026:** um pedido de upgrade WebSocket
+autenticado pelo TLS do dominio `app.snusnu.com.br`, feito com
+**ticket intencionalmente invalido**, obteve **HTTP 404** na rota
+`wss://app.snusnu.com.br/s/LC`. A API HTTP respondeu normalmente.
+
+No servidor Node V2, um WebSocket com ticket invalido e rejeitado
+por encerramento da conexao antes do `101 Switching Protocols`, e
+nao com HTTP 404. Esse resultado indica fortemente que o upgrade
+WebSocket nao esta sendo repassado corretamente pelo aaPanel/Nginx
+(ou por uma regra de proxy anterior). Nao prova que o ticket real ou
+o Redis da conta estejam errados.
+
+**Como corrigir no aaPanel sem terminal:** abra a configuracao do
+site/proxy `app.snusnu.com.br` em **Website → Proxy Project →
+Modify → URL Proxy → Websocket** e habilite WebSocket. Confira que o
+proxy HTTPS repassa `/s/LC` para a mesma porta local do Node que
+atende `/ping` (normalmente `127.0.0.1:8100`). Salve, aplique/
+recarregue Nginx pela interface e abra novamente o cliente V2.
+
+Se usa configuracao personalizada, a rota /s/LC precisa de HTTP/1.1,
+`proxy_set_header Upgrade $http_upgrade`,
+`proxy_set_header Connection "upgrade"` e o mesmo Host.
+Nao crie dois blocos `location /s/LC` conflitantes e nao exponha
+a porta Node publicamente.
+
+Referencia oficial: https://www.aapanel.com/docs/Function/proxy.html
+
+Esta versao do cliente tambem separa na tela **Falha ingresso**
+(API /api/join) de **Falha WebSocket** (upgrade /s/LC).
+Aperte **Detalhes** se a falha continuar e envie somente a mensagem
+de diagnostico, nunca usuario/senha ou tickets de jogo.

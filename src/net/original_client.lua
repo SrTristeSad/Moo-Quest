@@ -245,7 +245,8 @@ function Original:update()
     elseif evt.kind=="error" then
       self.state="failed"
       self.error=tostring(evt.value)
-      self.status="Erro no WebSocket original: "..self.error
+      self.status=(self.nativeSession and "Falha WebSocket V2: " or
+        "Erro no WebSocket original: ")..self.error
     end
   end
   if ws.state=="closed" and self.state~="closed" and self.state~="failed" then
