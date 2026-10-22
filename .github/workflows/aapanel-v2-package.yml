@@ -20,14 +20,14 @@ jobs:
       - name: Build full self-contained server ZIP
         run: |
           set -euo pipefail
-          mkdir -p dist/MooQuest-V2-aaPanel
-          cp -a server-v2 dist/MooQuest-V2-aaPanel/server-v2
-          rm -rf dist/MooQuest-V2-aaPanel/server-v2/var
-          rm -f dist/MooQuest-V2-aaPanel/server-v2/.env
-          cat > dist/MooQuest-V2-aaPanel/LEIA-PRIMEIRO.txt <<'EOF'
+          mkdir -p dist/package
+          cp -a server-v2/. dist/package/
+          rm -rf dist/package/var
+          rm -f dist/package/.env
+          cat > dist/package/LEIA-PRIMEIRO.txt <<'EOF'
           MOO-QUEST V2 - INSTALACAO GUIADA PARA AAPANEL
           
-          Este ZIP inclui TODO o codigo independente Node.js do servidor,
+          Este ZIP pode ser extraido DIRETAMENTE na pasta do app no aaPanel.\n          Ele inclui TODO o codigo independente Node.js do servidor,
           painel, scripts, dependencias Linux e testes. Nenhum download do
           repositorio GitHub e feito durante a instalacao.
 
@@ -35,7 +35,7 @@ jobs:
           2. Instale PostgreSQL 17 e Redis 7 no aaPanel ou por Docker
              usando o compose.yaml incluido, e inicie esses servicos.
           3. Crie um projeto Node.js >=22 no aaPanel, com diretorio
-             MooQuest-V2-aaPanel/server-v2 e entrada node bootstrap.js.
+             a pasta do site (onde estao bootstrap.js e package.json).
              Use MOO_PORT=8100 e MOO_HOST=127.0.0.1.
           4. Crie um site HTTPS com proxy reverso para 127.0.0.1:8100.
              Recomendado: MOO_DATA_DIR fora do webroot do Nginx.
@@ -53,8 +53,9 @@ jobs:
           Node.js; esses servicos sao fornecidos pela VPS/aaPanel.
           Nunca exponha os bancos diretamente na internet.
           EOF
-          cd dist
-          zip -qr MooQuest-V2-aaPanel-INSTALACAO-COMPLETA.zip MooQuest-V2-aaPanel
+          cd dist/package
+          zip -qr ../MooQuest-V2-aaPanel-INSTALACAO-COMPLETA.zip .
+          cd ..
           unzip -tq MooQuest-V2-aaPanel-INSTALACAO-COMPLETA.zip
           sha256sum MooQuest-V2-aaPanel-INSTALACAO-COMPLETA.zip
       - uses: actions/upload-artifact@v4
