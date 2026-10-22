@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {World} from '../src/world.js';
 
-test('V2 exposes every wildlife type used by the pre-V2 local client's spawn plan',()=>{
+test("V2 exposes every wildlife type used by the pre-V2 local client's spawn plan",()=>{
   const w=new World({seed:42});
   const counts=new Map();
   for(const a of w.animals.values())counts.set(a.index,(counts.get(a.index)||0)+1);
