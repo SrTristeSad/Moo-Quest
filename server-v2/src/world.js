@@ -596,6 +596,8 @@ export class World {
     // coordinates; players cannot claim the amount or manipulate node health.
     let resource=null,best=205;
     for(const obj of this.resources.values()){
+      // Picked bushes remain as fruitless bushes until server-side regrowth.
+      if(obj.kind==='bush'&&obj.type===5)continue;
       const d=Math.hypot(obj.x-p.x,obj.y-p.y);
       if(d>best)continue;
       const angle=Math.atan2(obj.y-p.y,obj.x-p.x);
@@ -609,13 +611,19 @@ export class World {
       const amount=(resource.kind==='ore'?4:2)*(weapon.gather??1)+bonus;
       const points=1+(hat.extraGold??0);
       p.resources[key]+=amount;p.resources.points+=points;p.score+=points;
-      resource.hp-=RESOURCE_DAMAGE;
+      resource.hp=Math.max(0,resource.hp-RESOURCE_DAMAGE);
       this.events.push({kind:'gather',sid:resource.sid,player:p.id,key,amount,points});
       this.awardXp(p.id,8);
-      if(resource.hp<=0){
-        this.resources.delete(resource.sid);
-        this.depleted.set(resource.sid,{obj:resource,at:time+RESOURCE_RETURN_MS});
-        this.events.push({kind:'destroy',sid:resource.sid});
+      if(resource.hp===0){
+        if(resource.kind==='bush'){
+          resource.type=5;
+          resource.regrowAt=time+RESOURCE_RETURN_MS;
+          this.events.push({kind:'bush_empty',sid:resource.sid});
+        }else{
+          this.resources.delete(resource.sid);
+          this.depleted.set(resource.sid,{obj:resource,at:time+RESOURCE_RETURN_MS});
+          this.events.push({kind:'destroy',sid:resource.sid});
+        }
       }
     }
     return true;
@@ -668,6 +676,12 @@ export class World {
   }
   tick(dt){
     const step=Math.min(0.1,Math.max(0,Number(dt)||0)),at=this.now();
+    for(const obj of this.resources.values()){
+      if(obj.kind==='bush'&&obj.type===5&&at>=obj.regrowAt){
+        obj.type=TYPE.bush;obj.hp=obj.maxHp;obj.regrowAt=null;
+        this.events.push({kind:'bush_ready',sid:obj.sid});
+      }
+    }
     for(const [sid,entry] of this.depleted){
       if(at<entry.at)continue;
       const obj=entry.obj;
