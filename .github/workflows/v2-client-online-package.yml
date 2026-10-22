@@ -32,6 +32,10 @@ jobs:
         continue-on-error: true
         run: |
           node --input-type=module -e 'try {const r=await fetch("https://app.snusnu.com.br/ping",{signal:AbortSignal.timeout(8000)});const j=await r.json();if(r.status!==200||j.build!=="mqv2native")throw Error("Unexpected remote /ping response: "+r.status);console.log("REMOTE_API_OK build="+j.build)}catch(e){console.error("REMOTE_API_UNVERIFIED: "+e.message);process.exitCode=1}'
+      - name: Smoke-test the actual pinned TLS relay with the remote /ping
+        continue-on-error: true
+        run: |
+          node --input-type=module -e 'import {createSecureRelay} from "./tools/v2-https-relay.mjs"; const bridge=createSecureRelay({listenPort:0});try{const address=await bridge.listen();const r=await fetch("http://127.0.0.1:"+address.port+"/ping",{signal:AbortSignal.timeout(8000)});const j=await r.json();if(r.status!==200||j.build!=="mqv2native")throw Error("Unexpected bridge /ping");console.log("PINNED_HTTPS_RELAY_OK "+j.build)}catch(e){console.error("PINNED_HTTPS_RELAY_UNVERIFIED: "+e.message);process.exitCode=1}finally{await bridge.close()}'
       - name: Package all first-party Lua client sources
         run: |
           set -euo pipefail
