@@ -96,7 +96,7 @@ test('actual current Lua binary wire: /ping + /api/join + io-init + M -> C,D,H,a
 
   // The upgrade UI sends H with a numeric weapon index; the server issues
   // V and U only after validating its authoritative progression.
-  game.room.awardXp(p.id,60);
+  game.room.awardXp(p.id,300);
   await waitFor(()=>packets.some(pkt=>pkt.name==='U'&&pkt.args[0]===1));
   ws.send(session.makeTestRequest('H',[1],seq+8));
   await waitFor(()=>packets.some(pkt=>pkt.name==='V'&&pkt.args[1]===1&&pkt.args[0].includes(1)));
