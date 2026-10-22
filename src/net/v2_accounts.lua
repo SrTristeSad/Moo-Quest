@@ -53,7 +53,7 @@ local function request(route,method,data,token,options)
   local chunks={}
   local oldTimeout=http.TIMEOUT
   http.TIMEOUT=5
-  local ok,success,status,responseHeaders=pcall(http.request,{
+  local ok,success,status,responseHeaders,statusLine=pcall(http.request,{
     url=url.."/api/account/"..route,method=method,
     headers=headers,source=ltn12.source.string(body),
     sink=ltn12.sink.table(chunks)
@@ -61,7 +61,7 @@ local function request(route,method,data,token,options)
   http.TIMEOUT=oldTimeout
   if not ok then return nil,"API de conta V2 indisponivel: "..tostring(success) end
   if not success then return nil,"API de conta V2 falhou: "..tostring(status) end
-  local decoded,why,httpStatus=Response.decode(chunks,status,responseHeaders,16384)
+  local decoded,why,httpStatus=Response.decode(chunks,status,responseHeaders,16384,statusLine)
   if not decoded then return nil,why end
   if httpStatus~=200 and httpStatus~=201 then
     local reason=type(decoded.error)=="string" and decoded.error or "requisicao_recusada"
