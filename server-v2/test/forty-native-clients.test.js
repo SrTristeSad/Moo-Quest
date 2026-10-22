@@ -105,9 +105,10 @@ test('40 simultaneous authenticated-wire Lua clients: admission, movement, updat
  assert.equal(game.room.players.size,40);
  assert.equal(new Set([...game.room.players.values()].map(p=>p.sid)).size,40);
  assert.equal([...game.room.players.values()].filter(p=>p.name==='Replacement').length,1);
- // Replay of a consumed ticket must not join another authenticated session.
- const used=[...pending][0]; // no pending tickets after successful connect
- assert.equal(used,undefined);
+ // The overloaded 41st ticket is deliberately not consumed: admission
+ // rejected before Redis/fixture consume. All 40 successful handshakes must
+ // have consumed their tickets. The rejected token must not spawn a player.
+ assert.equal(pending.size,1,'only the rejected over-capacity ticket remains');
  const saved=game.room.players.size;
  await sleep(100);
  assert.equal(game.room.players.size,saved,'stable session count after rejoin');
