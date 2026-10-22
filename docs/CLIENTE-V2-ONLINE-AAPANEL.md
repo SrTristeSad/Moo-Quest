@@ -129,6 +129,31 @@ prioriza essas imagens e mantém suporte a `assets/reference/img/`.
 Sem elas, o jogo ainda conecta, mas algumas imagens ficam ausentes.
 O cliente online não contém `PREPARAR-SERVIDOR.bat`.
 
+### Recuperar o cliente visual anterior sem perder o login V2
+
+O código original de câmera, renderização, HUD, lojas, animações e objetos
+continua no cliente; a referência preservada antes do V2 é o commit
+`5ad8c32` (branch `archive/client-before-server-v2-2026-10-21`).
+**Não execute o cliente antigo diretamente contra a API V2**: ele não tem
+o novo protocolo de conta e WebSocket.
+
+1. Extraia o novo ZIP em uma pasta própria, sem apagar a instalação antiga.
+2. Execute **`IMPORTAR-ARTES-ANTIGAS.bat`**.
+3. Cole o caminho completo da pasta antiga que contém os PNGs.
+   A ferramenta aceita `assets/custom/img/`, `assets/reference/img/`,
+   `node-runtime/client/public/img/`, `client/public/img/`, `public/img/`
+   e `img/` (somente subpastas de arte reconhecidas).
+4. Confira quantos PNGs foram copiados e abra `JOGAR-V2-ONLINE-WINDOWS.bat`.
+5. Durante a partida, pressione **F6** para recolher ou expandir o aviso
+   de sprites ausentes sem afetar colisão, entidades ou inventário.
+
+A importação funciona **somente para PNGs existentes na instalação antiga**.
+Não baixa imagens de outros sites, não cria substitutos genéricos, não
+copia dados de contas, não altera a VPS e não sobrescreve arquivos presentes.
+O mundo quase vazio visto no servidor V2 não pode ser corrigido inventando
+objetos no cliente: a densidade de recursos e animais é controlada pelo
+servidor e precisa ser comparada separadamente com o servidor original.
+
 ## Alertas do Microsoft Defender ou SmartScreen
 
 Se o Windows bloquear o ZIP ou inicializador, **não desative o
