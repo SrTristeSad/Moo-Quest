@@ -830,7 +830,7 @@ export class World {
     p.resources={wood:0,stone:0,food:0,points:0,kills:0};p.score=0;p.buildIndex=-1;p.weaponIndex=0;
     p.lifeStats={kills:0,wood:0,food:0,stone:0,gold:0,damage:0,
       animalDamage:0,healing:0,animals:0,bosses:0};
-    p.inventory={weapons:[0],items:[0,3,6,10]};p.xp=0;p.age=1;
+    p.inventory={weapons:[0],items:[0,3,6,10]};p.weaponXp={};p.xp=0;p.age=1;
     p.maxXp=LEVEL_XP(1);p.upgradePoints=0;p.upgradeAge=2;
     p.vx=0;p.vy=0;p.lastAttack=0;p.rootedUntil=0;p.nextHealAt=0;
     p.poison=null;p.regen=null;
