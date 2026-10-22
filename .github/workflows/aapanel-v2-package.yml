@@ -32,6 +32,9 @@ jobs:
           test -d dist/package/node_modules/pg
           test -d dist/package/node_modules/redis
           test -d dist/package/node_modules/ws
+          test -d dist/package/node_modules/yauzl
+          test -f dist/package/src/zip-release.js
+          test -f dist/package/docs/UPDATE-ZIP-AAPANEL.md
           ! grep -Eq '<style([ >])|style="' dist/package/public/setup-infrastructure.html
           node --check dist/package/bootstrap.js
           node --check dist/package/setup-server.js
@@ -67,6 +70,18 @@ jobs:
           8. Em partidas publicas, o cliente Lua ainda exige evolucao
              para HTTPS/WSS e Turnstile; use a VPS para homologacao,
              painel e bancos, nao como jogo publico concluido.
+
+          ATUALIZACOES FUTURAS PELO PAINEL:
+          1. Abra /admin e va em Atualizacoes.
+          2. Em Atualizacao por arquivo ZIP, selecione este mesmo formato
+             de pacote completo do MooQuest V2, confirme a origem e envie.
+          3. Clique em Ativar versao preparada e REINICIE o Node no aaPanel.
+          4. Se necessario use Reverter e reinicie de novo.
+          O envio de ZIP exige conta admin e nao pede senha sudo. O
+          atualizador troca apenas src/ e public/; nao substitui
+          as credenciais privadas ou o banco de dados. Use apenas ZIP
+          de origem confiavel: upload manual nao verifica assinatura.
+          Manual: docs/UPDATE-ZIP-AAPANEL.md.
 
           NOTA: O ZIP nao inclui os executaveis de PostgreSQL, Redis ou
           Node.js; esses servicos sao fornecidos pela VPS/aaPanel.
