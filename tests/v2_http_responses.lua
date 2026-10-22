@@ -73,5 +73,9 @@ local denied401,why401,code401=Join.guest({
   ltn12=localLtn12,authToken=token
 })
 assert(not denied401 and code401==401 and why401:find("invalid_player_token",1,true))
+local localBridge,localBridgeError=Response.decode({},403,nil,16384,
+  "HTTP/1.1 403 Local relay request denied")
+assert(not localBridge and localBridgeError:find("Ponte HTTPS local",1,true))
+assert(not localBridgeError:find("proxy HTTPS/Nginx",1,true))
 assert(capture('{}',200).TIMEOUT==5)
 print("V2 API correctly classifies JSON/HTML, proxy errors, compression and 401 without leaking secrets")

@@ -36,7 +36,7 @@ function M.guest(options)
   if authToken then headers["Authorization"]="Bearer "..authToken end
   local chunks,oldTimeout={},http.TIMEOUT
   http.TIMEOUT=5
-  local ok,result,status,responseHeaders=pcall(http.request,{
+  local ok,result,status,responseHeaders,statusLine=pcall(http.request,{
     url="http://"..host..":"..port.."/api/join",method="POST",
     headers=headers,source=ltn12.source.string(body),
     sink=ltn12.sink.table(chunks)
@@ -44,7 +44,7 @@ function M.guest(options)
   http.TIMEOUT=oldTimeout
   if not ok then return nil,"Erro de ingresso V2: "..tostring(result) end
   if not result then return nil,"API V2 indisponivel: "..tostring(status) end
-  local response,why,httpStatus=Response.decode(chunks,status,responseHeaders,8192)
+  local response,why,httpStatus=Response.decode(chunks,status,responseHeaders,8192,statusLine)
   if not response then return nil,why end
   if httpStatus~=200 then
     return nil,"API V2 HTTP "..httpStatus..": "..tostring(response.error or "recusado"),httpStatus

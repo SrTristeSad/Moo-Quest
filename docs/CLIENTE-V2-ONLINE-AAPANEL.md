@@ -183,6 +183,34 @@ do catálogo não constitui prova de limpeza do restante do sistema
 ou do pacote; o Windows Defender continua sendo uma barreira ativa.
 
 
+## Correcao: HTTP 403 vazio no cliente Windows — 22/10/2026
+
+O erro `API V2 HTTP 403: resposta vazia em vez de JSON`, mesmo com
+`/ping` bem-sucedido no console Node, foi causado por incompatibilidade
+no transportador HTTPS local: LuaSocket inclui `TE: trailers` por padrão
+em requisições HTTP/1.1, mas a ponte anterior rejeitava esse cabeçalho
+antes de contactar o servidor. O verificador `/ping` do lançador usa
+Node.js (não LuaSocket), por isso dava sucesso enganoso.
+
+A ponte agora aceita **somente** `TE: trailers` legítimo em pedidos
+HTTP comuns, remove o cabeçalho hop-by-hop antes de enviar a requisição
+pela conexão TLS, normaliza `Connection: close` e continua bloqueando
+`Transfer-Encoding`, `TE` diferente, rotas não aprovadas e headers
+forjados. Testes reproduzem a solicitação real padrão do LuaSocket.
+O cliente também diferencia uma resposta `403 Local relay request denied`
+de erros de 403 emitidos pelo proxy remoto.
+
+**Como usar:** baixe um ZIP completo do cliente desta revisão, extraia em
+pasta nova, feche os executáveis antigos e abra
+`JOGAR-V2-ONLINE-WINDOWS.bat`. Não basta reiniciar o jogo antigo,
+porque o fix está em `tools/v2-https-relay.mjs`.
+
+O bloqueio histórico de algumas rotas por Cloudflare/aaPanel é
+independente: se após o novo cliente a API ainda retornar HTML 403,
+consulte `server-v2/docs/PROXY-AAPANEL-403-API.md` e os logs da VPS.
+Habilitar cadastros no painel continua obrigatório quando
+`registrationEnabled=false`.
+
 ## Cliente V2 e novos controles de acesso do servidor
 
 A API V2 agora permite ao administrador alterar **Permitir convidados** e

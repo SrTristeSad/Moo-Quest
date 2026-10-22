@@ -18,7 +18,7 @@ function M.get(options)
   local chunks={}
   local previous=http.TIMEOUT
   http.TIMEOUT=4
-  local ok,success,status,headers=pcall(http.request,{
+  local ok,success,status,headers,statusLine=pcall(http.request,{
     url="http://"..host..":"..port.."/api/capabilities",
     method="GET",
     headers={
@@ -31,7 +31,7 @@ function M.get(options)
   http.TIMEOUT=previous
   if not ok then return nil,"Nao foi possivel consultar regras V2." end
   if not success then return nil,"Consulta de regras V2 falhou." end
-  local parsed,why,code=Response.decode(chunks,status,headers,8192)
+  local parsed,why,code=Response.decode(chunks,status,headers,8192,statusLine)
   if not parsed then return nil,why end
   if code~=200 then return nil,"API V2 HTTP "..code..": regras indisponiveis" end
   if parsed.build~="mqv2native" then

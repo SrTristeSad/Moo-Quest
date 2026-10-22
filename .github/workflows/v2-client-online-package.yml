@@ -1,7 +1,7 @@
 name: MooQuest V2 Windows Online Client Package
 on:
   push:
-    branches: [main, 'feat/v2-windows-remote-https-client', 'fix/windows-client-safe-node-launcher', 'fix/windows-client-remove-unused-legacy-js', 'fix/v2-online-login-connection-ui', 'fix/v2-online-api-nonjson-response', 'feat/client-v2-admission-policy-ui']
+    branches: [main, 'feat/v2-windows-remote-https-client', 'fix/windows-client-safe-node-launcher', 'fix/windows-client-remove-unused-legacy-js', 'fix/v2-online-login-connection-ui', 'fix/v2-online-api-nonjson-response', 'feat/client-v2-admission-policy-ui', 'fix/v2-luasocket-te-header-relay']
     paths:
       - 'tools/v2-https-relay.mjs'
       - 'tools/v2-https-relay.test.mjs'
