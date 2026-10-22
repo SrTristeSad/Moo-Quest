@@ -40,12 +40,13 @@ test('native binary wire: io-init six fields, keyed MAC, sequence replay rejecti
 test('transport contract: all legacy Lua action names have unique seeded IDs',()=>{
   const a=new NativeSession({seed:777,key:Buffer.alloc(16,1)});
   assert.equal(a.incoming.forward.size,18);
-  assert.equal(a.outgoing.forward.size,38);
+  assert.equal(a.outgoing.forward.size,39);
   assert.equal(new Set(a.incoming.forward.values()).size,18);
-  assert.equal(new Set(a.outgoing.forward.values()).size,38);
+  assert.equal(new Set(a.outgoing.forward.values()).size,39);
   assert.equal(a.incoming.forward.get('V'),17);
   assert.equal(a.outgoing.forward.get('p'),36);
   assert.equal(a.outgoing.forward.get('F'),37);
+  assert.equal(a.outgoing.forward.get('W'),38);
   assert.ok(a.outgoing.forward.has('H'));
   assert.ok(a.outgoing.forward.has('P'));
   assert.ok(a.outgoing.forward.has('5'));

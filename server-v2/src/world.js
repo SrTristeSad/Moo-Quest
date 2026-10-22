@@ -2,6 +2,7 @@
 // map-editor or imports from the legacy game engine. Numeric packet records
 // expose only the game state required by the existing Lua renderer.
 import { randomUUID, randomInt } from 'node:crypto';
+import { secretWalkable, tickCrabKing } from './boss-logic.js';
 import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 import { UTILS } from './vendor/al007ex/utils.js';
 import { referenceGatherBonus, referenceSnowFactor, referenceCowMultiplier, referenceThornsHeal, referenceBleed } from './reference-bridge.js';
@@ -225,7 +226,7 @@ export class World {
         const loc=species.index===6?[size*0.5,size*0.93]:
           species.index===7?[size*0.18,size*0.22]:
           species.index===8?[size*0.78,size*0.08]:[size*0.14,size*0.5];
-        [x,y]=loc;
+        [x,y]=species.index===11?[-2500,size/2]:loc;
       }
       const sid=animalId++;
       const dir=rng()*Math.PI*2;
@@ -238,7 +239,7 @@ export class World {
         speed:species.speed,damage:species.damage,
         hostile:!!species.hostile,viewRange:species.viewRange||0,
         alertUntil:0,lastAttackerId:null,staggerUntil:0,
-        nextAttack:0,deadUntil:0,
+        nextAttack:0,deadUntil:0,bossAttack:null,bossCooldownAt:0,stateUntil:0,
         nameIndex:[0,1].includes(species.index)?
           Math.floor(this.animalRandom()*COW_PIG_NAMES.length):-1,
         state:0});
@@ -775,7 +776,8 @@ export class World {
     // Animals have their own body radii and mass. Hit reactions feed the
     // same charge/flee state machine as before, but with physical impulse.
     for(const animal of this.animals.values()){
-      if(animal.health<=0)continue;
+      if(animal.health<=0||animal.index===11&&
+        (animal.state===1||animal.state===2))continue;
       const angle=facing(animal,animal.scale??75);
       if(angle===null)continue;
       const damage=Math.max(0,Math.round(weapon.damage*damageMultiplier));
@@ -887,9 +889,14 @@ export class World {
     const step=Math.min(0.1,Math.max(0,Number(dt)||0)),at=this.now();
     for(const a of this.animals.values()){
       if(a.health<=0){
-        if(at>=a.deadUntil){a.health=a.maxHealth;a.x=a.homeX;a.y=a.homeY;this.events.push({kind:'animal_return',sid:a.sid});}
+        if(at>=a.deadUntil){
+          a.health=a.maxHealth;a.x=a.homeX;a.y=a.homeY;
+          a.state=0;a.bossAttack=null;a.stateUntil=0;a.bossCooldownAt=0;
+          this.events.push({kind:'animal_return',sid:a.sid});
+        }
         continue;
       }
+      if(a.index===11){tickCrabKing(this,a,at,step);continue;}
       // Reference AI state machine: wait -> select a target or wander ->
       // rotate with a bounded turn rate -> accelerate -> wait again.
       // This prevents wolves/bulls from instantly snapping their heading
@@ -1031,11 +1038,11 @@ export class World {
         return false;
       };
       for(let n=0;n<depth;n++){
-        const nextX=Math.max(24,Math.min(this.size-24,p.x+deltaX/depth));
-        if(!blocked(nextX,p.y))p.x=nextX;
+        const nextX=Math.max(-4500,Math.min(this.size-24,p.x+deltaX/depth));
+        if(secretWalkable(nextX,p.y,this.size)&&!blocked(nextX,p.y))p.x=nextX;
         else p.motionX=0;
         const nextY=Math.max(24,Math.min(this.size-24,p.y+deltaY/depth));
-        if(!blocked(p.x,nextY))p.y=nextY;
+        if(secretWalkable(p.x,nextY,this.size)&&!blocked(p.x,nextY))p.y=nextY;
         else p.motionY=0;
       }
       const friction=Math.pow(MOVE_DECEL_PER_MS,step*1000);
@@ -1243,8 +1250,10 @@ export class World {
         offer('player',p,segmentHit(arrow.x,arrow.y,nx,ny,p.x,p.y,34));
       }
       for(const animal of this.animals.values()){
-        if(animal.health<=0)continue;
-        offer('animal',animal,segmentHit(arrow.x,arrow.y,nx,ny,animal.x,animal.y,42));
+        if(animal.health<=0||animal.index===11&&
+          (animal.state===1||animal.state===2))continue;
+        offer('animal',animal,segmentHit(arrow.x,arrow.y,nx,ny,
+          animal.x,animal.y,Math.max(42,(animal.scale??70)*.5)));
       }
       for(const structure of this.structures.values()){
         // Automatic defenses must not collide with the structure from which

@@ -399,6 +399,12 @@ export class GameServer {
         const state=[...this.nativeClients.values()].find(s=>s.p===p);
         if(state){state.send('N',[evt.key,p.resources[evt.key],1]);state.send('N',['points',p.resources.points,1]);}
         this._nativeBroadcast('L',[p.angle,evt.sid]);
+      }else if(evt.kind==='boss_telegraph'){
+        const args=[evt.effectKind,evt.x,evt.y,evt.radius,evt.duration];
+        if(evt.x2!==undefined)args.push(evt.x2,evt.y2);
+        this._nativeBroadcast('W',args);
+      }else if(evt.kind==='boss_attack'){
+        this._nativeBroadcast('J',[evt.sid]);
       }else if(evt.kind==='animal_hit'){
         this._nativeBroadcast('8',[evt.x,evt.y,-evt.damage,1]);
       }else if(evt.kind==='animal_down'){

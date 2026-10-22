@@ -124,6 +124,8 @@ export class NativeSession {
     this.outgoing.reverse.set(RESPONSE_NAMES.length,'p');
     this.outgoing.forward.set('F',RESPONSE_NAMES.length+1);
     this.outgoing.reverse.set(RESPONSE_NAMES.length+1,'F');
+    this.outgoing.forward.set('W',RESPONSE_NAMES.length+2);
+    this.outgoing.reverse.set(RESPONSE_NAMES.length+2,'W');
   }
   handshake(){return pack(['io-init',[this.socketId,this.seed,this.key.toString('hex'),1,0,0]]);}
   encode(name,args=[]){

@@ -109,6 +109,8 @@ function T.new(handshake,_,digest)
   s2c.dec[#S2C]="p"
   s2c.enc["F"]=#S2C+1
   s2c.dec[#S2C+1]="F"
+  s2c.enc["W"]=#S2C+2
+  s2c.dec[#S2C+2]="W"
   return setmetatable({
     key=key,digest=digest,sent=0,received=0,sealMode=0,
     tables={c2s=c2s,s2c=s2c}
