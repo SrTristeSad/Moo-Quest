@@ -12,6 +12,7 @@ Copied verbatim from the original Apache-2.0 repository:
 - `src/vendor/al007ex/limit.js` from `server/src/moomoo/libs/limit.js` (unmodified; used to limit concurrent social sockets by account)
 - `src/vendor/al007ex/ai.js` from `server/src/moomoo/modules/ai.js` (unmodified, required by AiManager)
 - `src/vendor/al007ex/aiManager.js` from `server/src/moomoo/modules/aiManager.js` (unmodified; AI_TYPES now drives real V2 creature statistics and movement coefficients)
+- `src/vendor/al007ex/projectile.js` from `server/src/moomoo/modules/projectile.js` (unmodified; Projectile.init() and Projectile.update() now drive actual V2 ranged movement)
 - `src/vendor/al007ex/LICENSE` is the upstream license.
 
 Moo-Quest modifications are **not** made inside the copied modules.
