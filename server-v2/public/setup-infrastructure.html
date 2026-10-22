@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Instalação Moo-Quest V2</title>
+<style>
+:root{font:16px system-ui,sans-serif;color:#e8edf2;background:#0d1520}
+*{box-sizing:border-box}
+main{max-width:920px;margin:32px auto 80px;padding:28px;border-radius:18px;background:#172231;border:1px solid #364557}
+h1{font-size:32px;margin:10px 0}h2{font-size:19px;margin:10px 0 18px}
+p{color:#b8c5d2;line-height:1.55}.tag{color:#79dda3;font-weight:700;letter-spacing:.12em;font-size:12px}
+fieldset{border:1px solid #3e5268;border-radius:12px;margin:24px 0;padding:20px}
+legend{font-size:19px;font-weight:700;padding:0 10px}.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+label{display:block;font-weight:650;margin:4px 0;color:#e1eaf5}input{display:block;width:100%;padding:12px;margin-top:6px;border-radius:7px;border:1px solid #60758a;background:#111c29;color:white;font:inherit}
+input[type=checkbox]{display:inline;width:18px;height:18px;margin:0 8px 0 0}
+.check{display:flex;align-items:center;padding:16px 0;font-weight:400}
+button{border:0;padding:13px 16px;color:white;background:#297e56;border-radius:8px;font:inherit;font-weight:700;cursor:pointer;margin-top:15px}
+button.secondary{background:#37536e}button:disabled{opacity:.5}
+#result,.status{white-space:pre-line;font-weight:650;min-height:22px;color:#82e8a9;margin-top:12px}
+.status.error,#result.error{color:#ffc3ad}
+small{display:block;color:#a9b9ca;line-height:1.5}
+@media(max-width:650px){main{margin:0;padding:16px}.cols{grid-template-columns:1fr}}
+</style></head><body>
+<main>
+<div class="tag">PRIMEIRA INSTALAÇÃO • SERVIDOR INDEPENDENTE</div>
+<h1>Moo-Quest V2</h1>
+<p>Configure PostgreSQL e Redis sem editar arquivos nem variáveis do Node.js. Os serviços precisam estar instalados e iniciados na VPS; este assistente testa as conexões e cria as tabelas do jogo.</p>
+<form id="setup" autocomplete="off">
+<fieldset><legend>Proteção da instalação</legend>
+<label>Código de instalação (consulte os logs do projeto no aaPanel)
+<input id="code" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required></label>
+</fieldset>
+<fieldset><legend>PostgreSQL — dados e progresso</legend><div class="cols">
+<label>Host<input id="pgHost" value="127.0.0.1" required></label>
+<label>Porta<input id="pgPort" type="number" value="5432" min="1" max="65535" required></label>
+<label>Nome do banco<input id="pgDatabase" value="mooquest" required></label>
+<label>Usuário<input id="pgUser" value="mooquest" required></label>
+</div>
+<label>Senha do PostgreSQL<input id="pgPassword" type="password" required autocomplete="new-password"></label>
+<label class="check"><input id="pgTls" type="checkbox"> Usar TLS/SSL com PostgreSQL</label>
+<button class="secondary" type="button" id="testPg">Testar PostgreSQL</button>
+<div id="pgStatus" class="status" role="status"></div>
+</fieldset>
+<fieldset><legend>Redis — sessões e tickets</legend><div class="cols">
+<label>Host<input id="redisHost" value="127.0.0.1" required></label>
+<label>Porta<input id="redisPort" type="number" value="6379" min="1" max="65535" required></label>
+<label>Database (0 a 15)<input id="redisDatabase" type="number" min="0" max="15" value="0" required></label>
+<label>Usuário Redis (opcional)<input id="redisUsername"></label>
+</div>
+<label>Senha do Redis<input id="redisPassword" type="password" autocomplete="new-password"></label>
+<label class="check"><input id="redisTls" type="checkbox"> Usar TLS com Redis</label>
+<button class="secondary" type="button" id="testRedis">Testar Redis</button>
+<div id="redisStatus" class="status" role="status"></div>
+</fieldset>
+<fieldset><legend>Administrador do jogo</legend>
+<small>Será criado somente se o banco não possuir administrador. Uma instalação existente nunca terá seu proprietário substituído.</small>
+<div class="cols"><label>Usuário<input id="adminUsername" minlength="3" maxlength="24" value="admin" required></label>
+<label>Senha (12 a 128 caracteres)<input id="adminPassword" type="password" minlength="12" maxlength="128" required autocomplete="new-password"></label></div>
+<label>Confirme a senha<input id="adminPasswordConfirm" type="password" minlength="12" maxlength="128" required autocomplete="new-password"></label>
+</fieldset>
+<button type="submit" id="install" style="width:100%">Validar e concluir instalação</button>
+<div id="result" role="status"></div>
+</form>
+<p><small>As credenciais ficam em arquivo privado com permissões restritas na pasta de dados do servidor; mantenha essa pasta fora do webroot quando possível. Use HTTPS no domínio do painel. Este assistente não instala o PostgreSQL ou Redis nem abre as portas desses serviços na internet.</small></p>
+</main><script src="/setup/infrastructure.js" defer></script></body></html>
