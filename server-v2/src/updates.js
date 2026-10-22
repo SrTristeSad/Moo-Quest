@@ -81,23 +81,28 @@ export class Updates {
     configured: Boolean(this.manifestURL && this.publicKeyFile),
     zipUploadSupported: true }; }
   async uploadZip(buffer){
-    if(this.state.staged)throw Error('Já existe uma atualização preparada; ative ou descarte antes.');
-    const release=await stageTrustedZip(buffer,this.dataDir);
+    if(this.uploading||this.state.staged)
+      throw Error('Já existe uma atualização em envio ou preparada.');
+    this.uploading=true;
     try{
-      this.state.staged=release.version;
-      atomicJSON(this.stateFile,this.state);
-      return {...this.status(),upload:{
-        files:release.files,sha256:release.sha256,version:release.version,
-        authenticity:'unsigned_admin_upload'
-      }};
-    }catch(error){
-      this.state.staged=null;
-      fs.rmSync(path.join(this.dataDir,'releases',release.version),
-        {recursive:true,force:true});
-      throw error;
-    }
+      const release=await stageTrustedZip(buffer,this.dataDir);
+      try{
+        this.state.staged=release.version;
+        atomicJSON(this.stateFile,this.state);
+        return {...this.status(),upload:{
+          files:release.files,sha256:release.sha256,version:release.version,
+          authenticity:'unsigned_admin_upload'
+        }};
+      }catch(error){
+        this.state.staged=null;
+        fs.rmSync(path.join(this.dataDir,'releases',release.version),
+          {recursive:true,force:true});
+        throw error;
+      }
+    }finally{this.uploading=false;}
   }
   discard(){
+    if(this.uploading)throw Error('Uma atualização está sendo enviada');
     if(!this.state.staged)throw Error('Nenhuma atualização pendente para descartar');
     const release=this.state.staged;
     if(!VERSION.test(release))throw Error('Identificador de atualização inválido');
@@ -116,7 +121,7 @@ export class Updates {
       notes: String(this.checked.notes || '').slice(0, 500) };
   }
   async stage() {
-    if(this.state.staged)throw Error('Já existe uma atualização preparada; ative ou descarte antes.');
+    if(this.uploading||this.state.staged)throw Error('Já existe uma atualização preparada; ative ou descarte antes.');
     // Check immediately before staging: no stale unsigned file descriptors.
     await this.check();
     const payload = this.checked;
