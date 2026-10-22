@@ -596,7 +596,7 @@ export class World {
     if(shield&&Number.isFinite(sourceX)&&Number.isFinite(sourceY)){
       const direction=Math.atan2(sourceY-target.y,sourceX-target.x);
       if(Math.cos(direction-target.angle)>=0.25)
-        amount=Math.max(0,Math.round(raw*(1-shield)));
+        amount=Math.max(0,Math.round(raw*shield));
     }
     amount*=hat.damageTaken??1;
     if(kind==='projectile')amount*=tail.projectileDamageTaken??1;
