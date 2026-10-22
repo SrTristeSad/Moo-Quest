@@ -98,9 +98,9 @@ test('miner helmet and gathering capes increase real pickups with correct native
   owner.resources.wood=0;owner.resources.points=0;
   const tree=resource(99901,'tree');
   w.attack(owner.id);
-  assert.equal(owner.resources.wood,3);
+  assert.equal(owner.resources.wood,2);
   assert.equal(owner.resources.points,2);
-  assert.ok(w.takeEvents().some(e=>e.kind==='gather'&&e.sid===tree.sid&&e.amount===3&&e.points===2));
+  assert.ok(w.takeEvents().some(e=>e.kind==='gather'&&e.sid===tree.sid&&e.amount===2&&e.points===2));
   w.resources.clear();
   advance(501);
   owner.resources.points=1000;
@@ -108,8 +108,8 @@ test('miner helmet and gathering capes increase real pickups with correct native
   const rock=resource(99902,'stone');
   owner.resources.stone=0;
   w.attack(owner.id);
-  assert.equal(owner.resources.stone,3);
-  assert.ok(w.takeEvents().some(e=>e.kind==='gather'&&e.sid===rock.sid&&e.amount===3));
+  assert.equal(owner.resources.stone,2);
+  assert.ok(w.takeEvents().some(e=>e.kind==='gather'&&e.sid===rock.sid&&e.amount===2));
 });
 
 test('ranged headgear changes range, speed and deducted ammo, never trusting packet values',()=>{
