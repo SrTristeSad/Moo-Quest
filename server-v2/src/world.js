@@ -7,6 +7,7 @@ import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 import { UTILS } from './vendor/al007ex/utils.js';
 import { GameObject } from './vendor/al007ex/gameObject.js';
 import { referenceNaturalPlacementClear } from './reference-object-placement.js';
+import { referenceObjectVisibleToPlayer } from './reference-object-visibility.js';
 import { AI_TYPES } from './vendor/al007ex/aiManager.js';
 import { Projectile } from './vendor/al007ex/projectile.js';
 import { referenceGatherBonus, referenceSnowFactor, referenceCowMultiplier, referenceThornsHeal, referenceBleed } from './reference-bridge.js';
@@ -299,7 +300,8 @@ export class World {
       // structures disappear from the live world, then restore on login.
       structures:[
         ...[...this.structures.values()].filter(o=>o.owner===p.sid)
-          .map(o=>({id:o.id,x:o.x,y:o.y,hp:o.hp})),
+          .map(o=>({id:o.id,x:o.x,y:o.y,hp:o.hp,
+            ...(o.id===15?{hidden:o.hidden!==false}:{})})),
         ...(p.deferredStructures||[])
       ].slice(0,150)};
   }
@@ -377,7 +379,8 @@ export class World {
         const sid=this.nextObjectSid++;
         this.structures.set(sid,{sid,x,y,scale,type:4,id:saved.id,
           owner:p.sid,ownerAccountId:p.accountId,
-          hp:saved.hp,maxHp:recipe.hp,createdAt:this.now(),nextFire:0});
+          hp:saved.hp,maxHp:recipe.hp,createdAt:this.now(),nextFire:0,
+          ...(saved.id===15?{hidden:saved.hidden!==false}:{})});
       }
     }
   }
@@ -548,7 +551,8 @@ export class World {
     const sid=this.nextObjectSid++;
     this.structures.set(sid,{sid,x,y,scale,type:4,id:itemId,owner:p.sid,
       ownerAccountId:p.accountId||null,
-      hp:recipe.hp,maxHp:recipe.hp,createdAt:this.now(),nextFire:0});
+      hp:recipe.hp,maxHp:recipe.hp,createdAt:this.now(),nextFire:0,
+      ...(itemId===15?{hidden:true}:{})});
     this.events.push({kind:'build',sid,owner:p.sid,id:itemId,x,y});return true;
   }
   consume(id,itemId){
@@ -738,7 +742,8 @@ export class World {
       if(hit<=0||obj.hp<=0)continue;
       obj.hp=Math.max(0,obj.hp-hit);
       this.events.push({kind:'structure_hit',sid:obj.sid,dir:angle,
-        x:obj.x,y:obj.y,damage:hit});
+        x:obj.x,y:obj.y,damage:hit,id:obj.id,owner:obj.owner,
+        hidden:obj.id===15&&obj.hidden!==false});
       if(obj.hp===0){
         this.structures.delete(obj.sid);
         this.events.push({kind:'destroy',sid:obj.sid,owner:obj.owner,id:obj.id});
@@ -1117,6 +1122,12 @@ export class World {
         const owner=[...this.players.values()].find(other=>other.sid===pad.owner);
         const ally=pad.owner===p.sid||Boolean(p.team&&owner?.team===p.team);
         if(spec.pit&&!ally){
+          // Original ObjectManager.checkCollision() reveals a hidden trap
+          // to everyone after an opponent falls into it.
+          if(pad.hidden!==false){
+            pad.hidden=false;
+            this.events.push({kind:'structure_revealed',sid:pad.sid});
+          }
           pad.trapCooldown??=new Map();
           if(at>=(pad.trapCooldown.get(p.id)||0)){
             pad.trapCooldown.set(p.id,at+4000);
@@ -1337,7 +1348,9 @@ export class World {
           if(target.owner!==arrow.ownerSid&&!(arrow.team&&owner?.team===arrow.team)){
             target.hp=Math.max(0,target.hp-arrow.damage);
             this.events.push({kind:'structure_hit',sid:target.sid,dir:arrow.dir,
-              x:target.x,y:target.y,damage:arrow.damage});
+              x:target.x,y:target.y,damage:arrow.damage,
+              id:target.id,owner:target.owner,
+              hidden:target.id===15&&target.hidden!==false});
             if(target.hp===0){
               this.structures.delete(target.sid);
               this.events.push({kind:'destroy',sid:target.sid,
@@ -1354,10 +1367,20 @@ export class World {
       }
     }
   }
-  snapshot(){
+  eventsFor(viewer,events){
+    return events.filter(evt=>{
+      if(evt.kind!=='build'&&evt.kind!=='structure_hit')return true;
+      const obj=this.structures.get(evt.sid)||
+        {id:evt.id,owner:evt.owner,hidden:evt.hidden!==false};
+      return this.objectVisibleToPlayer(obj,viewer);
+    });
+  }
+  snapshot(viewer=null){
     return {kind:'world',tick:this.tickNumber,size:this.size,
       players:[...this.players.values()].map(p=>({id:p.id,name:p.name,x:round(p.x),y:round(p.y),hp:p.hp})),
-      objects:[...this.resources.values(),...this.structures.values()].map(o=>({sid:o.sid,x:o.x,y:o.y,type:o.type,id:o.id??null,owner:o.owner??null}))};
+      objects:[...this.resources.values(),...this.structures.values()]
+        .filter(o=>this.objectVisibleToPlayer(o,viewer))
+        .map(o=>({sid:o.sid,x:o.x,y:o.y,type:o.type,id:o.id??null,owner:o.owner??null}))};
   }
   takeEvents(){return this.events.splice(0);}
   animalCatalog(){return WILDLIFE.map(a=>({
@@ -1375,7 +1398,12 @@ export class World {
     [...this.animals.values()].filter(a=>a.health<=0).map(a=>a.sid)
   ];}
   allObjects(){return [...this.resources.values(),...this.structures.values()];}
-  objectPacket(){return this.allObjects().flatMap(o=>[o.sid,round(o.x),round(o.y),0,o.scale,o.type,o.id??null,o.owner??null]);}
+  objectVisibleToPlayer(obj,viewer){
+    return referenceObjectVisibleToPlayer(obj,viewer,this.players);
+  }
+  objectPacket(viewer=null){return this.allObjects()
+    .filter(o=>this.objectVisibleToPlayer(o,viewer))
+    .flatMap(o=>[o.sid,round(o.x),round(o.y),0,o.scale,o.type,o.id??null,o.owner??null]);}
   playerData(p){return [p.id,p.sid,p.name,round(p.x),round(p.y),p.angle,p.hp,p.maxHp,35,p.skinColor,null,null,null,null,0,false,false];}
   playerUpdates(){
     const pos=[],attrs=[];
@@ -1391,7 +1419,7 @@ export class World {
   initialPackets(p){
     return [['A',[{teams:[...this.tribes].map(([sid,v])=>({sid,owner:this.players.get(v.owner)?.sid,clan:false})),animals:this.animalCatalog()}]],
       ['C',[p.sid]],...([...this.players.values()].filter(other=>other.hp>0).map(other=>['D',[this.playerData(other),other===p]])),
-      ['H',[this.objectPacket()]],['I',this.animalPacket()],['a',this.playerUpdates()],
+      ['H',[this.objectPacket(p)]],['I',this.animalPacket()],['a',this.playerUpdates()],
       ...Object.entries(p.resources).map(([k,n])=>['N',[k,n,1]]),
       ['V',[p.inventory.weapons,1]],['V',[p.inventory.items,0]],
       ['T',[p.xp,p.maxXp,p.age]],['U',[p.upgradePoints,p.upgradeAge]],['G',[this.leaderboard()]]];

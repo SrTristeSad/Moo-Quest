@@ -79,3 +79,23 @@ visual para árvores e arbustos e o raio completo para rochas/minério.
 O adaptador V2 é `src/reference-object-placement.js`. Os IDs, compras,
 clãs, colisões de jogadores, faixa do rio e autenticação continuam no V2.
 As outras rotinas de `ObjectManager` não foram ligadas ainda.
+
+## Pit Trap escondida para inimigos (22/10/2026)
+
+O runtime agora invoca diretamente `GameObject.visibleToPlayer()` do
+al007ex. Uma Pit Trap recém-construída não é incluída no pacote `H`
+de rivais (inclusive jogadores conectados posteriormente), mas continua
+visível ao proprietário e a colegas de clã. Ao entrar/sair de uma
+equipe, o servidor sincroniza o objeto com `H`/`Q`. Ao acionar
+a armadilha, `World` envia `structure_revealed` uma única vez, e
+o servidor redistribui `H`. O estado revelado da armadilha também
+participa do snapshot de estruturas para contas PostgreSQL.
+Não há novos códigos de pacote ou alteração do cliente Lua.
+
+## Retrocompatibilidade JSON e efeitos de dano
+
+O snapshot do cliente JSON legado e o fluxo de eventos agora são
+individualizados por usuário para não revelar a localização de
+armadilhas ocultas. Os efeitos `structure_hit` nos pacotes Lua
+também respeitam `GameObject.visibleToPlayer()`. Administradores
+continuam tendo acesso ao estado completo do mundo para depuração.
