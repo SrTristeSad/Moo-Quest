@@ -4,11 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, verify } from 'node:crypto';
 import { atomicJSON, loadJSON } from './storage.js';
+import { stageTrustedZip } from './zip-release.js';
 
 const VERSION = /^\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/i;
 const FILE = /^(?:src\/[a-zA-Z0-9_/-]+\.js|public\/[a-zA-Z0-9_.-]+\.(?:html|js|css))$/;
 const REQUIRED = ['src/index.js','src/http.js','src/auth.js','src/storage.js',
-  'src/updates.js','src/game.js','src/world.js','src/native-protocol.js',
+  'src/updates.js','src/zip-release.js','src/game.js','src/world.js','src/native-protocol.js',
   'src/store.js','src/database.js','src/redis-services.js','src/player-accounts.js',
     'src/request-identity.js','src/guest-verification.js','public/admin.html','public/login.html',
   'public/setup.html','public/style.css','public/app.js'];
@@ -77,7 +78,34 @@ export class Updates {
     this.checked = null;
   }
   status() { return { ...this.state, available: this.checked?.version || null,
-    configured: Boolean(this.manifestURL && this.publicKeyFile) }; }
+    configured: Boolean(this.manifestURL && this.publicKeyFile),
+    zipUploadSupported: true }; }
+  async uploadZip(buffer){
+    if(this.state.staged)throw Error('Já existe uma atualização preparada; ative ou descarte antes.');
+    const release=await stageTrustedZip(buffer,this.dataDir);
+    try{
+      this.state.staged=release.version;
+      atomicJSON(this.stateFile,this.state);
+      return {...this.status(),upload:{
+        files:release.files,sha256:release.sha256,version:release.version,
+        authenticity:'unsigned_admin_upload'
+      }};
+    }catch(error){
+      this.state.staged=null;
+      fs.rmSync(path.join(this.dataDir,'releases',release.version),
+        {recursive:true,force:true});
+      throw error;
+    }
+  }
+  discard(){
+    if(!this.state.staged)throw Error('Nenhuma atualização pendente para descartar');
+    const release=this.state.staged;
+    if(!VERSION.test(release))throw Error('Identificador de atualização inválido');
+    this.state.staged=null;
+    atomicJSON(this.stateFile,this.state);
+    fs.rmSync(path.join(this.dataDir,'releases',release),{recursive:true,force:true});
+    return this.status();
+  }
   async check() {
     if (!this.manifestURL || !this.publicKeyFile) throw new Error('Release channel/signing key not configured');
     const key = fs.readFileSync(this.publicKeyFile, 'utf8');
@@ -88,6 +116,7 @@ export class Updates {
       notes: String(this.checked.notes || '').slice(0, 500) };
   }
   async stage() {
+    if(this.state.staged)throw Error('Já existe uma atualização preparada; ative ou descarte antes.');
     // Check immediately before staging: no stale unsigned file descriptors.
     await this.check();
     const payload = this.checked;
