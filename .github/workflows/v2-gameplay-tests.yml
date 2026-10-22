@@ -14,6 +14,6 @@ jobs:
         with:
           node-version: '24'
       - name: Install V2 dependencies
-        run: npm ci --prefix server-v2 --no-audit --no-fund
+        run: npm install --prefix server-v2 --no-audit --no-fund
       - name: Run all V2 tests
         run: npm test --prefix server-v2
