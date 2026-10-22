@@ -181,3 +181,33 @@ https://www.microsoft.com/wdsi/filesubmission — selecione o
 arquivo individual detectado, não o projeto inteiro. A exclusão
 do catálogo não constitui prova de limpeza do restante do sistema
 ou do pacote; o Windows Defender continua sendo uma barreira ativa.
+
+
+## Cliente V2 e novos controles de acesso do servidor
+
+A API V2 agora permite ao administrador alterar **Permitir convidados** e
+**Permitir cadastro de contas** separadamente. Nesta versão do cliente, ao
+iniciar o modo V2, uma chamada pública autenticada pelo transporte TLS local
+consulta `GET /api/capabilities` e apresenta as políticas atuais:
+
+- Se `registrationEnabled=false`, o botão de cadastro mostra
+  **Cadastro fechado**. Clicá-lo consulta novamente a política, pois o
+  administrador pode reabrir cadastros enquanto o cliente estiver aberto.
+  O login de contas existentes continua disponível.
+- Se `guestEnabled=false`, não são emitidos tickets de convidados
+  em sessões locais V2 e a tela pede login. No modo remoto o cliente
+  já exigia conta V2 por não implementar ainda o Cloudflare Turnstile.
+- Na confirmação de um cadastro iniciado antes de o administrador fechar
+  inscrições, o cliente consulta novamente as capacidades e exibe a
+  mensagem de cadastro fechado, em vez de tratar o bloqueio como erro
+  genérico. A autoridade final continua sendo o Node.
+- Se `/api/capabilities` falhar (por exemplo HTTP 403 HTML vindo de um
+  WAF), o cliente não inventa uma política: mantém o login disponível
+  e mostra o erro da API quando um pedido real for recusado.
+- O botão Play não ignora a exigência de login online e o encerramento
+  da conta não abre sessão de convidado quando o servidor o desabilitou.
+
+A consulta passa pela ponte **HTTPS/WSS com TLS verificado** e nunca inclui
+senha nem tokens. Continua necessário liberar no Cloudflare/aaPanel as
+rotas `/api/account/*` e `/api/join` que anteriormente responderam
+HTML 403. O novo cliente não contorna esse bloqueio.

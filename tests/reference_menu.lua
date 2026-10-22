@@ -83,6 +83,20 @@ local offlineTitle,offlineNotice,offlineKind=online:connectionInfo("failed",
 assert(offlineTitle=="Falha" and offlineKind=="error")
 assert(offlineNotice:find("Detalhes",1,true))
 assert(online.technicalMessage:find("invalid_player_token",1,true))
+online.registrationEnabled=false
+online.guestEnabled=false
+online.accountEmail=nil
+assert(online:click(1055,460,1280,720)=="registration_closed")
+assert(online.authMode==nil,"disabled registration cannot open account form")
+assert(online:click(870,460,1280,720)=="auth_open")
+assert(online.authMode=="login","login remains available when registration is disabled")
+online.authMode=nil
+online.registrationEnabled=true
+assert(online:click(1055,460,1280,720)=="auth_open")
+assert(online.authMode=="register","enabling registration exposes the form again")
+online.authMode=nil
+local loginTitle,loginHint=online:connectionInfo("auth_required","")
+assert(loginTitle=="Faca login" and loginHint:find("CONTA V2"))
 online.accountEmail="TestAccount"
 online:connectionInfo("keyed_transport","Acesso autenticado")
 assert(online:canPlay())
