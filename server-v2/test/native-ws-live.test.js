@@ -159,7 +159,7 @@ test('actual current Lua binary wire: /ping + /api/join + io-init + M -> C,D,H,a
   assert.equal(publicProfile.token,undefined);
   assert.equal(publicProfile.accountId,undefined);
   const life=packets.find(pkt=>pkt.name==='F'&&pkt.args.length===13).args;
-  assert.ok(life[8]>=20,'local client's heal must appear on stats');
+  assert.ok(life[8]>=20,"local client's heal must appear on stats");
   // Key X sends K(0): freeze aim updates until it is toggled again.
   ws.send(session.makeTestRequest('K',[0],seq+15));
   const beforeAim=p.angle;
