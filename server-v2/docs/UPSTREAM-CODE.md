@@ -36,3 +36,5 @@ to the V2 account database.
 The initial change integrated equipment/harvest/physics behavior only. It is
 NOT a drop-in replacement for the upstream Game class, APIs, database,
 anti-cheat, network layer, or social services.
+
+- `src/vendor/al007ex/projectileManager.js` from `server/src/moomoo/modules/projectileManager.js` (unmodified; addProjectile() and pooled projectile reuse now run inside World)
