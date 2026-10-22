@@ -19,6 +19,12 @@ legada nem baixa código do servidor na instalação.
    solicita ticket `/api/join`, conecta ao WebSocket binário `/s/LC` e
    envia o spawn normalmente.
 
+O iniciador `JOGAR-V2-ONLINE-WINDOWS.bat` chama apenas
+`node tools/run-v2-online.mjs` e **não executa PowerShell,
+`ExecutionPolicy Bypass`, downloads, alterações no Registro ou
+permissões de administrador**. Antes de iniciar o jogo, ele
+valida `/ping` por meio da própria ponte HTTPS.
+
 Ao encerrar LÖVE, o inicializador também encerra a ponte TLS.
 Não use simultaneamente os launchers do servidor local e do cliente
 online: ambos precisariam ocupar a porta 8080.
@@ -74,3 +80,23 @@ O repositório-base não contém sprites PNG de terceiros. Para
 manter as artes personalizadas já usadas na instalação anterior,
 copie-as separadamente para a pasta `assets/custom/` se for o
 caso; o ZIP não fabrica sprites e não inclui artes privadas.
+
+## Alertas do Microsoft Defender ou SmartScreen
+
+Se o Windows bloquear o ZIP ou inicializador, **não desative o
+antivírus nem crie exclusões automaticamente**. Veja qual é a
+detecção em **Segurança do Windows → Proteção contra vírus e ameaças →
+Histórico de proteção** e registre o nome exato da ameaça e arquivo.
+"Aplicativo não reconhecido" (SmartScreen) não equivale
+necessariamente a detecção de trojan, mas não é uma aprovação de
+segurança. Se for identificado malware, mantenha o arquivo em
+quarentena até a verificação do conteúdo.
+
+A versão anterior usava um script PowerShell com
+`-ExecutionPolicy Bypass`; ele foi **removido** desta entrega
+para reduzir comportamentos que poderiam disparar heurísticas.
+O novo ZIP contém somente código-fonte Lua, JavaScript/Node,
+o `.bat` transparente e documentação; não inclui arquivos
+executáveis do LÖVE ou Node. Ainda pode haver alertas no download
+por origem desconhecida ou por outros motivos; não afirmamos que um
+alerta é falso positivo sem saber qual arquivo e detecção ocorreram.
