@@ -85,7 +85,8 @@ function checkBackup(filename){
 }
 function backup(){
   const {db,env}=target();
-  const dir=path.resolve(process.env.MOO_BACKUP_DIR||path.join(root,'var','backups'));
+  const dir=path.resolve(process.env.MOO_BACKUP_DIR||path.join(
+    process.env.MOO_DATA_DIR||path.join(root,'var'),'backups'));
   fs.mkdirSync(dir,{recursive:true,mode:0o700});
   fs.chmodSync(dir,0o700);
   const stamp=new Date().toISOString().replace(/[:.]/g,'-');
