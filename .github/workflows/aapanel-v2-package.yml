@@ -95,10 +95,10 @@ jobs:
           import fs from 'node:fs';
           import os from 'node:os';
           import path from 'node:path';
-          import {stageTrustedZip} from './src/zip-release.js';
+          import {stageTrustedZip} from './package/src/zip-release.js';
           const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'mq-aapanel-zip-check-'));
           try {
-            const data=fs.readFileSync('../MooQuest-V2-aaPanel-INSTALACAO-COMPLETA.zip');
+            const data=fs.readFileSync('./MooQuest-V2-aaPanel-INSTALACAO-COMPLETA.zip');
             const release=await stageTrustedZip(data,tmp);
             if(release.files<20)throw Error('Too few runtime files in installer ZIP');
             console.log('INSTALLER_UPLOAD_ZIP_OK '+release.version+' runtime files='+release.files);
