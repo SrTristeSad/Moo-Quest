@@ -124,7 +124,11 @@ const LEVEL_XP=age=>Math.round(300*Math.pow(1.2,Math.max(0,age-1))*10)/10;
 // Natural trees, rocks, gold nodes and bushes yield on every legal hit.
 // Unlike player-built structures, they are not destructible.
 const PLAYER_RADIUS=35;
-const RIVER_PUSH=80; // visible rightward current in world units per second
+// Equivalent to reference playerSpeed=0.0016, waterCurrent=0.0011
+// (world units per millisecond squared), converted to seconds for V2 ticks.
+const PLAYER_ACCEL=1600;
+const RIVER_ACCEL=1100;
+const MOVE_DECEL_PER_MS=0.993;
 const RESOURCE_RADIUS=o=>o.kind==='tree'||o.kind==='bush'?o.scale*0.6:o.scale;
 const MELEE_ARC_COS=Math.cos(Math.PI/2.6);
 const finite=Number.isFinite;
@@ -233,7 +237,8 @@ export class World {
     let sid=0;while(used.has(sid))sid++;
     const p={id:randomUUID(),sid,name:boundedName(name),
       x:randomInt(180,this.size-180),y:randomInt(180,this.size-180),
-      hp:100,maxHp:100,vx:0,vy:0,angle:0,skinColor:0,accountId,
+      hp:100,maxHp:100,vx:0,vy:0,motionX:0,motionY:0,
+      angle:0,skinColor:0,accountId,
       lastAttack:0,deadUntil:0,socket,ipHash:null,
       xp:0,age:1,upgradePoints:0,upgradeAge:2,maxXp:LEVEL_XP(1),
       native:false,team:null,hat:0,tail:0,
@@ -832,7 +837,8 @@ export class World {
       animalDamage:0,healing:0,animals:0,bosses:0};
     p.inventory={weapons:[0],items:[0,3,6,10]};p.weaponXp={};p.xp=0;p.age=1;
     p.maxXp=LEVEL_XP(1);p.upgradePoints=0;p.upgradeAge=2;
-    p.vx=0;p.vy=0;p.lastAttack=0;p.rootedUntil=0;p.nextHealAt=0;
+    p.vx=0;p.vy=0;p.motionX=0;p.motionY=0;
+    p.lastAttack=0;p.rootedUntil=0;p.nextHealAt=0;
     p.poison=null;p.regen=null;
     p.nextTeleportAt=this.now()+3000;
     p.lastGearRegenAt=this.now();p.raisedUntil=0;p.raisedOrigin=null;
@@ -891,46 +897,68 @@ export class World {
       // The V2 server must ALSO enforce real river movement, not just paint it.
       const inRiver=p.x>=0&&
         p.y>=this.size/2-724/2&&p.y<=this.size/2+724/2;
-      // Same northern snow boundary that the original Lua renderer draws.
-      // Snowball halves slowdown; Winter Cape negates it. All movement
-      // penalties are calculated on the server, never trusted from the client.
+      // Reference physics: accumulate acceleration from input and water,
+      // then damp velocity as playerDecel ^ elapsedMilliseconds. The client
+      // still sends only directional intent; it never supplies a velocity.
       const inSnow=p.y<=SNOW_BIOME_TOP&&p.x>=0;
-      const snowFactor=!inSnow||p.tail===6?1:
-        p.tail===12?1-(1-SNOW_SPEED)*0.5:SNOW_SPEED;
+      const snowFactor=!inSnow||p.hat===15?1:SNOW_SPEED;
+      const waterImmune=p.hat===31;
+      const waterFactor=inRiver?(waterImmune?0.75:0.33):1;
       const weaponMove=WEAPONS[p.weaponIndex]?.move??1;
       const buildingMove=p.buildIndex>=0?0.5:1;
-      const speed=at<p.rootedUntil?0:250*(boosted?1.5:1)*
-        (hat.speed??1)*(tail.speed??1)*(inRiver?0.33:1)*snowFactor*
-        weaponMove*buildingMove;
-      const x=Math.max(24,Math.min(this.size-24,
-        p.x+p.vx*speed*step+(inRiver&&at>=p.rootedUntil?RIVER_PUSH*step:0)));
-      const y=Math.max(24,Math.min(this.size-24,p.y+p.vy*speed*step));
-      // Platforms provide a short, local raised state for crossing a
-      // nearby wall. It expires away from the platform: no global phasing.
+      const motionScale=(boosted?1.5:1)*(hat.speed??1)*(tail.speed??1)*
+        waterFactor*snowFactor*weaponMove*buildingMove;
+      p.motionX??=0;p.motionY??=0;
+      if(at<p.rootedUntil){
+        p.motionX=0;p.motionY=0;
+      }else{
+        p.motionX+=p.vx*PLAYER_ACCEL*motionScale*step;
+        p.motionY+=p.vy*PLAYER_ACCEL*motionScale*step;
+        if(inRiver)p.motionX+=RIVER_ACCEL*(waterImmune?0.4:1)*step;
+      }
+      const deltaX=p.motionX*step,deltaY=p.motionY*step;
+      const depth=Math.max(1,Math.min(4,Math.ceil(Math.hypot(deltaX,deltaY)/40)));
+      // Four partial updates avoid tunneling through rock/wall hitboxes.
       const platform=[...this.structures.values()].find(o=>o.id===18&&
         Math.hypot(p.x-o.x,p.y-o.y)<o.scale+36);
       if(platform){
         p.raisedUntil=at+1200;
         p.raisedOrigin={x:platform.x,y:platform.y};
       }
-      const raised=at<p.raisedUntil&&p.raisedOrigin&&
-        Math.hypot(x-p.raisedOrigin.x,y-p.raisedOrigin.y)<200;
-      // The renderer shows broad tree canopies but the reference uses a
-      // smaller physical trunk (0.6 scale). Stone/ore use their actual scale.
-      // Per-axis correction permits sliding along rocks instead of sticking.
-      const blockedByNature=(cx,cy)=>{
+      const blocked=(x,y)=>{
+        const raised=at<p.raisedUntil&&p.raisedOrigin&&
+          Math.hypot(x-p.raisedOrigin.x,y-p.raisedOrigin.y)<200;
         for(const o of this.resources.values()){
-          const d=Math.hypot(cx-o.x,cy-o.y);
-          const previous=Math.hypot(p.x-o.x,p.y-o.y);
-          if(d<PLAYER_RADIUS+RESOURCE_RADIUS(o)&&d<previous-0.0001)return true;
+          const dist=Math.hypot(x-o.x,y-o.y);
+          if(dist<PLAYER_RADIUS+RESOURCE_RADIUS(o)&&
+            dist<Math.hypot(p.x-o.x,p.y-o.y)-0.0001)return true;
+        }
+        for(const o of this.structures.values()){
+          if(![3,4,5].includes(o.id)||raised)continue;
+          const dist=Math.hypot(x-o.x,y-o.y);
+          if(dist<PLAYER_RADIUS+o.scale&&
+            dist<Math.hypot(p.x-o.x,p.y-o.y)-0.0001)return true;
+        }
+        for(const other of this.players.values()){
+          if(other===p||other.hp<=0)continue;
+          const dist=Math.hypot(x-other.x,y-other.y);
+          if(dist<PLAYER_RADIUS*2&&
+            dist<Math.hypot(p.x-other.x,p.y-other.y)-0.0001)return true;
         }
         return false;
       };
-      const cx=blockedByNature(x,p.y)?p.x:x;
-      const cy=blockedByNature(cx,y)?p.y:y;
-      const blocking=[...this.structures.values()].some(o=>[3,4,5].includes(o.id)&&
-        Math.hypot(cx-o.x,cy-o.y)<o.scale+30&&!raised);
-      if(!blocking){p.x=cx;p.y=cy;}
+      for(let n=0;n<depth;n++){
+        const nextX=Math.max(24,Math.min(this.size-24,p.x+deltaX/depth));
+        if(!blocked(nextX,p.y))p.x=nextX;
+        else p.motionX=0;
+        const nextY=Math.max(24,Math.min(this.size-24,p.y+deltaY/depth));
+        if(!blocked(p.x,nextY))p.y=nextY;
+        else p.motionY=0;
+      }
+      const friction=Math.pow(MOVE_DECEL_PER_MS,step*1000);
+      p.motionX*=friction;p.motionY*=friction;
+      if(Math.abs(p.motionX)<0.01)p.motionX=0;
+      if(Math.abs(p.motionY)<0.01)p.motionY=0;
       for(const trap of this.structures.values()){
         if(![6,7,8,9].includes(trap.id))continue;
         const owner=[...this.players.values()].find(other=>other.sid===trap.owner);
