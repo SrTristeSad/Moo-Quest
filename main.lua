@@ -38,6 +38,7 @@ local camera=nil
 local menuCamera=nil
 local menu=Menu.new()
 menu.accountBackend=v2Mode and "v2" or "legacy"
+menu.onlineMode=v2Online
 local panels=Panels.new()
 local profile=Profile.new()
 local clans=Clans.new()
@@ -111,6 +112,9 @@ end
 
 function love.load()
   love.graphics.setDefaultFilter("linear","linear")
+  love.window.setTitle(v2Online and "Moo-Quest V2 ONLINE | app.snusnu.com.br" or
+    v2Mode and "Moo-Quest V2 LOCAL | 127.0.0.1" or
+    "Moo-Quest | Cliente Lua / Node.js local")
   camera=Camera.new()
   menuCamera=Camera.new()
   menuCamera:follow(Config.mapScale/2,Config.mapScale/2)
@@ -141,7 +145,9 @@ function love.load()
   if v2Online then
     -- Remote mode never attempts unverified guest admission automatically.
     -- Account login obtains a token before issuing the remote /api/join.
+    client.state="auth_required"
     client.status="Servidor remoto HTTPS/WSS: entre na conta V2 para jogar."
+    menu.status="Entre na conta V2 para conectar com app.snusnu.com.br."
   else
     local connected,err=client:connect()
     if not connected then startupError=err end
@@ -453,6 +459,10 @@ local function requestPlay()
     menu.status=startupError or "Cliente de rede indisponivel."
     return false
   end
+  if v2Online and not client.authToken then
+    menu.status="Para jogar online, clique em Entrar e faca login na conta V2."
+    return false
+  end
   if phase=="death" or
     (client.state~="keyed_transport" and
     not (died and client.state=="spawn_confirmed")) then
@@ -526,10 +536,17 @@ local function accountAction(action)
       client.authToken=nil
       clans:reset()
       menu.accountEmail=nil
-      menu.status="Sessao revogada; retornando como convidado local."
       world=World.new()
-      local connected,why=client:connect()
-      if not connected then menu.status="Erro: "..tostring(why) end
+      if v2Online then
+        client:close()
+        client.state="auth_required"
+        client.status="Sessao encerrada. Entre novamente na conta V2."
+        menu.status=client.status
+      else
+        menu.status="Sessao revogada; retornando como convidado local."
+        local connected,why=client:connect()
+        if not connected then menu.status="Erro: "..tostring(why) end
+      end
       return
     end
     return
@@ -577,7 +594,11 @@ end
 menuAction=function(action)
   if action=="play" then return requestPlay() end
   if action=="play_unavailable" then
-    menu.status="Jogo indisponivel; confira o status do servidor e os Detalhes."
+    if v2Online and (not client or not client.authToken) then
+      menu.status="Para jogar online, primeiro clique em Entrar na CONTA V2."
+    else
+      menu.status="Jogo indisponivel; confira os Detalhes da conexao."
+    end
     return false
   end
   if action=="auth_request" or action=="auth_verify" or
@@ -658,9 +679,14 @@ function love.keypressed(key)
     if key=="r" and not menu:isEditingText() and client and
       (client.state=="failed" or client.state=="closed"
         or client.state=="blocked") then
-      world=World.new()
-      local ok,why=client:connect()
-      if not ok then menu.status=tostring(why) end
+      if v2Online and not client.authToken then
+        client.state="auth_required"
+        menu.status="Acesso remoto: primeiro entre na CONTA V2."
+      else
+        world=World.new()
+        local ok,why=client:connect()
+        if not ok then menu.status=tostring(why) end
+      end
       return
     end
     -- Input must see the live WebSocket state even before the next draw.
@@ -755,8 +781,13 @@ function love.keypressed(key)
     heartbeatClock=0
     world=World.new()
     if camera then camera.hasTarget=false end
-    local ok,err=client:connect()
-    if not ok then startupError=err end
+    if v2Online and not client.authToken then
+      client.state="auth_required"
+      menu.status="Entre na conta V2 para conectar ao servidor remoto."
+    else
+      local ok,err=client:connect()
+      if not ok then startupError=err end
+    end
   end
 end
 function love.textinput(text)
