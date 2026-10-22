@@ -121,12 +121,10 @@ export function createSecureRelay({
       const req=parsedRequest(incoming.subarray(0,pos+4),remoteHost,remotePort);
       if(!req){bad(client,403,'Local relay request denied');return;}
       client.off('data',read);
+      // No request body/ticket reaches the network until secureConnect.
+      // pipe() resumes the socket only after the TLS identity is verified.
       client.pause();
-      // Paused socket resumes only after TLS verifies the remote identity.
-      const originalPipe=client.pipe.bind(client);
-      client.pipe= (...args)=> originalPipe(...args);
       start(req,incoming.subarray(pos+4));
-      client.resume();
     });
   });
   server.on('error',()=>{});
