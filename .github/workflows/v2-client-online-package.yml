@@ -1,7 +1,7 @@
 name: MooQuest V2 Windows Online Client Package
 on:
   push:
-    branches: [main, 'feat/v2-windows-remote-https-client', 'fix/windows-client-safe-node-launcher', 'fix/windows-client-remove-unused-legacy-js', 'fix/v2-online-login-connection-ui']
+    branches: [main, 'feat/v2-windows-remote-https-client', 'fix/windows-client-safe-node-launcher', 'fix/windows-client-remove-unused-legacy-js', 'fix/v2-online-login-connection-ui', 'fix/v2-online-api-nonjson-response']
     paths:
       - 'tools/v2-https-relay.mjs'
       - 'tools/v2-https-relay.test.mjs'
@@ -41,6 +41,9 @@ jobs:
         continue-on-error: true
         run: |
           node --input-type=module -e 'import {createSecureRelay} from "./tools/v2-https-relay.mjs"; const bridge=createSecureRelay({listenPort:0});try{const address=await bridge.listen();const r=await fetch("http://127.0.0.1:"+address.port+"/ping",{signal:AbortSignal.timeout(8000)});const j=await r.json();if(r.status!==200||j.build!=="mqv2native")throw Error("Unexpected bridge /ping");console.log("PINNED_HTTPS_RELAY_OK "+j.build)}catch(e){console.error("PINNED_HTTPS_RELAY_UNVERIFIED: "+e.message);process.exitCode=1}finally{await bridge.close()}'
+      - name: Inspect live register/login HTTP response format through TLS bridge (no credentials)
+        continue-on-error: true
+        run: node tools/v2-live-api-check.mjs
       - name: Package all first-party Lua client sources
         run: |
           set -euo pipefail
