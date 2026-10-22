@@ -69,3 +69,13 @@ conta em `mq:v2:ticket-revision:<id>`. Os mesmos eventos que invalidam
 tickets de entrada no jogo (logout, refresh e mudança de senha) impedem o
 uso tardio de um ticket social previamente emitido. A verificação ocorre
 depois do `GETDEL` atômico; tickets não podem ser reutilizados.
+
+## ObjectManager original integrado ao runtime (22 de outubro de 2026)
+
+O método original `ObjectManager.checkItemLocation()` é executado
+para verificar a colisão de construções com objetos naturais e ao restaurar
+construções persistidas. `GameObject.getScale()` aplica 60% do raio
+visual para árvores e arbustos e o raio completo para rochas/minério.
+O adaptador V2 é `src/reference-object-placement.js`. Os IDs, compras,
+clãs, colisões de jogadores, faixa do rio e autenticação continuam no V2.
+As outras rotinas de `ObjectManager` não foram ligadas ainda.

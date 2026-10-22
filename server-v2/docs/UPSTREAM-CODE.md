@@ -13,6 +13,7 @@ Copied verbatim from the original Apache-2.0 repository:
 - `src/vendor/al007ex/ai.js` from `server/src/moomoo/modules/ai.js` (unmodified, required by AiManager)
 - `src/vendor/al007ex/aiManager.js` from `server/src/moomoo/modules/aiManager.js` (unmodified; AI_TYPES now drives real V2 creature statistics and movement coefficients)
 - `src/vendor/al007ex/projectile.js` from `server/src/moomoo/modules/projectile.js` (unmodified; Projectile.init() and Projectile.update() now drive actual V2 ranged movement)
+- `src/vendor/al007ex/objectManager.js` from `server/src/moomoo/modules/objectManager.js` (unmodified; `checkItemLocation()` runs during V2 construction and account structure restoration)
 - `src/vendor/al007ex/LICENSE` is the upstream license.
 
 Moo-Quest modifications are **not** made inside the copied modules.
