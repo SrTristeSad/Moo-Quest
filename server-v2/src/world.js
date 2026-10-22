@@ -71,24 +71,25 @@ const RECIPES={
 };
 const FOOD={0:{cost:10,heal:20},1:{cost:15,heal:40},
   2:{cost:25,heal:30,regen:10,seconds:5}};
-const WEAPONS={0:{damage:15,reach:85,cooldown:500},
-  1:{damage:23,reach:95,cooldown:550,gather:2},
-  2:{damage:35,reach:100,cooldown:550,gather:4},
-  3:{damage:30,reach:115,cooldown:650},
-  4:{damage:40,reach:125,cooldown:650},
-  5:{damage:37,reach:150,cooldown:750},6:{damage:16,reach:120,cooldown:450},
-  7:{damage:12,reach:75,cooldown:250},8:{damage:8,reach:85,cooldown:500},
-  // Ranged weapons use independently designed Node mechanics. Projectile
-  // indices 0/2/3/5 are the LÖVE renderer's existing visual contract.
-  // Speed is world units per millisecond, matching Lua's X packet display.
-  9:{damage:25,cooldown:600,projectile:0,speed:1.6,range:1000,ammo:{wood:4}},
-  10:{damage:10,reach:85,cooldown:650,structureDamage:7.5},
-  // Selecting this defensive item never falls back to an offensive hammer.
-  11:{damage:0,reach:0,cooldown:300,shield:0.35},
-  14:{damage:0,reach:125,cooldown:750,steal:250},
-  12:{damage:35,cooldown:700,projectile:2,speed:2.5,range:1200,ammo:{wood:5}},
-  13:{damage:30,cooldown:300,projectile:3,speed:2.0,range:1200,ammo:{wood:10}},
-  15:{damage:50,cooldown:1500,projectile:5,speed:3.6,range:1400,ammo:{stone:10}}
+const WEAPONS={
+  // Values follow the al007ex client-compatible gameplay rules. Cooldowns
+  // are in milliseconds; motion modifiers are enforced by the V2 world.
+  0:{damage:25,reach:65,cooldown:300,gather:1},
+  1:{damage:30,reach:70,cooldown:400,gather:2},
+  2:{damage:35,reach:75,cooldown:400,gather:4},
+  3:{damage:35,reach:110,cooldown:300,gather:1,move:0.85},
+  4:{damage:40,reach:118,cooldown:300,gather:1,move:0.8},
+  5:{damage:45,reach:142,cooldown:700,gather:1,move:0.82,knock:0.2},
+  6:{damage:20,reach:110,cooldown:300,gather:1,knock:0.7},
+  7:{damage:20,reach:65,cooldown:100,gather:1,move:1.13,knock:0.1,hitSlow:0.1},
+  8:{damage:1,reach:70,cooldown:400,gather:7},
+  9:{damage:25,cooldown:600,projectile:0,speed:1.6,range:1000,ammo:{wood:4},move:0.75},
+  10:{damage:10,reach:75,cooldown:400,gather:1,structureDamage:7.5,move:0.88},
+  11:{damage:0,reach:0,cooldown:300,shield:0.2,move:0.7},
+  12:{damage:35,cooldown:700,projectile:2,speed:2.5,range:1200,ammo:{wood:5},move:0.7},
+  13:{damage:30,cooldown:230,projectile:3,speed:2.0,range:1200,ammo:{wood:10},move:0.7},
+  14:{damage:0,reach:125,cooldown:700,steal:250,move:1.05,knock:0.2,gather:0},
+  15:{damage:50,cooldown:1500,projectile:5,speed:3.6,range:1400,ammo:{stone:10},move:0.6}
 };
 // Lua sends weapon index = numeric ID, item upgrade index = 16+item ID.
 const UPGRADES=new Map([
@@ -116,7 +117,9 @@ const UPGRADES=new Map([
   [13,{kind:'weapon',id:13,age:9,pre:12}],
   [15,{kind:'weapon',id:15,age:9,pre:12}]
 ]);
-const LEVEL_XP=age=>35+age*25;
+// Official progression starts at 300 and raises the threshold 20% each age.
+const MAX_AGE=100;
+const LEVEL_XP=age=>Math.round(300*Math.pow(1.2,Math.max(0,age-1))*10)/10;
 // Natural trees, rocks, gold nodes and bushes yield on every legal hit.
 // Unlike player-built structures, they are not destructible.
 const PLAYER_RADIUS=35;
@@ -279,11 +282,11 @@ export class World {
     // unlocked store cosmetics survive, survival-level progression does not.
     if(!Number.isFinite(data.hp)||data.hp<=0)return;
     p.hp=number(data.hp,1,p.maxHp,p.maxHp);
-    p.age=number(data.age,1,20,1);
+    p.age=number(data.age,1,MAX_AGE,1);
     p.maxXp=LEVEL_XP(p.age);
     p.xp=number(data.xp,0,p.maxXp-1,0);
     p.upgradePoints=number(data.upgradePoints,0,8,0);
-    p.upgradeAge=number(data.upgradeAge,2,20,2);
+    p.upgradeAge=number(data.upgradeAge,2,MAX_AGE,2);
     p.resources=Object.fromEntries(Object.keys(p.resources).map(key=>
       [key,number(data.resources?.[key],0,1_000_000_000,0)]));
     p.score=number(data.score,0,1_000_000_000,0);
@@ -517,9 +520,9 @@ export class World {
     const p=this.players.get(id);
     if(!p||p.hp<=0||!Number.isSafeInteger(amount)||amount<1)return false;
     p.xp+=amount;
-    while(p.xp>=p.maxXp&&p.age<20){
+    while(p.xp>=p.maxXp&&p.age<MAX_AGE){
       p.xp-=p.maxXp;p.age++;p.maxXp=LEVEL_XP(p.age);
-      if([2,3,4,5,6,7,8,9].includes(p.age))p.upgradePoints++;
+      p.upgradePoints++;
     }
     this.events.push({kind:'progress',player:id,xp:p.xp,maxXp:p.maxXp,age:p.age,
       points:p.upgradePoints,upgradeAge:p.upgradeAge});
@@ -854,8 +857,11 @@ export class World {
       const inSnow=p.y<=SNOW_BIOME_TOP&&p.x>=0;
       const snowFactor=!inSnow||p.tail===6?1:
         p.tail===12?1-(1-SNOW_SPEED)*0.5:SNOW_SPEED;
+      const weaponMove=WEAPONS[p.weaponIndex]?.move??1;
+      const buildingMove=p.buildIndex>=0?0.5:1;
       const speed=at<p.rootedUntil?0:250*(boosted?1.5:1)*
-        (hat.speed??1)*(tail.speed??1)*(inRiver?0.33:1)*snowFactor;
+        (hat.speed??1)*(tail.speed??1)*(inRiver?0.33:1)*snowFactor*
+        weaponMove*buildingMove;
       const x=Math.max(24,Math.min(this.size-24,
         p.x+p.vx*speed*step+(inRiver&&at>=p.rootedUntil?RIVER_PUSH*step:0)));
       const y=Math.max(24,Math.min(this.size-24,p.y+p.vy*speed*step));
