@@ -80,6 +80,8 @@ test('wildlife remains server-controlled, can damage player, and uses Lua I layo
   const hostile=[...w.animals.values()].find(a=>a.damage>0);
   for(const a of w.animals.values())if(a!==hostile){a.x=12000;a.y=12000;}
   hostile.x=1000;hostile.y=1000;
+  hostile.waitLeft=0;hostile.moveLeft=1200;
+  hostile.chargeTargetId=p.id;
   p.x=1000;p.y=1001;
   const native=w.animalPacket();
   assert.equal(native.length,2);

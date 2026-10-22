@@ -72,7 +72,7 @@ test('boost and soldier helmets alter movement and damage; switching to none rem
   equip(w,owner,12);
   owner.vx=1;owner.vy=0;
   w.tick(0.1);
-  assert.equal(owner.x,2021.75,'snow (0.75) times +16% speed');
+  assert.equal(owner.x,2013.92,'snow acceleration times +16% movement bonus');
   owner.x=2000;owner.vx=0;
   owner.hat=0;
   rival.x=2070;rival.y=1100;rival.angle=Math.PI;
@@ -188,13 +188,15 @@ test('the age-seven platform is priced, has a limit and permits only local raise
   const before=owner.resources.wood;
   assert.equal(w.place(owner.id,18),false,'overlapping pad rejected');
   assert.equal(owner.resources.wood,before);
+  owner.x=5000;owner.y=3500; // Do not collide with the builder during platform crossing
   rival.x=platform.x;rival.y=platform.y;rival.vx=-1;rival.vy=0;
   for(let i=0;i<12;i++)w.tick(0.1);
   assert.ok(rival.x<wall.x-75,'can walk across nearby wall on platform');
   advance(1500);
   rival.x=wall.x-90;rival.y=wall.y;rival.vx=1;rival.vy=0;
-  w.tick(0.1);
-  assert.equal(rival.x,wall.x-90,'raised state expired away from platform');
+  for(let i=0;i<8;i++)w.tick(0.1);
+  assert.ok(rival.x<=wall.x-wall.scale-35+0.01,
+    'after raised state expires, player may approach but never penetrate wall');
 });
 
 test('projectile cape mitigates projectile damage but not ordinary melee',()=>{

@@ -75,7 +75,7 @@ test('weapon weight and build stance affect authoritative speed',()=>{
  const {w,advance}=room(170);
  w.players.clear();
  const create=(name,weaponIndex,buildIndex)=>{
-  const p=w.join(null,name);p.x=500;p.y=5000;p.vx=1;p.vy=0;
+  const p=w.join(null,name);p.x=500;p.y=5000+w.players.size*160;p.vx=1;p.vy=0;
   p.weaponIndex=weaponIndex;p.buildIndex=buildIndex;return p;
  };
  const base=create('Hammer',0,-1),sword=create('Sword',3,-1);
