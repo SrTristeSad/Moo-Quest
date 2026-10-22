@@ -390,7 +390,8 @@ export class GameServer {
             evt.equipmentKind==='weapon'?1:0]);
           owner.send('U',[evt.points,evt.upgradeAge]);
         }
-      }else if(evt.kind==='resource_return'){
+      }else if(evt.kind==='resource_return'||evt.kind==='bush_empty'||evt.kind==='bush_ready'){
+        // Updating an existing object SID preserves the bush on the map.
         const obj=this.room.resources.get(evt.sid);
         if(obj)this._nativeBroadcast('H',[[obj.sid,obj.x,obj.y,0,obj.scale,obj.type,null,null]]);
       }else if(evt.kind==='destroy'){
