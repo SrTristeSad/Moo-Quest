@@ -35,7 +35,9 @@ test('dynamic players separate in real world tick and remain controlled by serve
   assert.ok(Math.hypot(a.x-b.x,a.y-b.y)>=69.999);
   assert.ok(a.x<500&&b.x>540);
   assert.equal(a.hp,100);assert.equal(b.hp,100);
-  assert.equal(w.playerUpdates().length,2*13);
+  const [positions,attributes]=w.playerUpdates();
+  assert.equal(positions.length,8);
+  assert.equal(attributes.length,20);
 });
 test('dead players are non-solid and cannot displace living players',()=>{
   const {w,a,b}=room();
