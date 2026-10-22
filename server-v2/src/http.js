@@ -33,6 +33,26 @@ async function readBody(req) {
   }
   throw Object.assign(new Error('Unsupported content type'), { status: 415 });
 }
+async function readZipBody(req) {
+  if(req.headers['content-type']!=='application/zip'){
+    const error=new Error('Envie um arquivo ZIP (application/zip)');
+    error.status=415;throw error;
+  }
+  const MAX_ZIP=16*1024*1024;
+  const declared=Number(req.headers['content-length']);
+  if(!Number.isSafeInteger(declared)||declared<22||declared>MAX_ZIP){
+    const error=new Error('ZIP inválido ou maior que 16 MB');
+    error.status=413;throw error;
+  }
+  let size=0;const chunks=[];
+  for await(const part of req){
+    size+=part.length;
+    if(size>MAX_ZIP){const error=new Error('ZIP excede 16 MB');error.status=413;throw error;}
+    chunks.push(part);
+  }
+  if(size!==declared){const error=new Error('Upload incompleto');error.status=400;throw error;}
+  return Buffer.concat(chunks,size);
+}
 function sanitizeSettings(existing, patch) {
   if (!patch || typeof patch !== 'object') throw new Error('Invalid settings');
   const next = { ...existing };
@@ -337,6 +357,25 @@ export function createHTTP({ root, storage, auth, updates, game = null,
           gameRef?.kick(body.id, 'banned');
           await storage.audit('player_banned', { playerId: body.id });
           return respond(res, 200, { ok: true });
+        }
+        if(req.method==='POST'&&pathname==='/api/admin/updates/upload-zip'){
+          const blob=await readZipBody(req);
+          let result;
+          try{result=await updates.uploadZip(blob);}
+          catch(error){
+            // Only expected validation errors are user-facing. Never leak
+            // filesystem paths or Node stack traces from a malformed archive.
+            const err=new Error('ZIP recusado: '+String(error.message||'inválido').slice(0,180));
+            err.status=422;throw err;
+          }
+          await storage.audit('update_zip_staged',{version:result.staged,
+            hash:result.upload.sha256});
+          return respond(res,200,result);
+        }
+        if(req.method==='POST'&&pathname==='/api/admin/updates/discard'){
+          const result=updates.discard();
+          await storage.audit('update_discarded');
+          return respond(res,200,result);
         }
         if (req.method === 'POST' && pathname === '/api/admin/updates/check') return respond(res, 200, await updates.check());
         if (req.method === 'POST' && pathname === '/api/admin/updates/stage') return respond(res, 200, await updates.stage());
