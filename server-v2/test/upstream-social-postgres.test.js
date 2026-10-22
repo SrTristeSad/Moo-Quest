@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import pg from 'pg';
+import {fileURLToPath} from 'node:url';
 import {randomBytes} from 'node:crypto';
 import {PlayerAccounts} from '../src/player-accounts.js';
 import {SocialService} from '../src/social.js';
@@ -12,6 +13,7 @@ import {Auth} from '../src/auth.js';
 import {Updates} from '../src/updates.js';
 import {createHTTP} from '../src/http.js';
 
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const testDb=process.env.MOO_TEST_DATABASE_URL;
 const loginName=()=>('p'+randomBytes(7).toString('hex')).slice(0,19);
 test('reference social flow is persistent, owner-bound and private via real PostgreSQL', {
@@ -30,7 +32,7 @@ test('reference social flow is persistent, owner-bound and private via real Post
  const tokenService={get:async token=>tokens.get(token)||null};
  const storage=new Storage(dir);
  storage.data.owner={username:'admin',password:'unused'};
- const app=createHTTP({root:path.resolve('server-v2'),storage,auth:new Auth(),
+ const app=createHTTP({root,storage,auth:new Auth(),
   updates:new Updates(dir,storage.dir,{manifestURL:null,publicKeyFile:null}),
   accounts,playerTokens:tokenService,social,httpsCookies:false});
  await new Promise(resolve=>app.server.listen(0,'127.0.0.1',resolve));
