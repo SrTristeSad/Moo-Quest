@@ -51,3 +51,11 @@ Upstream source comments describe portions of AI code/data as derived from
 an official client bundle. The repository's Apache-2.0 LICENSE alone does
 not establish rights over third-party material. Review that provenance
 before commercial redistribution or treating this as legally cleared.
+
+## Revogação de tickets sociais via Redis
+
+O ticket temporário do WebSocket social registra o número de revisão da
+conta em `mq:v2:ticket-revision:<id>`. Os mesmos eventos que invalidam
+tickets de entrada no jogo (logout, refresh e mudança de senha) impedem o
+uso tardio de um ticket social previamente emitido. A verificação ocorre
+depois do `GETDEL` atômico; tickets não podem ser reutilizados.

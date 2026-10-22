@@ -201,15 +201,24 @@ export class SocialService {
   if(!this.redis||!check(accountId))throw invalid('social_ws_unavailable',503);
   const ticket=randomBytes(24).toString('hex');
   const key='mq:v2:social:ticket:'+createHash('sha256').update(ticket).digest('hex');
-  await this.redis.set(key,accountId,{EX:30,NX:true});
+  // Match the single-use game tickets' account revision: a logout,
+  // password change or refresh invalidates unconsumed social WS tickets.
+  const revision=String(await this.redis.get('mq:v2:ticket-revision:'+accountId)||'0');
+  await this.redis.set(key,JSON.stringify({accountId,revision}),{EX:30,NX:true});
   return {ticket,expiresIn:30};
  }
  async consumeSocketTicket(ticket){
   if(!this.redis||typeof ticket!=='string'||!/^[a-f0-9]{48}$/.test(ticket))
     return null;
   const key='mq:v2:social:ticket:'+createHash('sha256').update(ticket).digest('hex');
-  const id=await this.redis.getDel(key);
-  return check(id)&&await this.account(id)?id:null;
+  const raw=await this.redis.getDel(key);
+  let value;
+  try{value=JSON.parse(raw);}catch{return null;}
+  if(!check(value?.accountId)||typeof value?.revision!=='string')return null;
+  const current=String(await this.redis.get(
+    'mq:v2:ticket-revision:'+value.accountId)||'0');
+  if(current!==value.revision)return null;
+  return await this.account(value.accountId)?value.accountId:null;
  }
  async inbox(accountId){
   const r=await this.pool.query(`SELECT i.id,a.username AS "from",

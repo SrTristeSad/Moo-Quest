@@ -15,6 +15,7 @@ test('social tickets are one-time and hashed in Redis, never account bearer toke
  const stored=new Map();
  const redis={
   async set(key,val){stored.set(key,val);},
+  async get(key){return stored.get(key)||null;},
   async getDel(key){const v=stored.get(key);stored.delete(key);return v||null;}
  };
  const pool={async query(sql,args){
@@ -29,6 +30,13 @@ test('social tickets are one-time and hashed in Redis, never account bearer toke
  assert.equal(await service.consumeSocketTicket(ticket),A);
  assert.equal(await service.consumeSocketTicket(ticket),null);
  assert.equal(await service.consumeSocketTicket('garbage'),null);
+ const next=await service.issueSocketTicket(A);
+ stored.set('mq:v2:ticket-revision:'+A,'1');
+ assert.equal(await service.consumeSocketTicket(next.ticket),null,
+   'account logout invalidates tickets issued before revocation');
+ const current=await service.issueSocketTicket(A);
+ assert.equal(await service.consumeSocketTicket(current.ticket),A,
+   're-authenticated account can use a new ticket');
 });
 
 test('live social websocket sends upstream presence and invitations only to friends',async t=>{
