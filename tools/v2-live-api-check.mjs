@@ -10,6 +10,7 @@ try{
   const endpoints=[
     {path:'/ping',method:'GET'},
     {path:'/api/capabilities',method:'GET'},
+    {path:'/api/status',method:'GET'},
     {path:'/api/account/register',method:'POST',body:'{}',label:'LuaSocket'},
     {path:'/api/account/register',method:'POST',body:'{}',label:'Browser',agent:'Mozilla/5.0'},
     {path:'/api/account/login',method:'POST',body:'{}',label:'LuaSocket'},
@@ -29,6 +30,8 @@ try{
       });
       const media=(res.headers.get('content-type')||'missing').split(';')[0];
       const encoding=res.headers.get('content-encoding')||'identity';
+      const server=(res.headers.get('server')||'unknown').replace(/[^a-z0-9./ -]/gi,'').slice(0,60);
+      const proxy=(res.headers.has('cf-ray')?'cloudflare':'unspecified');
       let parsed=false,errorKey=null;
       try{
         const data=await res.json();
@@ -42,7 +45,7 @@ try{
       console.log('V2_PUBLIC_PROBE '+test.method+' '+test.path+
         ' agent='+(test.label||'LuaSocket')+
         ' status='+res.status+' contentType='+media+
-        ' contentEncoding='+encoding+' json='+parsed+
+        ' contentEncoding='+encoding+' server='+server+' edge='+proxy+' json='+parsed+
         (errorKey?' error='+errorKey:''));
     }catch(error){
       failures++;
