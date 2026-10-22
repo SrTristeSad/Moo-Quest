@@ -56,3 +56,14 @@ test('V2 movement cannot enter an upstream solid mill but crosses a boost pad',(
  for(let i=0;i<12;i++){now+=100;world.tick(.1);}
  assert.ok(p.x>1150,'boost pad does not block player: '+p.x);
 });
+
+test('raised platform crosses nearby wall but not one outside its footprint',()=>{
+ const p={x:1960,y:5000,motionX:100,motionY:0};
+ const wall=new Map([[1,{id:3,type:4,x:2000,y:5000,scale:50}]]);
+ const normal=resolveSolidContact(p,1970,5000,new Map(),wall);
+ assert.equal(normal.contacts,1);
+ const raised=resolveSolidContact(p,1970,5000,new Map(),wall,{x:2105,y:5000});
+ assert.equal(raised.contacts,0);
+ const far=resolveSolidContact(p,1970,5000,new Map(),wall,{x:4000,y:5000});
+ assert.equal(far.contacts,1);
+});

@@ -1063,7 +1063,9 @@ export class World {
       for(let n=0;n<depth;n++){
         const nextX=Math.max(-4500,Math.min(this.size-24,p.x+deltaX/depth));
         if(secretWalkable(nextX,p.y,this.size)&&!blockedByPlayer(nextX,p.y)){
-          const hit=resolveSolidContact(p,nextX,p.y,this.resources,this.structures);
+          const raised=at<p.raisedUntil?p.raisedOrigin:null;
+          const hit=resolveSolidContact(p,nextX,p.y,
+            this.resources,this.structures,raised);
           if(hit&&secretWalkable(hit.x,hit.y,this.size)){
             p.x=hit.x;p.y=hit.y;
             p.motionX=hit.motionX;p.motionY=hit.motionY;
@@ -1071,7 +1073,9 @@ export class World {
         }else p.motionX=0;
         const nextY=Math.max(24,Math.min(this.size-24,p.y+deltaY/depth));
         if(secretWalkable(p.x,nextY,this.size)&&!blockedByPlayer(p.x,nextY)){
-          const hit=resolveSolidContact(p,p.x,nextY,this.resources,this.structures);
+          const raised=at<p.raisedUntil?p.raisedOrigin:null;
+          const hit=resolveSolidContact(p,p.x,nextY,
+            this.resources,this.structures,raised);
           if(hit&&secretWalkable(hit.x,hit.y,this.size)){
             p.x=hit.x;p.y=hit.y;
             p.motionX=hit.motionX;p.motionY=hit.motionY;

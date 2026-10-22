@@ -33,7 +33,7 @@ export function upstreamSolidRadius(obj,building=false){
 }
 // Preserve V2's exit-from-overlap behavior for restored player positions:
 // never force a player back inside a solid resource when already escaping.
-export function resolveSolidContact(player,x,y,resources,structures){
+export function resolveSolidContact(player,x,y,resources,structures,raisedOrigin=null){
   if(!Number.isFinite(x)||!Number.isFinite(y))return null;
   const probe={x,y,scale:PLAYER_SCALE,xVel:player.motionX||0,
     yVel:player.motionY||0,isPlayer:true};
@@ -41,6 +41,10 @@ export function resolveSolidContact(player,x,y,resources,structures){
   for(const [source,isItem] of [[resources,false],[structures,true]]){
     for(const obj of source.values()){
       if(isItem&&NON_SOLID.has(obj.id))continue;
+      // The original V2 raised-platform mechanic allows stepping over
+      // nearby walls (IDs 3..5) only while standing near that platform.
+      if(isItem&&raisedOrigin&&[3,4,5].includes(obj.id)&&
+        Math.hypot(x-raisedOrigin.x,y-raisedOrigin.y)<200)continue;
       const solid=asOriginal(obj,isItem);
       if(!solid)continue;
       const radius=PLAYER_SCALE+solid.getScale();
