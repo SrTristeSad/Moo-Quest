@@ -70,6 +70,29 @@ async function refreshPlayers() {
     td.append(ban);
   }
 }
+let accountPage=1,accountTotal=0,accountLimit=25;
+async function refreshAccounts(){
+  const query=new URLSearchParams({page:String(accountPage),search:$('accountsSearch').value.trim()});
+  const data=await api('/api/admin/accounts?'+query.toString());
+  accountTotal=data.total;accountLimit=data.limit;
+  $('accountsCount').textContent=data.total+' conta(s) cadastrada(s)';
+  $('accountsPage').textContent='Página '+data.page+' de '+Math.max(1,Math.ceil(data.total/data.limit));
+  $('accountsPrev').disabled=accountPage<=1;
+  $('accountsNext').disabled=accountPage*data.limit>=data.total;
+  const tbody=$('accountsRows');tbody.replaceChildren();
+  if(!data.accounts.length){
+    const td=tbody.insertRow().insertCell();td.colSpan=4;td.textContent='Nenhuma conta encontrada.';
+    return;
+  }
+  const dateValue=value=>value?new Date(value).toLocaleString('pt-BR'):'—';
+  for(const account of data.accounts){
+    const tr=tbody.insertRow();
+    [account.username,dateValue(account.createdAt),dateValue(account.savedAt),
+      account.online?'Online':'Offline'].forEach(value=>{
+      const td=tr.insertCell();td.textContent=value;
+    });
+  }
+}
 async function refreshSettings() {
   const s=await api('/api/admin/settings');
   $('title').value=s.title;$('motd').value=s.motd;$('maxPlayers').value=s.maxPlayers;$('maintenance').checked=s.maintenance;
@@ -82,6 +105,7 @@ function openView(id){
   document.querySelectorAll('.nav-link').forEach(el=>el.classList.toggle('active',el.dataset.view===id));
   $('sectionTitle').textContent=document.querySelector(`.nav-link[data-view="${id}"]`).textContent;
   if(id==='players')safe(refreshPlayers);
+  if(id==='accounts')safe(refreshAccounts);
   if(id==='settings')safe(refreshSettings);
   if(id==='audit')safe(refreshAudit);
   if(id==='updates')safe(refreshStatus);
@@ -90,6 +114,17 @@ async function init(){
   const s=await api('/api/admin/session');csrf=s.csrf;
   document.querySelectorAll('.nav-link').forEach(button=>button.addEventListener('click',()=>openView(button.dataset.view)));
   $('refreshPlayers').addEventListener('click',()=>safe(refreshPlayers));
+  $('refreshAccounts').addEventListener('click',()=>safe(refreshAccounts));
+  $('searchAccounts').addEventListener('click',()=>safe(async()=>{accountPage=1;await refreshAccounts();}));
+  $('accountsSearch').addEventListener('keydown',event=>{
+    if(event.key==='Enter'){event.preventDefault();safe(async()=>{accountPage=1;await refreshAccounts();});}
+  });
+  $('accountsPrev').addEventListener('click',()=>safe(async()=>{
+    if(accountPage>1){accountPage--;await refreshAccounts();}
+  }));
+  $('accountsNext').addEventListener('click',()=>safe(async()=>{
+    if(accountPage*accountLimit<accountTotal){accountPage++;await refreshAccounts();}
+  }));
   $('refreshAudit').addEventListener('click',()=>safe(refreshAudit));
   $('settingsForm').addEventListener('submit',e=>{e.preventDefault();safe(async()=>{
     await api('/api/admin/settings',{title:$('title').value,motd:$('motd').value,maxPlayers:Number($('maxPlayers').value),maintenance:$('maintenance').checked,
