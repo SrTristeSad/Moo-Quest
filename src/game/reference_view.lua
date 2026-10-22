@@ -336,8 +336,15 @@ end
 function View.animalName(a,world)
   local kind=world and world:animalKind(a.index) or Animals.byId(a.index)
   if not kind then return nil end
-  if type(kind.name)=="string" then return kind.name end
-  if type(a.nameIndex)=="number" and a.nameIndex%1==0 then
+  -- The V2 public catalog can omit fixed species names. Never turn a Bull
+  -- into "Sid" simply because nameIndex defaults to zero.
+  local reference=Animals.byId(a.index)
+  if type(kind.name)=="string" and #kind.name>0 then return kind.name end
+  if reference and type(reference.name)=="string" then return reference.name end
+  if a.index==12 then return "Sheep" end
+  -- Only cows and pigs use the individual's randomly assigned cowNames entry.
+  if (a.index==0 or a.index==1)
+    and type(a.nameIndex)=="number" and a.nameIndex%1==0 then
     return C.cowNames[a.nameIndex+1]
   end
   return nil
