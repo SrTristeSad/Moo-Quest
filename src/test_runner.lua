@@ -37,6 +37,7 @@ M.paths={
   "tests/local_auth.lua",
   "tests/json.lua",
   "tests/v2_accounts.lua",
+  "tests/v2_http_responses.lua",
   "tests/v2_session_refresh.lua",
   "tests/v2_session.lua",
   "tests/clan_api.lua",
