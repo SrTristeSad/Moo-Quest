@@ -58,12 +58,12 @@ test('V2 movement cannot enter an upstream solid mill but crosses a boost pad',(
 });
 
 test('raised platform crosses nearby wall but not one outside its footprint',()=>{
- const p={x:1960,y:5000,motionX:100,motionY:0};
+ const p={x:1900,y:5000,motionX:100,motionY:0};
  const wall=new Map([[1,{id:3,type:4,x:2000,y:5000,scale:50}]]);
- const normal=resolveSolidContact(p,1970,5000,new Map(),wall);
+ const normal=resolveSolidContact(p,1920,5000,new Map(),wall);
  assert.equal(normal.contacts,1);
- const raised=resolveSolidContact(p,1970,5000,new Map(),wall,{x:2105,y:5000});
+ const raised=resolveSolidContact(p,1920,5000,new Map(),wall,{x:2105,y:5000});
  assert.equal(raised.contacts,0);
- const far=resolveSolidContact(p,1970,5000,new Map(),wall,{x:4000,y:5000});
+ const far=resolveSolidContact(p,1920,5000,new Map(),wall,{x:4000,y:5000});
  assert.equal(far.contacts,1);
 });
