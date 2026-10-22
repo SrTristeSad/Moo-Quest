@@ -70,6 +70,11 @@ export class SocialRealtime {
     senderId:client.userId,lobbyId:'LC',gameId:'LC',metadata:{}
    });
  }
+ disconnectAccount(id){
+  for(const client of this.clients.get(id)||[])
+   if(client.ws.readyState===client.ws.OPEN)
+    client.ws.close(1008,'session_revoked');
+ }
  async close(){
   for(const ws of this.wss.clients)ws.terminate();
   await new Promise(resolve=>this.wss.close(()=>resolve()));
