@@ -7,7 +7,8 @@ local function isLocal(host) return host=="127.0.0.1" or host=="localhost" end
 function M.guest(options)
   options=options or {}
   local host,port,server=options.host or "127.0.0.1",
-    options.port or 8080,options.server or "LC"
+    options.port or tonumber(os.getenv("MOOQUEST_LOCAL_PORT")) or 8080,
+    options.server or "LC"
   if not isLocal(host) then return nil,"Cliente V2 requer HTTPS/WSS para acesso remoto" end
   if type(port)~="number" or port<1 or port>65535 or port%1~=0 then
     return nil,"Porta do servidor V2 invalida"
