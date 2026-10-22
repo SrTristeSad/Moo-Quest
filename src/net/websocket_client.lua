@@ -117,7 +117,12 @@ function Client:update()
     end
   end
   if err and err~="timeout" then
-    if err=="closed" then self:emit("close","socket closed");self:close()
+    if err=="closed" then
+      if self.state=="upgrading" or self.state=="tcp_connecting" then
+        self:fail("WebSocket encerrado antes do HTTP 101; verifique /s/LC, ticket e proxy.")
+      else
+        self:emit("close","socket closed");self:close()
+      end
     else self:fail(err) end
   end
 end
