@@ -289,9 +289,14 @@ export class World {
     p.score=number(data.score,0,1_000_000_000,0);
     p.inventory.weapons=ids(data.inventory?.weapons,
       n=>Object.hasOwn(WEAPONS,n),16,[0]);
+    // Migrate old authenticated saves that accumulated hammer + axe/sword.
+    // Keep their latest unlocked primary and all legitimate secondary slots.
+    const primary=p.inventory.weapons.filter(n=>n<=8).at(-1)??0;
+    p.inventory.weapons=[primary,...p.inventory.weapons.filter(n=>n>8)];
     p.inventory.items=ids(data.inventory?.items,
       n=>Object.hasOwn(FOOD,n)||Object.hasOwn(RECIPES,n),40,[0,3,6,10]);
-    p.weaponIndex=p.inventory.weapons.includes(data.weaponIndex)?data.weaponIndex:0;
+    p.weaponIndex=data.weaponIndex>8&&p.inventory.weapons.includes(data.weaponIndex)?
+      data.weaponIndex:primary;
     const x=data.x,y=data.y;
     if(this.landingClear(x,y,p.sid)){p.x=x;p.y=y;}
     // All values below are server-generated snapshots, but still validate
