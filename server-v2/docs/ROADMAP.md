@@ -138,3 +138,15 @@ precisa de auditoria/recriação licenciada antes de lançamento comercial.
 
 **O painel e o atualizador não tornam o jogo completo por si mesmos.**
 Nenhum código do servidor antigo deve entrar no pacote comercial V2.
+
+## Fase de variantes e status (22/10/2026)
+- Gold: +10% dano corpo a corpo; Diamond/Ruby: +18%.
+- Ruby: 5 de veneno por segundo por 5 segundos; Devils Tail: 4 de
+  sangramento por segundo por 2 segundos, somente após dano real.
+- Imunidade a veneno é validada no Node. Reaplicação não acumula pulsos
+  nem troca um efeito mais forte por outro mais fraco.
+- Kills causadas por dano periódico são creditadas uma única vez.
+- Emerald continua bloqueada sem autenticação de membresia; não está
+  habilitada para o jogador comum.
+- Teste: test/weapon-variants-status.test.js. Ainda faltam Crab King,
+  transporte de eventos especiais no Lua e validação presencial Windows.

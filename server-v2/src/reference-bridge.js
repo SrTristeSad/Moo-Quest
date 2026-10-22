@@ -23,6 +23,12 @@ export function referenceCowMultiplier(p, animalType) {
     ? EFFECT.cowCapeMult : 1;
 }
 
+export function referenceBleed(p) {
+  return hasTail(referencePlayer(p), TAIL.DEVILS_TAIL)
+    ? {damage:EFFECT.devilsTailDmg,seconds:EFFECT.devilsTailTime}
+    : {damage:0,seconds:0};
+}
+
 export function referenceThornsHeal(p, damage) {
   if (!Number.isFinite(damage) || damage <= 0) return 0;
   return hasTail(referencePlayer(p), TAIL.THORNS)

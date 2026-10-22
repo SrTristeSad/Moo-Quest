@@ -4,7 +4,7 @@
 import { randomUUID, randomInt } from 'node:crypto';
 import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 import { UTILS } from './vendor/al007ex/utils.js';
-import { referenceGatherBonus, referenceSnowFactor, referenceCowMultiplier, referenceThornsHeal } from './reference-bridge.js';
+import { referenceGatherBonus, referenceSnowFactor, referenceCowMultiplier, referenceThornsHeal, referenceBleed } from './reference-bridge.js';
 
 const TYPE={tree:0,bush:1,stone:2,ore:3};
 const SNOW_BIOME_TOP=2400;
@@ -130,6 +130,7 @@ const UPGRADES=new Map([
 // Official progression starts at 300 and raises the threshold 20% each age.
 const MAX_AGE=100;
 const VARIANT_THRESHOLDS=[0,3000,7000,12000,30000];
+const VARIANT_DAMAGE=Object.freeze([1,1.1,1.18,1.18]);
 const LEVEL_XP=age=>Math.round(300*Math.pow(1.2,Math.max(0,age-1))*10)/10;
 // Natural trees, rocks, gold nodes and bushes yield on every legal hit.
 // Unlike player-built structures, they are not destructible.
@@ -649,12 +650,25 @@ export class World {
     target.motionY=(Number.isFinite(target.motionY)?target.motionY:0)+
       Math.sin(direction)*impulse;
   }
+  // On-hit effects are calculated entirely from the server-owned weapon XP
+  // and equipped gear, never from client-supplied damage or variant fields.
+  inflictMeleeStatus(attacker,target,time){
+    if(!target||target.hp<=0||gearEffects(target).hat.poisonImmune)return;
+    const ruby=this.weaponVariant(attacker)===3;
+    const bleed=referenceBleed(attacker);
+    const damage=ruby?5:bleed.damage,seconds=ruby?5:bleed.seconds;
+    if(!damage||!seconds)return;
+    const prev=target.poison;
+    if(prev&&prev.until>time&&prev.damage>damage)return;
+    target.poison={damage,until:time+seconds*1000,
+      nextAt:prev?.nextAt??time+1000,from:attacker.id};
+  }
   // Reference gather() resolves each valid object, player and animal within
   // the forward melee arc, once per swing. Selecting the nearest single
   // target first caused major combat and harvesting divergence in the V2.
   meleeSwing(p,weapon,hat,tail,time){
     const range=weapon.reach??0,damageMultiplier=(hat.damageDone??1)*
-      (tail.damageDone??1);
+      (tail.damageDone??1)*(VARIANT_DAMAGE[this.weaponVariant(p)]??1);
     const facing=(o,radius)=>{
       const dx=o.x-p.x,dy=o.y-p.y,dist=Math.hypot(dx,dy);
       if(!Number.isFinite(dist)||Math.max(0,dist-radius)>range)return null;
@@ -725,6 +739,7 @@ export class World {
       const applied=this.protectedDamage(victim,raw,p.x,p.y);
       const effective=Math.min(victim.hp,applied);
       victim.hp=Math.max(0,victim.hp-applied);
+      if(effective>0)this.inflictMeleeStatus(p,victim,time);
       this.applyMeleeImpulse(victim,angle,weapon,1);
       // The reference thief tool steals points, not arbitrary food/wood.
       if(weapon.steal){
@@ -1094,7 +1109,14 @@ export class World {
           this.events.push({kind:'hit',from:dot.from,to:p.id,
             damage,hp:p.hp,x:p.x,y:p.y});
           if(p.hp===0){
-            p.deadUntil=at+3000;p.vx=0;p.vy=0;
+            p.deadUntil=at+3000;p.vx=0;p.vy=0;p.motionX=0;p.motionY=0;
+            const killer=this.players.get(dot.from);
+            if(killer&&killer!==p&&killer.hp>0&&
+               !(p.team&&killer.team===p.team)){
+              killer.resources.kills++;killer.score+=100;
+              if(killer.lifeStats)killer.lifeStats.kills++;
+              this.awardXp(killer.id,40);
+            }
             this.events.push({kind:'death',id:p.id,killer:dot.from});
             p.poison=null;p.regen=null;
           }
