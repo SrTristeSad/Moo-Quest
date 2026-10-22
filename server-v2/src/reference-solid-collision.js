@@ -76,3 +76,32 @@ export function originalStaticSpotClear(player,x,y,resources,structures,raisedOr
   }
   return true;
 }
+
+// Wildlife uses the original AI's scale (not the 35-pixel player radius).
+// Preserve the reference 1..4 substep integration in World.tick and reuse
+// the same unmodified ObjectManager.checkCollision() for world solids.
+// Damage, poison, traps and target acquisition remain owned by World.
+export function resolveCreatureContact(creature,x,y,resources,structures){
+  if(!Number.isFinite(x)||!Number.isFinite(y)||
+     !Number.isFinite(creature?.scale)||creature.scale<=0)return null;
+  const probe={x,y,scale:creature.scale,xVel:creature.motionX||0,
+    yVel:creature.motionY||0,isPlayer:false};
+  let contacts=0;
+  for(const [source,isItem] of [[resources,false],[structures,true]]){
+    for(const obj of source.values()){
+      if(isItem&&NON_SOLID.has(obj.id))continue;
+      const solid=asOriginal(obj,isItem);
+      if(!solid)continue;
+      const radius=creature.scale+solid.getScale();
+      const previous=Math.hypot(creature.x-solid.x,creature.y-solid.y);
+      const distance=Math.hypot(probe.x-solid.x,probe.y-solid.y);
+      // Wildlife can leave an existing overlap introduced by a respawn or
+      // old save. It must not move further *into* a new solid object.
+      if(previous<radius-0.0001||distance>=radius||
+         distance>=previous-0.0001)continue;
+      if(manager.checkCollision(probe,solid,1))contacts++;
+    }
+  }
+  return {x:probe.x,y:probe.y,
+    motionX:probe.xVel,motionY:probe.yVel,contacts};
+}

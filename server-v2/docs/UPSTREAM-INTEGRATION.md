@@ -132,3 +132,15 @@ e o knockback continuam calculados separadamente pelo servidor,
 e jogadores mortos não exercem colisão. O controle de sessões,
 contas PostgreSQL e Redis não foi alterado.
 
+## Colisão de fauna com objetos reais
+
+A movimentação dos animais aplica até quatro subpassos de física,
+executando `ObjectManager.checkCollision()` original sobre árvores,
+pedras e construções sólidas. O tamanho de cada animal vem de
+`AI_TYPES[index].scale`, diferentemente dos 35 pixels do jogador.
+Pit Trap e demais itens `ignoreCollision` permanecem atravessáveis.
+
+A IA de decisão, os biomas e os ataques continuam calculados pela V2.
+Isso corrige animais atravessando obstáculos; **não significa que a
+classe `AI` inteira já substituiu a máquina de estados da V2**.
+
