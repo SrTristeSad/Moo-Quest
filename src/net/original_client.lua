@@ -175,7 +175,18 @@ function Original:update()
               self.state="keyed_transport"
               self.status=self.nativeSession and "Sessao V2 autenticada; aguardando Play." or
                 "Handshake original aceito; aguardando Play no cliente Lua."
-              if self.autoSpawn then
+              -- Old V2 clients do not know W warnings. Advertise support
+              -- before M, so the server never sends undecodable packets.
+              local capabilityOk,capabilityError=true,nil
+              if self.nativeSession then
+                capabilityOk,capabilityError=self:send("Y",{1})
+              end
+              if not capabilityOk then
+                self.state="failed"
+                self.error="V2 capability handshake: "..tostring(capabilityError)
+                self.status=self.error
+                ws:close()
+              elseif self.autoSpawn then
                 local okSpawn,spawnErr=self:spawn()
                 if not okSpawn then
                   self.state="failed"
