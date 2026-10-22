@@ -460,6 +460,7 @@ export class World {
     p.resources.food-=food.cost;
     const amount=Math.min(food.heal,p.maxHp-p.hp);
     p.hp+=amount;
+    if(p.lifeStats)p.lifeStats.healing+=amount;
     // A new serving refreshes the duration instead of stacking heal ticks.
     if(food.regen){
       const now=this.now();
@@ -867,6 +868,7 @@ export class World {
         if(spec.heal&&ally&&p.hp<p.maxHp&&at>=p.nextHealAt){
           const amount=Math.min(spec.heal,p.maxHp-p.hp);
           p.hp+=amount;p.nextHealAt=at+1000;
+          if(p.lifeStats)p.lifeStats.healing+=amount;
           this.events.push({kind:'heal',player:p.id,sid:p.sid,amount,hp:p.hp,x:p.x,y:p.y});
         }
       }
@@ -901,6 +903,7 @@ export class World {
         if(perSecond>0&&p.hp<p.maxHp){
           const amount=Math.min(p.maxHp-p.hp,gearSeconds*perSecond);
           p.hp+=amount;
+          if(p.lifeStats)p.lifeStats.healing+=amount;
           this.events.push({kind:'heal',player:p.id,sid:p.sid,
             amount,hp:p.hp,x:p.x,y:p.y});
         }else if(perSecond<0){
@@ -924,6 +927,7 @@ export class World {
           const amount=Math.min(p.maxHp-p.hp,pulses*regen.amount);
           if(amount>0){
             p.hp+=amount;
+            if(p.lifeStats)p.lifeStats.healing+=amount;
             this.events.push({kind:'heal',player:p.id,sid:p.sid,
               amount,hp:p.hp,x:p.x,y:p.y});
           }
@@ -955,6 +959,7 @@ export class World {
       if(income>0){
         p.generatorRemainder-=income;
         p.resources.points+=income;p.score+=income;
+        if(p.lifeStats)p.lifeStats.gold+=income;
         this.events.push({kind:'income',player:p.id,amount:income});
       }
     }
