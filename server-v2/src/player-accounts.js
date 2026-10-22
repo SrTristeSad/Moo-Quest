@@ -91,6 +91,14 @@ export class PlayerAccounts{
       throw err;
     }
   }
+  async kickClanMember(ownerId,memberId,tag){
+    if(!ownerId||!memberId||ownerId===memberId||typeof tag!=='string')return false;
+    const result=await this.pool.query(`DELETE FROM mq_clan_members m
+      USING mq_clans c WHERE m.clan_id=c.id AND c.owner_account_id=$1
+        AND m.account_id=$2 AND c.tag=$3 AND m.account_id<>$1
+      RETURNING m.account_id`,[ownerId,memberId,tag]);
+    return result.rowCount===1;
+  }
   async leaveClan(accountId){
     const client=await this.pool.connect();
     try{
