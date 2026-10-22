@@ -1,0 +1,65 @@
+name: MooQuest V2 complete aaPanel installation ZIP
+on:
+  push:
+    branches: [main, 'feat/v2-guided-first-install-aapanel']
+    paths: ['server-v2/**', '.github/workflows/aapanel-v2-package.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install runtime dependencies for Linux
+        run: npm install --omit=dev --no-audit --no-fund --prefix server-v2
+      - name: Build full self-contained server ZIP
+        run: |
+          set -euo pipefail
+          mkdir -p dist/MooQuest-V2-aaPanel
+          cp -a server-v2 dist/MooQuest-V2-aaPanel/server-v2
+          rm -rf dist/MooQuest-V2-aaPanel/server-v2/var
+          rm -f dist/MooQuest-V2-aaPanel/server-v2/.env
+          cat > dist/MooQuest-V2-aaPanel/LEIA-PRIMEIRO.txt <<'EOF'
+          MOO-QUEST V2 - INSTALACAO GUIADA PARA AAPANEL
+          
+          Este ZIP inclui TODO o codigo independente Node.js do servidor,
+          painel, scripts, dependencias Linux e testes. Nenhum download do
+          repositorio GitHub e feito durante a instalacao.
+
+          1. Extraia o conteudo na VPS, em uma pasta controlada.
+          2. Instale PostgreSQL 17 e Redis 7 no aaPanel ou por Docker
+             usando o compose.yaml incluido, e inicie esses servicos.
+          3. Crie um projeto Node.js >=22 no aaPanel, com diretorio
+             MooQuest-V2-aaPanel/server-v2 e entrada node bootstrap.js.
+             Use MOO_PORT=8100 e MOO_HOST=127.0.0.1.
+          4. Crie um site HTTPS com proxy reverso para 127.0.0.1:8100.
+             Recomendado: MOO_DATA_DIR fora do webroot do Nginx.
+          5. Execute o projeto. Abra /setup no dominio e use o codigo
+             de 6 digitos que o aaPanel exibira nos logs do Node.
+          6. Informe as credenciais de PostgreSQL e Redis NA PAGINA e
+             teste os dois servicos. Crie o administrador e finalize.
+             O instalador grava as credenciais em arquivo privado 0600 e
+             inicia automaticamente o motor do jogo.
+          7. Em partidas publicas, o cliente Lua ainda exige evolucao
+             para HTTPS/WSS e Turnstile; use a VPS para homologacao,
+             painel e bancos, nao como jogo publico concluido.
+
+          NOTA: O ZIP nao inclui os executaveis de PostgreSQL, Redis ou
+          Node.js; esses servicos sao fornecidos pela VPS/aaPanel.
+          Nunca exponha os bancos diretamente na internet.
+          EOF
+          cd dist
+          zip -qr MooQuest-V2-aaPanel-INSTALACAO-COMPLETA.zip MooQuest-V2-aaPanel
+          unzip -tq MooQuest-V2-aaPanel-INSTALACAO-COMPLETA.zip
+          sha256sum MooQuest-V2-aaPanel-INSTALACAO-COMPLETA.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MooQuest-V2-aaPanel-INSTALACAO-COMPLETA
+          path: dist/MooQuest-V2-aaPanel-INSTALACAO-COMPLETA.zip
+          retention-days: 14
+          if-no-files-found: error
