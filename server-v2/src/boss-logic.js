@@ -53,6 +53,8 @@ export function tickCrabKing(world,boss,now,dt){
       emit(world,[{kind:1,x:boss.x,y:boss.y,r:boss.scale+220}],1650);
     }else if(boss.state===3){
       boss.state=0;boss.stateUntil=0;
+      // Do not begin a new telegraphed move on the same tick as surfacing.
+      boss.bossCooldownAt=Math.max(boss.bossCooldownAt||0,now+1000);
       strike(world,boss,[{kind:1,x:boss.x,y:boss.y,r:boss.scale+220}],now);
     }
   }
