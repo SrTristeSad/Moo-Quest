@@ -40,10 +40,10 @@ test('boost pad increases movement speed only when a live player stands on it',(
   const pad=build(w,owner,16);
   rival.x=pad.x;rival.y=pad.y;rival.vx=1;rival.vy=0;
   w.tick(0.1);
-  assert.equal(rival.x,pad.x+37.5,'speed 250 times 1.5 times 100ms');
+  assert.equal(rival.x,pad.x+28.125,'snow boost is speed 250 * 1.5 * 0.75 * 100ms');
   rival.x=pad.x+500;rival.y=pad.y;
   w.tick(0.1);
-  assert.equal(rival.x,pad.x+525,'off-pad uses 250 units/s');
+  assert.equal(rival.x,pad.x+518.75,'off-pad snow uses terrain factor 0.75');
 });
 
 test('pit trap temporarily roots enemies, cannot root owner/tribe allies or re-trigger each tick',()=>{

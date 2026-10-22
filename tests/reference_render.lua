@@ -40,6 +40,20 @@ assert(not View.playerNameVisible(worldLabels,worldLabels.players[7]))
 assert(View.playerNameVisible(worldLabels,worldLabels.players[8]))
 assert(View.animalName({index=0,nameIndex=0})=="Sid")
 assert(View.animalName({index=4,nameIndex=0})=="Wolf")
+-- Fixed species labels must win even if the server's older A catalog only
+-- provides an image and the I packet happens to use cow nameIndex 0 ("Sid").
+local partial=World.new()
+assert(partial:apply("A",{{animals={
+  {id=2,src="bull_2",scale=78},
+  {id=3,src="bull_1",scale=90},
+  {id=4,src="wolf_1",scale=84},
+  {id=12,src="sheep_1",scale=72}
+}}}))
+assert(View.animalName({index=2,nameIndex=0},partial)=="Bull")
+assert(View.animalName({index=3,nameIndex=0},partial)=="Bully")
+assert(View.animalName({index=4,nameIndex=0},partial)=="Wolf")
+assert(View.animalName({index=12,nameIndex=0},partial)=="Sheep")
+assert(View.animalName({index=0,nameIndex=0},partial)=="Sid")
 assert(View.animalName({index=100})==nil)
 local dynamic=World.new()
 assert(dynamic:apply("A",{{animals={{id=0,src="cow_1",scale=100,health=620,name="Server Cow"}}}}))

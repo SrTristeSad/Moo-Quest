@@ -5,6 +5,23 @@ import { randomUUID, randomInt } from 'node:crypto';
 import { HATS, ACCESSORIES, FREE_HATS, gearEffects } from './store.js';
 
 const TYPE={tree:0,bush:1,stone:2,ore:3};
+const SNOW_BIOME_TOP=2400;
+const SNOW_SPEED=0.75;
+// The original client only assigns individual names to cows and pigs.
+// All other fauna uses a fixed species name to avoid misleading random labels.
+const ANIMAL_NAMES=Object.freeze({
+  2:'Bull',3:'Bully',4:'Wolf',5:'Quack',6:'MOOSTAFA',
+  7:'Treasure',8:'MOOFIE',9:'Boar',10:'Yeti',
+  11:'Crab King',12:'Sheep'
+});
+const COW_PIG_NAMES=[
+  'Sid','Steph','Bmoe','Romn','Jononthecool','Fiona','Vince',
+  'Nathan','Nick','Flappy','Ronald','Otis','Pepe','Mc Donald',
+  'Theo','Fabz','Oliver','Jeff','Jimmy','Helena','Reaper','Ben',
+  'Alan','Naomi','XYZ','Clever','Jeremy','Mike','Destined',
+  'Stallion','Allison','Meaty','Sophia','Vaja','Joey','Pendy',
+  'Murdoch','Jared','July','Sonia','Mel','Dexter','Quinn','Milky'
+];
 // Authoritative V2 equivalents of the original client's animal categories and
 // region spawn contracts. No scripts or artwork from the legacy server.
 const WILDLIFE=[
@@ -194,7 +211,9 @@ export class World {
         scale:species.scale,score:species.score,foodDrop:species.food,
         boss:!!species.boss,fixed:!!species.fixed,area:species.area||null,
         speed:species.speed,damage:species.damage,nextAttack:0,deadUntil:0,
-        nameIndex:0,state:0});
+        nameIndex:[0,1].includes(species.index)?
+          Math.floor(this.animalRandom()*COW_PIG_NAMES.length):-1,
+        state:0});
     }
   }
   join(socket,name,profile=null,accountId=null){
@@ -813,8 +832,14 @@ export class World {
       // The V2 server must ALSO enforce real river movement, not just paint it.
       const inRiver=p.x>=0&&
         p.y>=this.size/2-724/2&&p.y<=this.size/2+724/2;
+      // Same northern snow boundary that the original Lua renderer draws.
+      // Snowball halves slowdown; Winter Cape negates it. All movement
+      // penalties are calculated on the server, never trusted from the client.
+      const inSnow=p.y<=SNOW_BIOME_TOP&&p.x>=0;
+      const snowFactor=!inSnow||p.tail===6?1:
+        p.tail===12?1-(1-SNOW_SPEED)*0.5:SNOW_SPEED;
       const speed=at<p.rootedUntil?0:250*(boosted?1.5:1)*
-        (hat.speed??1)*(tail.speed??1)*(inRiver?0.33:1);
+        (hat.speed??1)*(tail.speed??1)*(inRiver?0.33:1)*snowFactor;
       const x=Math.max(24,Math.min(this.size-24,
         p.x+p.vx*speed*step+(inRiver?1.1*step:0)));
       const y=Math.max(24,Math.min(this.size-24,p.y+p.vy*speed*step));
@@ -1100,7 +1125,9 @@ export class World {
   }
   takeEvents(){return this.events.splice(0);}
   animalCatalog(){return WILDLIFE.map(a=>({
-    id:a.index,scale:a.scale,src:({
+    id:a.index,scale:a.scale,
+    ...(ANIMAL_NAMES[a.index]?{name:ANIMAL_NAMES[a.index]}:{}),
+    src:({
       0:'cow_1',1:'pig_1',2:'bull_2',3:'bull_1',4:'wolf_1',
       5:'chicken_1',6:'enemy',7:'crate_1',8:'wolf_2',9:'boar_1',
       10:'yeti_1',11:'crab_1',12:'sheep_1'
