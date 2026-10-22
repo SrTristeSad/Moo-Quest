@@ -26,29 +26,28 @@ test('V2 animal catalog gives bulls fixed labels and cow/pig unique names',()=>{
   assert.equal(first[1][0].animals.find(x=>x.id===3).name,'Bully');
 });
 
-test('north snow slows regular player 25%, Snowball halves penalty and Winter Cape cancels it',()=>{
+test('northern snow reduces acceleration; the Winter Cap cancels the penalty',()=>{
   let at=180000;
   const w=new World({seed:36,now:()=>at});
   // Isolate terrain movement speed from any animals/nearby structures.
   w.animals.clear();w.resources.clear();
-  const create=(name,y,tail=null)=>{
-    const p=w.join(null,name);p.x=500;p.y=y;p.vx=1;p.vy=0;
-    p.tail=tail;return p;
+  const create=(name,y,x,hat=0)=>{
+    const p=w.join(null,name);p.x=x;p.y=y;p.vx=1;p.vy=0;
+    p.hat=hat;return p;
   };
-  const land=create('Land',4200);
-  const snow=create('Snow',1200);
-  const edge=create('Edge',2400);
-  const beyond=create('Beyond',2400.01);
-  const ball=create('Snowball',1200,12);
-  const cape=create('Cape',1200,6);
+  const land=create('Land',4200,500);
+  const snow=create('Snow',1200,500);
+  const edge=create('Edge',2400,800);
+  const beyond=create('Beyond',2400.01,1200);
+  const ordinary=create('Ordinary',1200,1600);
+  const winter=create('Winter Cap',1200,2000,15);
   at+=100;w.tick(0.1);
-  const dist=p=>p.x-500;
-  assert.ok(Math.abs(dist(land)-25)<0.01);
-  assert.ok(Math.abs(dist(snow)-18.75)<0.01);
-  assert.ok(Math.abs(dist(edge)-18.75)<0.01);
-  assert.ok(Math.abs(dist(beyond)-25)<0.01);
-  assert.ok(Math.abs(dist(ball)-21.875)<0.01);
-  assert.ok(Math.abs(dist(cape)-25)<0.01);
+  assert.ok(Math.abs((land.x-500)-16)<0.01);
+  assert.ok(Math.abs((snow.x-500)-12)<0.01);
+  assert.ok(Math.abs((edge.x-800)-12)<0.01);
+  assert.ok(Math.abs((beyond.x-1200)-16)<0.01);
+  assert.ok(Math.abs((ordinary.x-1600)-12)<0.01);
+  assert.ok(Math.abs((winter.x-2000)-16)<0.01);
 });
 
 test('the Lua rendered snow biome is north, never the central river',()=>{
