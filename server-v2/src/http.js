@@ -124,6 +124,8 @@ export function createHTTP({ root, storage, auth, updates, game = null,
         const match=/^Bearer ([a-f0-9]{64})$/.exec(req.headers.authorization||'');
         const accountId=match?await playerTokens.get(match[1]):null;
         if(!accountId)return respond(res,401,{error:'invalid_player_token'});
+        if(req.method==='POST'&&pathname==='/api/social/ws-ticket')
+          return respond(res,200,await social.issueSocketTicket(accountId));
         if(req.method==='GET'&&pathname==='/api/social/online'){
           const friends=await social.friendsOf(accountId);
           const ids=new Set([...(gameRef?.room?.players?.values?.()||[])]

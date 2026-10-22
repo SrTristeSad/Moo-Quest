@@ -18,3 +18,14 @@ browser attestation or FRVR bundles are imported.
   `/api/invite`, `/api/invite/inbox` usam todas as mesmas contas V2.
 - TODO: WebSocket social para presença push, SSE de páginas e UI do cliente;
   os endpoints REST/persistência não substituem esses recursos.
+
+## Presença/convites em tempo real
+- Adaptado do `SocialHub` original para WebSocket `/api/social/ws?t=...`.
+- `POST /api/social/ws-ticket` exige Bearer e concede ticket aleatório,
+  de uso único e validade de 30s no Redis. Não há token de conta na URL.
+- `ON_CONNECT`, `FRIEND_STATUS_UPDATED` e `RECEIVE_GAME_INVITE` 
+  são entregues apenas a contas autenticadas e amigos confirmados. Os
+  convites também permanecem no banco para a consulta offline.
+- Ao efetuar logout da conta, a sessão social conectada é encerrada.
+- A interface social do cliente Lua ainda exige implementação própria e
+  o proxy público deve permitir WebSocket nessa rota.

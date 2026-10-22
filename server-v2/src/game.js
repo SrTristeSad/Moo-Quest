@@ -9,11 +9,14 @@ import path from 'node:path';
 import { requestIdentity } from './request-identity.js';
 import { World } from './world.js';
 import { NativeSession } from './native-protocol.js';
+import { SocialRealtime } from './social-realtime.js';
 import { filter_chat } from './vendor/al007ex/filterchat.js';
 export class GameServer {
-  constructor(httpServer, storage, ticketStore=null, {accounts=null,reservedClanTags=[]}={}) {
+  constructor(httpServer, storage, ticketStore=null, {accounts=null,reservedClanTags=[],social=null}={}) {
     this.ticketStore=ticketStore;
     this.accounts=accounts;
+    this.social=social;
+    this.socialHub=social?new SocialRealtime(social):null;
     this.activeAccounts=new Set();
     this.profileWrites=new Set();
     this.unsavedProfiles=new Map();
@@ -37,7 +40,7 @@ export class GameServer {
       let location;
       try { location = new URL(req.url, 'http://localhost'); }
       catch { socket.destroy(); return; }
-      if (!['/play','/s/LC'].includes(location.pathname) ||
+      if (!['/play','/s/LC','/api/social/ws'].includes(location.pathname) ||
           (location.pathname==='/play' &&
             (process.env.MOO_DEV_JSON!=='1'||process.env.MOO_PUBLIC_MODE==='1'||
               this.storage.data.settings.allowGuests===false)) ||
@@ -51,6 +54,16 @@ export class GameServer {
       const {address,trustedOrigin}=requestIdentity(req);
       const ipHash = createHmac('sha256', this.banKey).update(address).digest('hex');
       if (this.storage.data.bans[ipHash]) { socket.destroy(); return; }
+      if (location.pathname === '/api/social/ws') {
+        // Socket authentication uses a short-lived, one-time Redis ticket,
+        // never an account access token in the query string.
+        if(!this.socialHub){socket.destroy();return;}
+        const accountId=await this.social.consumeSocketTicket(
+          location.searchParams.get('t'));
+        if(!accountId){socket.destroy();return;}
+        this.socialHub.accept(req,socket,head,accountId);
+        return;
+      }
       if (location.pathname === '/s/LC') {
         if (location.searchParams.get('b') !== 'mqv2native') { socket.destroy(); return; }
         const ticket=location.searchParams.get('token');
@@ -636,6 +649,7 @@ export class GameServer {
   }
   disconnectAccount(accountId) {
     if(!accountId)return;
+    this.socialHub?.disconnectAccount(accountId);
     for(const state of this.nativeClients.values()){
       if(state.grantedAccountId===accountId)
         state.ws.close(1008,'session_revoked');
@@ -643,6 +657,7 @@ export class GameServer {
   }
   async stop() {
     clearInterval(this.loop);this.loop=null;
+    if(this.socialHub)await this.socialHub.close();
     for(const server of [this.wss,this.nativeWss]) {
       for(const ws of server.clients)ws.terminate();
       await new Promise(resolve=>server.close(()=>resolve()));
