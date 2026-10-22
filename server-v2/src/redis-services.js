@@ -77,12 +77,25 @@ export class RedisTickets{
     // GETDEL is atomic and burns a token even on identity mismatch.
     const payload=await this.client.getDel(this.prefix+'ticket:'+token);
     if(!payload)return null;
-    const claim=JSON.parse(payload);
-    if(claim.ipHash!==ipHash)return null;
+    let claim;
+    try{claim=JSON.parse(payload);}catch{return null;}
+    if(!claim||typeof claim!=='object')return null;
     if(claim.accountId){
+      // A short-lived, 144-bit random, GETDEL single-use ticket was
+      // issued only after verifying this account's Bearer session.
+      // Cloudflare/Nginx may use distinct origin-facing IP addresses for
+      // /api/join and the subsequent WebSocket handshake. That IP is
+      // therefore not a stable account identity across these transports.
+      // Keep the session-generation invalidation, one-use and 30s TTL.
+      if(typeof claim.accountId!=='string'||!/^[a-f0-9-]{36}$/i.test(claim.accountId))
+        return null;
       const revision=String(await this.client.get(
         this.prefix+'ticket-revision:'+claim.accountId)||'0');
       if(revision!==claim.revision)return null;
+    }else{
+      // Anonymous tickets continue to require the same source IP.
+      // Guests have no independently authenticated account identity.
+      if(typeof claim.ipHash!=='string'||claim.ipHash!==ipHash)return null;
     }
     return {accountId:claim.accountId||null};
   }
