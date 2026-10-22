@@ -7,6 +7,7 @@ local View=require("src.game.reference_view")
 local Menu=require("src.game.reference_menu")
 local Auth=require("src.net.local_auth")
 local V2Accounts=require("src.net.v2_accounts")
+local V2Capabilities=require("src.net.v2_capabilities")
 local V2Join=require("src.net.v2_join")
 local v2Mode=os.getenv("MOOQUEST_REQUIRE_V2")=="1"
 local v2Online=v2Mode and os.getenv("MOOQUEST_V2_ONLINE")=="1"
@@ -90,6 +91,21 @@ local function backspaceUtf8(text)
   return text:sub(1,pos-1)
 end
 
+local function refreshV2Policy()
+  if not v2Mode then return nil end
+  local policy,err=V2Capabilities.get()
+  if policy then
+    menu.guestEnabled=policy.guestEnabled
+    menu.registrationEnabled=policy.registrationEnabled
+    menu.capabilitiesError=nil
+  else
+    -- A proxy/WAF can block capabilities independently from account
+    -- routes. Do not block an existing login due to policy-read failure.
+    menu.capabilitiesError=err
+  end
+  return policy,err
+end
+
 local function refreshV2Account()
   if not v2Mode or not v2Session or not v2Session.refreshToken then
     return nil,"Entre na conta novamente"
@@ -142,9 +158,10 @@ function love.load()
     return
   end
   client=result
-  if v2Online then
-    -- Remote mode never attempts unverified guest admission automatically.
-    -- Account login obtains a token before issuing the remote /api/join.
+  if v2Mode then refreshV2Policy() end
+  if v2Online or (v2Mode and menu.guestEnabled==false) then
+    -- Remote mode requires an account. When guests are administratively
+    -- disabled, local V2 also waits for login instead of retrying tickets.
     client.state="auth_required"
     client.status="Servidor remoto HTTPS/WSS: entre na conta V2 para jogar."
     menu.status="Entre na conta V2 para conectar com app.snusnu.com.br."
@@ -459,8 +476,9 @@ local function requestPlay()
     menu.status=startupError or "Cliente de rede indisponivel."
     return false
   end
-  if v2Online and not client.authToken then
-    menu.status="Para jogar online, clique em Entrar e faca login na conta V2."
+  if (v2Online or (v2Mode and menu.guestEnabled==false)) and
+      not client.authToken then
+    menu.status="Para jogar, clique em Entrar e autentique sua conta V2."
     return false
   end
   if phase=="death" or
@@ -501,10 +519,19 @@ local function accountAction(action)
       end
       local account,err
       if menu.authMode=="register" then
+        -- Check the current server policy, not a stale menu flag.
+        local policy=refreshV2Policy()
+        if policy and policy.registrationEnabled==false then
+          menu.authMessage="Cadastro fechado pelo administrador da API V2."
+          return
+        end
         local registered
         registered,err=V2Accounts.register(menu.authEmail,password)
         if not registered then
-          menu.authMessage=tostring(err);return
+          menu.authMessage=tostring(err):find("registration_disabled",1,true)
+            and "Cadastro fechado pelo administrador da API V2."
+            or tostring(err)
+          return
         end
       end
       account,err=V2Accounts.login(menu.authEmail,password)
@@ -594,8 +621,9 @@ end
 menuAction=function(action)
   if action=="play" then return requestPlay() end
   if action=="play_unavailable" then
-    if v2Online and (not client or not client.authToken) then
-      menu.status="Para jogar online, primeiro clique em Entrar na CONTA V2."
+    if (v2Online or (v2Mode and menu.guestEnabled==false)) and
+        (not client or not client.authToken) then
+      menu.status="Entre na CONTA V2: convidados nao estao disponiveis."
     else
       menu.status="Jogo indisponivel; confira os Detalhes da conexao."
     end
@@ -611,6 +639,20 @@ menuAction=function(action)
       menu.status="No V2, crie ou gerencie o cla no painel Tribo durante a partida."
     else
       clans:toggle(client and client.authToken)
+    end
+    return true
+  end
+  if action=="registration_closed" then
+    local policy,err=refreshV2Policy()
+    if policy and policy.registrationEnabled~=false then
+      menu.authMode="register"
+      menu.authStep="email"
+      menu.authFocus="email"
+      menu.authMessage=""
+      menu.status="Cadastro reaberto pela API V2."
+    else
+      menu.status=policy and "Cadastros desativados no painel da API V2."
+        or "Nao foi possivel consultar cadastros: "..tostring(err)
     end
     return true
   end
@@ -679,9 +721,11 @@ function love.keypressed(key)
     if key=="r" and not menu:isEditingText() and client and
       (client.state=="failed" or client.state=="closed"
         or client.state=="blocked") then
-      if v2Online and not client.authToken then
+      if v2Mode then refreshV2Policy() end
+      if (v2Online or (v2Mode and menu.guestEnabled==false))
+          and not client.authToken then
         client.state="auth_required"
-        menu.status="Acesso remoto: primeiro entre na CONTA V2."
+        menu.status="Acesso V2: primeiro entre na CONTA V2."
       else
         world=World.new()
         local ok,why=client:connect()
@@ -781,9 +825,11 @@ function love.keypressed(key)
     heartbeatClock=0
     world=World.new()
     if camera then camera.hasTarget=false end
-    if v2Online and not client.authToken then
+    if v2Mode then refreshV2Policy() end
+    if (v2Online or (v2Mode and menu.guestEnabled==false))
+        and not client.authToken then
       client.state="auth_required"
-      menu.status="Entre na conta V2 para conectar ao servidor remoto."
+      menu.status="Entre na conta V2 para conectar ao servidor."
     else
       local ok,err=client:connect()
       if not ok then startupError=err end
