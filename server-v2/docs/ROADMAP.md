@@ -163,3 +163,12 @@ Nenhum código do servidor antigo deve entrar no pacote comercial V2.
   sem modificar os IDs aleatorizados existentes.
 - Ainda exige conferência visual real no LÖVE, ajustes finos de IA e de
   física das bordas secretas; não representa paridade final.
+
+## Capacidade negociada para efeitos especiais (22/10/2026)
+
+Clientes V2 novos anunciam `Y(1)` após `io-init`, antes de `M`. Somente
+essas conexões recebem o aviso visual `W` do Crab King. Um cliente Lua V2
+antigo não entende `W` e seria desconectado se o servidor enviasse o evento
+sem negociação. As tabelas de IDs embaralhados originais permanecem intactas:
+`Y` é uma extensão com ID 18, `W` é a extensão de recepção com ID 38.
+Essa negociação não confere privilégios nem altera o estado de jogo.

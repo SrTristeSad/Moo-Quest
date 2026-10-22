@@ -105,6 +105,8 @@ function T.new(handshake,_,digest)
   -- Add new V2 functions without changing pre-existing shuffled IDs.
   c2s.enc["V"]=#C2S
   c2s.dec[#C2S]="V"
+  c2s.enc["Y"]=#C2S+1
+  c2s.dec[#C2S+1]="Y"
   s2c.enc["p"]=#S2C
   s2c.dec[#S2C]="p"
   s2c.enc["F"]=#S2C+1

@@ -109,7 +109,8 @@ export class GameServer {
     const session=new NativeSession();
     const state={ws,session,p:null,held:false,lastSnapshotAt:0,spawning:false,
       accountId:null,grantedAccountId:accountId,clanBusy:false,
-      autoAttack:false,lockDir:false,watchSid:null};
+      autoAttack:false,lockDir:false,watchSid:null,
+      supportsBossWarnings:false};
     this.nativeClients.set(ws,state);
     ws.send(session.handshake());
     const send=(name,args=[])=>{
@@ -127,6 +128,12 @@ export class GameServer {
       try{request=session.decode(raw);}catch{ws.close(1008,'invalid_packet');return;}
       const {name,args}=request;
       if(state.spawning)return;
+      if(name==='Y'){
+        // Presentation-only, opt-in extension. Never grants account rights,
+        // inventory, damage, movement, or any gameplay authority.
+        if(args.length===1&&args[0]===1)state.supportsBossWarnings=true;
+        return;
+      }
       if(name==='M'){
         if(!state.p){
           if(!accountId&&this.storage.data.settings.allowGuests===false){
@@ -402,7 +409,8 @@ export class GameServer {
       }else if(evt.kind==='boss_telegraph'){
         const args=[evt.effectKind,evt.x,evt.y,evt.radius,evt.duration];
         if(evt.x2!==undefined)args.push(evt.x2,evt.y2);
-        this._nativeBroadcast('W',args);
+        for(const client of this.nativeClients.values())
+          if(client.p&&client.supportsBossWarnings)client.send('W',args);
       }else if(evt.kind==='boss_attack'){
         this._nativeBroadcast('J',[evt.sid]);
       }else if(evt.kind==='animal_hit'){
