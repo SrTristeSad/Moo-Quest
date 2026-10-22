@@ -83,7 +83,7 @@ function sanitizeSettings(existing, patch) {
   return next;
 }
 export function createHTTP({ root, storage, auth, updates, game = null,
-  accounts=null,playerTokens=null,guestVerifier=createGuestVerifier(),stopStatus = () => false,
+  accounts=null,playerTokens=null,social=null,guestVerifier=createGuestVerifier(),stopStatus = () => false,
   httpsCookies = process.env.MOO_PUBLIC_HTTPS === '1' }) {
   const publicDir = path.join(root, 'public');
   const rateKey = req => requestIdentity(req).address;
@@ -114,6 +114,64 @@ export function createHTTP({ root, storage, auth, updates, game = null,
         tlsRequiredForRemote:true,
         mode:guestVerifier.publicMode?'public':'local_development'
       });
+      // Upstream social, chat and invitation routes adapted to V2 accounts.
+      // All operations use PostgreSQL and require the existing V2 Bearer.
+      if(pathname.startsWith('/api/social/')||
+          pathname.startsWith('/api/chat/')||
+          pathname==='/api/invite'||pathname==='/api/invite/inbox'){
+        if(!installed||!social||!playerTokens)
+          return respond(res,503,{error:'social_unavailable'});
+        const match=/^Bearer ([a-f0-9]{64})$/.exec(req.headers.authorization||'');
+        const accountId=match?await playerTokens.get(match[1]):null;
+        if(!accountId)return respond(res,401,{error:'invalid_player_token'});
+        if(req.method==='GET'&&pathname==='/api/social/online'){
+          const friends=await social.friendsOf(accountId);
+          const ids=new Set([...(gameRef?.room?.players?.values?.()||[])]
+            .map(p=>p.accountId).filter(Boolean));
+          return respond(res,200,{friends:friends.map(f=>({
+            id:f.id,username:f.username,
+            presence:ids.has(f.id)?'online':'offline',
+            server:ids.has(f.id)?'LC':null
+          }))});
+        }
+        const f=/^\/api\/social\/friends\/([0-9a-f-]{36})(?:\/(requests|outgoing-requests)(?:\/([0-9a-f-]{36}))?)?$/i.exec(pathname);
+        if(f){
+          if(f[1]!==accountId)return respond(res,403,{error:'forbidden'});
+          if(req.method==='GET'&&!f[2])
+            return respond(res,200,await social.friendsOf(accountId));
+          if(req.method==='GET'&&f[2]==='requests'&&!f[3])
+            return respond(res,200,await social.requests(accountId));
+          if(req.method==='GET'&&f[2]==='outgoing-requests'&&!f[3])
+            return respond(res,200,await social.requests(accountId,true));
+          if(req.method==='POST'&&f[2]==='requests'&&!f[3]){
+            const result=await social.request(accountId,(await readBody(req)).recipientId);
+            return respond(res,result.friends?200:201,result.friends?result:result.request);
+          }
+          if(req.method==='POST'&&f[2]==='requests'&&f[3])
+            return respond(res,200,await social.answer(
+              accountId,f[3],(await readBody(req)).accept===true));
+          if(req.method==='DELETE'&&f[2]==='outgoing-requests'&&f[3])
+            return respond(res,200,await social.cancel(accountId,f[3]));
+          if(req.method==='DELETE'&&!f[2])
+            return respond(res,200,await social.remove(
+              accountId,(await readBody(req)).friendId));
+        }
+        if(req.method==='POST'&&pathname==='/api/chat/whisper'){
+          const data=await readBody(req);
+          return respond(res,200,await social.whisper(accountId,data.to,data.text));
+        }
+        if(req.method==='POST'&&pathname==='/api/chat/clan')
+          return respond(res,200,await social.clanSay(accountId,(await readBody(req)).text));
+        if(req.method==='POST'&&pathname==='/api/chat/history'){
+          const data=await readBody(req);
+          return respond(res,200,await social.history(accountId,data.kind,data.with));
+        }
+        if(req.method==='POST'&&pathname==='/api/invite')
+          return respond(res,201,await social.invite(accountId,(await readBody(req)).to));
+        if(req.method==='GET'&&pathname==='/api/invite/inbox')
+          return respond(res,200,await social.inbox(accountId));
+        return respond(res,404,{error:'not_found'});
+      }
       if(req.method==='POST' && pathname==='/api/join'){
         if(!installed || !gameRef)return respond(res,503,{error:'not_installed'});
         const body=await readBody(req);
