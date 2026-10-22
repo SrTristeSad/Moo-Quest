@@ -1,0 +1,125 @@
+name: MooQuest Windows test client with requested reference art
+on:
+  push:
+    branches: [fix/v2-client-reference-sprites-20261022]
+    paths:
+      - '.github/workflows/v2-reference-art-package.yml'
+      - 'main.lua'
+      - 'src/**'
+      - 'tools/run-v2-online.mjs'
+      - 'tools/run-v2-online.test.mjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify local HTTPS/WSS client and port collision fix
+        run: |
+          node --check tools/run-v2-online.mjs
+          node --test tools/run-v2-online.test.mjs tools/v2-https-relay.test.mjs
+      - name: Assemble Lua gameplay client from pre-V2 baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=5ad8c32d1889dcb94e5645982acc2a0f2d570e09
+          D=dist/MooQuest-LUA-ONLINE-REF
+          mkdir -p "$D/tools" "$D/support" "$D/assets/reference/img"
+          cp -a src tests "$D/"
+          cp main.lua conf.lua JOGAR-V2-ONLINE-WINDOWS.bat "$D/"
+          cp tools/v2-https-relay.mjs tools/run-v2-online.mjs "$D/tools/"
+          cp support/reference-image-manifest.json "$D/support/"
+          # Preserve the actual pre-V2 Lua game renderer and HUD.
+          for path in $(git ls-tree -r --name-only "$BASE" src/game/ src/camera.lua src/input.lua); do
+            case "$path" in
+              src/game/reference_menu.lua|src/game/reference_assets.lua|src/game/reference_objects.lua)
+                echo "V2 compatibility adapter: $path" ;;
+              *)
+                mkdir -p "$D/$(dirname "$path")"
+                git show "$BASE:$path" > "$D/$path"
+                ;;
+            esac
+          done
+          test -s "$D/src/game/reference_view.lua"
+          test -s "$D/src/game/reference_hud.lua"
+          test -s "$D/src/game/reference_secret_map.lua"
+          test -s "$D/src/net/v2_accounts.lua"
+          test -s "$D/src/protocol/v2_session.lua"
+          test -s "$D/tools/run-v2-online.mjs"
+      - name: Retrieve ONLY reference PNGs in CI (never commit third-party artwork)
+        shell: bash
+        run: |
+          set -euo pipefail
+          REF_COMMIT=06f7c1ca965a7628671676c8d9a7efd3997bb5e7
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            https://github.com/al007ex/moomoo-clone.git /tmp/moomoo-reference
+          git -C /tmp/moomoo-reference sparse-checkout set client/public/img
+          test "$(git -C /tmp/moomoo-reference rev-parse HEAD)" = "$REF_COMMIT"
+          test -d /tmp/moomoo-reference/client/public/img
+          cp -a /tmp/moomoo-reference/client/public/img/. \
+            dist/MooQuest-LUA-ONLINE-REF/assets/reference/img/
+      - name: Validate reference art and packaging completeness
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib, struct, zlib
+          root=pathlib.Path("dist/MooQuest-LUA-ONLINE-REF/assets/reference/img")
+          pngs=list(root.rglob("*.png"))
+          good,bad=[],[]
+          for file in pngs:
+              data=file.read_bytes()
+              if not data.startswith(b'\x89PNG\r\n\x1a\n') or len(data)<33 or data[12:16]!=b'IHDR':
+                  bad.append(file.relative_to(root).as_posix());continue
+              w,h=struct.unpack(">II",data[16:24])
+              if not(0<w<8193 and 0<h<8193):
+                  bad.append(file.relative_to(root).as_posix());continue
+              good.append(file.relative_to(root).as_posix())
+          print(f"Reference sprites: {len(good)} valid headers; invalid: {bad}")
+          assert len(good)>=160, "Reference art checkout unexpectedly incomplete"
+          must=['animals/boar_1.png','animals/bull_1.png','animals/bull_2.png',
+                'animals/cow_1.png','animals/pig_1.png','animals/wolf_1.png',
+                'weapons/hammer_1.png']
+          assert all(name in good for name in must), "Core sprites missing/invalid"
+          assert not bad, "Some upstream PNG files invalid: "+str(bad)
+          PY
+          cat > dist/MooQuest-LUA-ONLINE-REF/ORIGEM-DAS-ARTES.txt <<'EOF'
+          TESTE PESSOAL - MooQuest cliente Lua com assets de referência.
+          PNGs obtidos de:
+          https://github.com/al007ex/moomoo-clone/tree/06f7c1ca965a7628671676c8d9a7efd3997bb5e7/client/public/img
+          Codigo Lua / protocolos: SrTristeSad/Moo-Quest.
+          ATENCAO: o proprio repositório de referencia informa que o nome e a
+          arte de MooMoo.io pertencem aos respectivos titulares / FRVR.
+          Este pacote destina-se exclusivamente a testes pessoais.
+          O fato de os arquivos estarem num repositorio publico NAO
+          garante permissao para republicacao ou uso comercial dessas artes.
+          Iniciar: JOGAR-V2-ONLINE-WINDOWS.bat.
+          Requisitos: Node.js 22+ e LOVE 2D 11.x.
+          A porta 8080 ocupada nao bloqueia: o cliente escolhe outra livre.
+          EOF
+          cd dist
+          zip -qr MooQuest-CLIENTE-REFERENCIA-PNG-V2-WINDOWS.zip MooQuest-LUA-ONLINE-REF
+          unzip -tq MooQuest-CLIENTE-REFERENCIA-PNG-V2-WINDOWS.zip
+          sha256sum MooQuest-CLIENTE-REFERENCIA-PNG-V2-WINDOWS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MooQuest-CLIENTE-REFERENCIA-PNG-V2-WINDOWS
+          path: dist/MooQuest-CLIENTE-REFERENCIA-PNG-V2-WINDOWS.zip
+          retention-days: 1
+          if-no-files-found: error
+  windows-tests:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test tools/run-v2-online.test.mjs
