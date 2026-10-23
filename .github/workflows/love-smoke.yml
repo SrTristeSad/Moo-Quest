@@ -17,6 +17,7 @@ jobs:
     env:
       MOOQUEST_TESTS: "1"
       MOOQUEST_TESTS_EXIT: "1"
+      MOOQUEST_VERIFY_BUNDLED_ART: "1"
       SDL_AUDIODRIVER: dummy
       LIBGL_ALWAYS_SOFTWARE: "1"
     steps:
