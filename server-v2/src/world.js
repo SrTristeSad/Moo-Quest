@@ -22,25 +22,18 @@ const SNOW_BIOME_TOP=2400;
 const SNOW_SPEED=0.75;
 // The original client only assigns individual names to cows and pigs.
 // All other fauna uses a fixed species name to avoid misleading random labels.
-const ANIMAL_NAMES=Object.freeze({
-  2:'Bull',3:'Bully',4:'Wolf',5:'Quack',6:'MOOSTAFA',
-  7:'Treasure',8:'MOOFIE',9:'Boar',10:'Yeti',
-  11:'Crab King',12:'Sheep'
-});
-const COW_PIG_NAMES=[
-  'Sid','Steph','Bmoe','Romn','Jononthecool','Fiona','Vince',
-  'Nathan','Nick','Flappy','Ronald','Otis','Pepe','Mc Donald',
-  'Theo','Fabz','Oliver','Jeff','Jimmy','Helena','Reaper','Ben',
-  'Alan','Naomi','XYZ','Clever','Jeremy','Mike','Destined',
-  'Stallion','Allison','Meaty','Sophia','Vaja','Joey','Pendy',
-  'Murdoch','Jared','July','Sonia','Mel','Dexter','Quinn','Milky'
-];
+// Species names and cow/pig name pool come from the live reference catalog.
+const ANIMAL_NAMES=Object.freeze(Object.fromEntries(
+  AI_TYPES.filter(species=>species.name).map(species=>[species.id,species.name])
+));
+const COW_PIG_NAMES=config.cowNames;
 // The upstream AiManager catalog is now authoritative for actual creature
 // statistics. Moo-Quest retains its existing spawn counts, areas and V2
 // movement integration until the full AI state machine can be bridged safely.
 const AI_MOTION=Object.freeze(Object.fromEntries(AI_TYPES.map((kind,index)=>[
   index,[Math.round((kind.speed??0)*1_000_000),(kind.turnSpeed??0)*1000]
 ])));
+export {PROJECTILE_TYPES};
 // Natural trees, rocks, gold nodes and bushes yield on every legal hit.
 // Unlike player-built structures, they are not destructible.
 const PLAYER_RADIUS=35;
