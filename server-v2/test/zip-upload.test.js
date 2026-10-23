@@ -9,6 +9,7 @@ import {Auth} from '../src/auth.js';
 import {Updates} from '../src/updates.js';
 import {createHTTP} from '../src/http.js';
 import {stageTrustedZip} from '../src/zip-release.js';
+import {SOURCES} from '../scripts/reference-sources.mjs';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const runtime=[];
@@ -18,6 +19,10 @@ for(const folder of ['src','public']){
     runtime.push({name:folder+'/'+name,data:fs.readFileSync(path.join(root,folder,name))});
   }
 }
+// The fixture now includes byte-identical reference modules, just like production.
+for(const [origin,target] of SOURCES)runtime.push({
+  name:target,data:fs.readFileSync(path.resolve(root,origin))
+});
 function crc32(bytes){
   let value=0xffffffff;
   for(const byte of bytes){
