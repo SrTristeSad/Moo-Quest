@@ -60,25 +60,24 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/MooQuest-V2-ONLINE/tools
-          cp main.lua conf.lua JOGAR-V2-ONLINE-WINDOWS.bat IMPORTAR-ARTES-ANTIGAS.bat dist/MooQuest-V2-ONLINE/
+          cp main.lua conf.lua JOGAR-V2-ONLINE-WINDOWS.bat dist/MooQuest-V2-ONLINE/
           cp -a src tests dist/MooQuest-V2-ONLINE/
           mkdir -p dist/MooQuest-V2-ONLINE/support
           cp support/reference-image-manifest.json dist/MooQuest-V2-ONLINE/support/
           # The Lua runtime uses its own src/game/catalog.lua: vendored
           # server-side shared/config/*.js is not a client dependency.
           test ! -d dist/MooQuest-V2-ONLINE/shared
-          cp tools/v2-https-relay.mjs tools/run-v2-online.mjs tools/importar-artes-antigas.mjs dist/MooQuest-V2-ONLINE/tools/
+          cp tools/v2-https-relay.mjs tools/run-v2-online.mjs dist/MooQuest-V2-ONLINE/tools/
           mkdir -p dist/MooQuest-V2-ONLINE/assets/custom/img
-          printf 'Coloque aqui suas artes PNG nas pastas animals, weapons, hats, accessories, resources e icons.\nOu execute IMPORTAR-ARTES-ANTIGAS.bat para restaurar do seu cliente antigo.\n' > dist/MooQuest-V2-ONLINE/assets/custom/img/LEIA-ARTES.txt
+          printf 'Coloque aqui suas artes PNG nas pastas animals, weapons, hats, accessories, resources e icons.\nExtraia as imagens de seu pacote de artes em assets/custom/img/.\n' > dist/MooQuest-V2-ONLINE/assets/custom/img/LEIA-ARTES.txt
           test ! -f dist/MooQuest-V2-ONLINE/tools/run-v2-online.ps1
           ! grep -R -Ei 'ExecutionPolicy|Bypass|powershell.exe' dist/MooQuest-V2-ONLINE/JOGAR-V2-ONLINE-WINDOWS.bat dist/MooQuest-V2-ONLINE/tools/run-v2-online.mjs
           cp docs/CLIENTE-V2-ONLINE-AAPANEL.md dist/MooQuest-V2-ONLINE/LEIA-PRIMEIRO.md
+          test "$(find dist/MooQuest-V2-ONLINE -name '*.bat' | wc -l)" -eq 1
           test -s dist/MooQuest-V2-ONLINE/main.lua
           test -s dist/MooQuest-V2-ONLINE/tools/v2-https-relay.mjs
           test -s dist/MooQuest-V2-ONLINE/src/game/reference_view.lua
           test -s dist/MooQuest-V2-ONLINE/src/game/v2_login_screen.lua
-          test -s dist/MooQuest-V2-ONLINE/tools/importar-artes-antigas.mjs
-          test -s dist/MooQuest-V2-ONLINE/IMPORTAR-ARTES-ANTIGAS.bat
           test -s dist/MooQuest-V2-ONLINE/src/net/v2_accounts.lua
           test -s dist/MooQuest-V2-ONLINE/src/net/websocket_client.lua
           test ! -d dist/MooQuest-V2-ONLINE/server
