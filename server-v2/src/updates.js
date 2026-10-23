@@ -7,7 +7,7 @@ import { atomicJSON, loadJSON } from './storage.js';
 import { stageTrustedZip } from './zip-release.js';
 
 const VERSION = /^\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/i;
-const FILE = /^(?:src\/[a-zA-Z0-9_/-]+\.js|src\/vendor\/al007ex\/LICENSE|public\/[a-zA-Z0-9_.-]+\.(?:html|js|css))$/;
+const FILE = /^(?:src\/[a-zA-Z0-9_/-]+\.js|src\/reference-source\/(?:config|items|store)\.cjs|src\/vendor\/al007ex\/LICENSE|public\/[a-zA-Z0-9_.-]+\.(?:html|js|css))$/;
 const VENDOR_LICENSE = 'src/vendor/al007ex/LICENSE';
 const REQUIRED = ['src/index.js','src/http.js','src/auth.js','src/storage.js',
   'src/updates.js','src/zip-release.js','src/game.js','src/world.js','src/native-protocol.js',
@@ -47,6 +47,11 @@ export function validateSignedRelease(envelope, publicKey, manifestURL) {
     bytes += file.size;
   }
   if (bytes > MAX_BYTES || REQUIRED.some(f => !seen.has(f))) throw new Error('Incomplete or oversized release');
+  if(seen.has('src/reference-catalog.js')) {
+    for(const file of ['config.cjs','items.cjs','store.cjs',
+      'aiManager.js','ai.js','effects.js'].map(n=>'src/reference-source/'+n))
+      if(!seen.has(file))throw new Error('Missing signed reference source: '+file);
+  }
   if([...seen].some(f=>f.startsWith('src/vendor/al007ex/')&&f.endsWith('.js'))&&
      !seen.has(VENDOR_LICENSE))throw new Error('Vendor code requires Apache-2.0 license');
   return payload;
