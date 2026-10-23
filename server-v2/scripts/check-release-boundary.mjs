@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const allowed = {src:/\\.js$/,public:/\\.(?:js|html|css)$/};
+const allowed = {src:/\.js$/,public:/\.(?:js|html|css)$/};
 const VENDOR_LICENSE = 'src/vendor/al007ex/LICENSE';
 const VENDOR_FILES = ['src/vendor/al007ex/effects.js','src/vendor/al007ex/utils.js',
   'src/vendor/al007ex/filterchat.js','src/vendor/al007ex/nameFilter.js',
