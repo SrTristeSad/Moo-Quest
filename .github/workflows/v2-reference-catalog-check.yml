@@ -1,0 +1,31 @@
+name: V2 reference catalog and isolated signed packaging
+on:
+  push:
+    branches: ['fix/reference-catalog-isolated-audit-20261023']
+    paths:
+      - 'server-v2/**'
+      - '.github/workflows/v2-reference-catalog-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reference-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --prefix server-v2 --no-audit --no-fund
+      - name: Compare every value against real shared/config sources
+        run: node --test server-v2/test/reference-source-parity.test.js
+      - name: Verify signed publisher and runtime boundary
+        run: node --test server-v2/test/release-boundary.test.js server-v2/test/sign-release.test.js
+      - name: Check no PNG changes from main
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          if git diff --name-only origin/main...HEAD -- assets/custom/img | grep .; then
+            echo "PNG changes prohibited without owner approval"
+            exit 1
+          fi
