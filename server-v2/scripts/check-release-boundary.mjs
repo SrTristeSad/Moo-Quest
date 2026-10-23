@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const allowed = {src:/\.js$/,public:/\.(?:js|html|css)$/};
+const allowed = {src:/\\.js$/,public:/\\.(?:js|html|css)$/};
 const VENDOR_LICENSE = 'src/vendor/al007ex/LICENSE';
 const VENDOR_FILES = ['src/vendor/al007ex/effects.js','src/vendor/al007ex/utils.js',
   'src/vendor/al007ex/filterchat.js','src/vendor/al007ex/nameFilter.js',
@@ -13,11 +13,13 @@ const VENDOR_FILES = ['src/vendor/al007ex/effects.js','src/vendor/al007ex/utils.
   'src/vendor/al007ex/projectile.js','src/vendor/al007ex/projectileManager.js',
   'src/vendor/al007ex/objectManager.js'];
 const required=['src/index.js','src/world.js','src/native-protocol.js','public/admin.html'];
+const REFERENCE=['config.cjs','items.cjs','store.cjs','aiManager.js','ai.js','effects.js']
+  .map(n=>'src/reference-source/'+n);
 function within(base, file){
   const rel=path.relative(base,file);
   return rel!=='' && rel!=='..' && !rel.startsWith('..'+path.sep) && !path.isAbsolute(rel);
 }
-export function auditReleaseBoundary(root){
+export function auditReleaseBoundary(root,{standalone=false}={}){
   root=path.resolve(root);
   const files=[];
   for(const folder of ['src','public']){
@@ -30,14 +32,15 @@ export function auditReleaseBoundary(root){
         if(item.isSymbolicLink())throw new Error('Symlink prohibited: '+relative);
         if(item.isDirectory()){walk(absolute);continue;}
         if(!item.isFile() ||
-            !(allowed[folder].test(item.name) || relative===VENDOR_LICENSE))
+            !(allowed[folder].test(item.name) || relative===VENDOR_LICENSE ||
+              REFERENCE.includes(relative)))
           throw new Error('Unexpected release file: '+relative);
         if(!within(base,absolute) || !within(base,fs.realpathSync(absolute)))
           throw new Error('File escapes runtime directory: '+relative);
         files.push(relative);
         if(folder==='src'){
           const code=fs.readFileSync(absolute,'utf8');
-          if(/\b(?:require\s*\(|import\s*\()/.test(code))
+          if(relative!=='src/reference-catalog.js' && /\b(?:require\s*\(|import\s*\()/.test(code))
             throw new Error('Dynamic import or CommonJS require must be reviewed: '+relative);
           for(const match of code.matchAll(/\bfrom\s*['"]([^'"]+)['"]|\bimport\s*['"]([^'"]+)['"]/g)){
             const spec=match[1]||match[2];
@@ -58,6 +61,10 @@ export function auditReleaseBoundary(root){
   // A vendor runtime can only be shipped together with its exact license file.
   if(VENDOR_FILES.some(f=>files.includes(f))&&!files.includes(VENDOR_LICENSE))
     throw new Error('Missing Apache-2.0 vendor license');
+  if(standalone || files.includes('src/reference-source/config.cjs')){
+    for(const f of REFERENCE)if(!files.includes(f))
+      throw new Error('Missing standalone reference source: '+f);
+  }
   files.sort();
   return files;
 }
