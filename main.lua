@@ -440,7 +440,7 @@ function love.draw()
       for i,file in ipairs(absent) do
         love.graphics.print(file,20,20+i*18)
       end
-      love.graphics.print("IMPORTAR-ARTES-ANTIGAS.bat | F6: ocultar aviso",20,23+(#absent+1)*18)
+      love.graphics.print("Confira assets/custom/img/ | F6: ocultar aviso",20,23+(#absent+1)*18)
     elseif total>0 then
       love.graphics.setColor(0,0,0,0.78)
       love.graphics.rectangle("fill",12,12,350,30,4,4)
