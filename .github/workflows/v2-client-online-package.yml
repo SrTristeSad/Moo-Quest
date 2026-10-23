@@ -15,6 +15,7 @@ on:
       - 'tools/importar-artes-antigas.mjs'
       - 'tools/importar-artes-antigas.test.mjs'
       - 'main.lua'
+      - 'assets/**'
       - 'src/**'
       - 'shared/**'
       - 'docs/CLIENTE-V2-ONLINE-AAPANEL.md'
@@ -69,7 +70,9 @@ jobs:
           test ! -d dist/MooQuest-V2-ONLINE/shared
           cp tools/v2-https-relay.mjs tools/run-v2-online.mjs dist/MooQuest-V2-ONLINE/tools/
           mkdir -p dist/MooQuest-V2-ONLINE/assets/custom/img
-          printf 'Coloque aqui suas artes PNG nas pastas animals, weapons, hats, accessories, resources e icons.\nExtraia as imagens de seu pacote de artes em assets/custom/img/.\n' > dist/MooQuest-V2-ONLINE/assets/custom/img/LEIA-ARTES.txt
+          cp -a assets/custom/img/. dist/MooQuest-V2-ONLINE/assets/custom/img/
+          test "$(find dist/MooQuest-V2-ONLINE/assets/custom/img -name '*.png' | wc -l)" -eq 176
+          python3 -c "from pathlib import Path; fs=list(Path('dist/MooQuest-V2-ONLINE/assets/custom/img').rglob('*.png')); assert len(fs)==176 and all(f.read_bytes().startswith(bytes([137,80,78,71,13,10,26,10])) for f in fs), 'invalid PNG in package'"
           test ! -f dist/MooQuest-V2-ONLINE/tools/run-v2-online.ps1
           ! grep -R -Ei 'ExecutionPolicy|Bypass|powershell.exe' dist/MooQuest-V2-ONLINE/JOGAR-V2-ONLINE-WINDOWS.bat dist/MooQuest-V2-ONLINE/tools/run-v2-online.mjs
           cp docs/CLIENTE-V2-ONLINE-AAPANEL.md dist/MooQuest-V2-ONLINE/LEIA-PRIMEIRO.md
