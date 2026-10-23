@@ -10,7 +10,9 @@ import { referenceNaturalPlacementClear } from './reference-object-placement.js'
 import {resolveSolidContact,originalStaticSpotClear,resolveCreatureContact} from './reference-solid-collision.js';
 import {resolveReferencePlayerPairs} from './reference-player-collision.js';
 import { referenceObjectVisibleToPlayer } from './reference-object-visibility.js';
-import { AI_TYPES } from './vendor/al007ex/aiManager.js';
+import { AI_TYPES, config, items, store, WEAPONS, RECIPES, FOOD,
+  UPGRADES, WILDLIFE, SPAWNS, PROJECTILE_TYPES, MAX_AGE,
+  LEVEL_XP, VARIANT_THRESHOLDS, VARIANT_DAMAGE } from './reference-catalog.js';
 import { Projectile } from './vendor/al007ex/projectile.js';
 import { ProjectileManager } from './vendor/al007ex/projectileManager.js';
 import { referenceGatherBonus, referenceSnowFactor, referenceCowMultiplier, referenceThornsHeal, referenceBleed, referenceCapeEffects, triggerDragonCape, triggerSuperCape } from './reference-bridge.js';
@@ -39,123 +41,6 @@ const COW_PIG_NAMES=[
 const AI_MOTION=Object.freeze(Object.fromEntries(AI_TYPES.map((kind,index)=>[
   index,[Math.round((kind.speed??0)*1_000_000),(kind.turnSpeed??0)*1000]
 ])));
-const SPAWNS=[
-  {index:0,count:10,speed:65},
-  {index:1,count:8,speed:59},
-  {index:12,count:6,speed:63},
-  {index:2,count:5,speed:235},
-  {index:3,count:2,speed:250},
-  {index:4,count:6,speed:245,area:'snow'},
-  {index:5,count:4,speed:100,area:'river'},
-  {index:9,count:4,speed:240},
-  {index:10,count:2,speed:230,area:'snow'},
-  {index:6,count:1,speed:215},
-  {index:7,count:1,speed:0},
-  {index:8,count:1,speed:265},
-  {index:11,count:1,speed:170}
-];
-const WILDLIFE=Object.freeze(SPAWNS.map(({index,count,speed,area})=>{
-  const original=AI_TYPES[index];
-  if(!original||original.id!==index)throw new Error('Invalid upstream AI index '+index);
-  return Object.freeze({
-    index,count,speed,area,
-    hp:original.health,damage:original.dmg??0,
-    food:original.drop?.[0]==='food'?original.drop[1]:0,
-    score:original.killScore??0,scale:original.scale,
-    viewRange:original.viewRange??0,hostile:!!original.hostile,
-    fixed:!!original.fixedSpawn,boss:!!original.boss
-  });
-}));
-// These definitions are independent gameplay rules; numeric IDs serve as
-// presentation contracts with the installed LÖVE inventory, not imported JS.
-const RECIPES={
-  3:{cost:{wood:10},scale:50,hp:350,group:1,limit:30},
-  4:{cost:{stone:25},scale:50,hp:800,group:1,limit:30},
-  5:{cost:{stone:35},scale:52,hp:1500,group:1,limit:30},
-  6:{cost:{wood:20,stone:5},scale:49,hp:300,group:2,limit:15},
-  7:{cost:{wood:30,stone:10},scale:52,hp:400,group:2,limit:15},
-  8:{cost:{wood:35,stone:15},scale:52,hp:600,group:2,limit:15,
-    spikeDamage:30,poison:{damage:5,seconds:6}},
-  9:{cost:{wood:30,stone:20},scale:52,hp:500,group:2,limit:15,spikeDamage:45},
-  10:{cost:{wood:50,stone:10},scale:45,hp:350,group:3,limit:20,pps:1},
-  11:{cost:{wood:60,stone:20},scale:47,hp:450,group:3,limit:20,pps:1.5},
-  12:{cost:{wood:100,stone:50},scale:47,hp:750,group:3,limit:20,pps:2},
-  // Server-controlled placed farming nodes: only an actual hit yields wood/stone.
-  13:{cost:{wood:20,stone:100},scale:65,hp:350,group:4,limit:1,harvest:'stone'},
-  14:{cost:{wood:150},scale:110,hp:350,group:11,limit:2,harvest:'wood'},
-  // No map editing or NPC support: these exist only when players construct.
-  15:{cost:{wood:30,stone:30},scale:50,hp:500,group:5,limit:5,pit:true},
-  16:{cost:{stone:20,wood:5},scale:45,hp:150,group:6,limit:12,boost:1.5},
-  19:{cost:{wood:30,food:10},scale:45,hp:400,group:9,limit:4,heal:10},
-  21:{cost:{wood:30,stone:25},scale:45,hp:400,group:12,limit:3,blocker:300},
-  20:{cost:{wood:100,stone:100},scale:45,hp:400,group:10,limit:1,spawnPoint:true},
-  22:{cost:{wood:60,stone:60},scale:45,hp:200,group:13,limit:2,teleport:true},
-  // Player-built automatic defense. Static only: no NPC or editable map.
-  17:{cost:{wood:200,stone:150},scale:43,hp:800,group:7,limit:2,turret:true},
-  18:{cost:{wood:20},scale:43,hp:300,group:8,limit:12,platform:true}
-};
-const FOOD={0:{cost:10,heal:20},1:{cost:15,heal:40},
-  2:{cost:25,heal:30,regen:10,seconds:5}};
-const WEAPONS={
-  // Values follow the al007ex client-compatible gameplay rules. Cooldowns
-  // are in milliseconds; motion modifiers are enforced by the V2 world.
-  0:{damage:25,reach:65,cooldown:300,gather:1},
-  1:{damage:30,reach:70,cooldown:400,gather:2},
-  2:{damage:35,reach:75,cooldown:400,gather:4},
-  3:{damage:35,reach:110,cooldown:300,gather:1,move:0.85},
-  4:{damage:40,reach:118,cooldown:300,gather:1,move:0.8},
-  5:{damage:45,reach:142,cooldown:700,gather:1,move:0.82,knock:0.2},
-  6:{damage:20,reach:110,cooldown:300,gather:1,knock:0.7},
-  7:{damage:20,reach:65,cooldown:100,gather:1,move:1.13,knock:0.1,hitSlow:0.1},
-  8:{damage:1,reach:70,cooldown:400,gather:7},
-  9:{damage:25,cooldown:600,projectile:0,speed:1.6,range:1000,ammo:{wood:4},move:0.75},
-  10:{damage:10,reach:75,cooldown:400,gather:1,structureDamage:7.5,move:0.88},
-  11:{damage:0,reach:0,cooldown:300,shield:0.2,move:0.7},
-  12:{damage:35,cooldown:700,projectile:2,speed:2.5,range:1200,ammo:{wood:5},move:0.7},
-  13:{damage:30,cooldown:230,projectile:3,speed:2.0,range:1200,ammo:{wood:10},move:0.7},
-  14:{damage:0,reach:125,cooldown:700,steal:250,move:1.05,knock:0.2,gather:0},
-  15:{damage:50,cooldown:1500,projectile:5,speed:3.6,range:1400,ammo:{stone:10},move:0.6,rec:0.35}
-};
-// Lua sends weapon index = numeric ID, item upgrade index = 16+item ID.
-const UPGRADES=new Map([
-  [1,{kind:'weapon',id:1,age:2}], [3,{kind:'weapon',id:3,age:2}],
-  [5,{kind:'weapon',id:5,age:2}], [6,{kind:'weapon',id:6,age:2}],
-  [7,{kind:'weapon',id:7,age:2}], [8,{kind:'weapon',id:8,age:2}],
-  [17,{kind:'item',id:1,age:3}], [20,{kind:'item',id:4,age:3}],
-  [31,{kind:'item',id:15,age:4}], [32,{kind:'item',id:16,age:4}],
-  [23,{kind:'item',id:7,age:5}], [27,{kind:'item',id:11,age:5}],
-  [29,{kind:'item',id:13,age:5}], [30,{kind:'item',id:14,age:5}],
-  [9,{kind:'weapon',id:9,age:6}], [10,{kind:'weapon',id:10,age:6}],
-  [11,{kind:'weapon',id:11,age:6}], [14,{kind:'weapon',id:14,age:6}],
-  [2,{kind:'weapon',id:2,age:8,pre:1}], [4,{kind:'weapon',id:4,age:8,pre:3}],
-  [12,{kind:'weapon',id:12,age:8,pre:9}],
-  // Index for the Lua item upgrade = number of weapon IDs (16) + item ID.
-  [18,{kind:'item',id:2,age:7}],
-  [21,{kind:'item',id:5,age:7,pre:4}],
-  [33,{kind:'item',id:17,age:7}], [34,{kind:'item',id:18,age:7}],
-  [35,{kind:'item',id:19,age:7}],
-  [37,{kind:'item',id:21,age:7}], [38,{kind:'item',id:22,age:7}],
-  [28,{kind:'item',id:12,age:8,pre:11}],
-  [24,{kind:'item',id:8,age:9,pre:7}],
-  [25,{kind:'item',id:9,age:9,pre:7}],
-  [36,{kind:'item',id:20,age:9}],
-  [13,{kind:'weapon',id:13,age:9,pre:12}],
-  [15,{kind:'weapon',id:15,age:9,pre:12}]
-]);
-// Official progression starts at 300 and raises the threshold 20% each age.
-const MAX_AGE=100;
-const VARIANT_THRESHOLDS=[0,3000,7000,12000,30000];
-const VARIANT_DAMAGE=Object.freeze([1,1.1,1.18,1.18]);
-const LEVEL_XP=age=>Math.round(300*Math.pow(1.2,Math.max(0,age-1))*10)/10;
-// Original upstream shared/config/items.js projectile data, excluding image files.
-export const PROJECTILE_TYPES=Object.freeze([
-  {dmg:25,scale:103,layer:0,src:'arrow_1'},
-  {dmg:25,scale:20,layer:1},
-  {dmg:35,scale:103,layer:0,src:'arrow_1'},
-  {dmg:30,scale:103,layer:0,src:'arrow_1'},
-  {dmg:16,scale:20,layer:1},
-  {dmg:50,scale:160,layer:0,src:'bullet_1'}
-].map(o=>Object.freeze(o)));
 // Natural trees, rocks, gold nodes and bushes yield on every legal hit.
 // Unlike player-built structures, they are not destructible.
 const PLAYER_RADIUS=35;
@@ -201,7 +86,7 @@ export class World {
   constructor({ size=14400,maxPlayers=60,now=()=>Date.now(),seed=24681357 }={}) {
     this.size=size;this.maxPlayers=maxPlayers;this.now=now;
     this.players=new Map();this.events=[];this.tickNumber=0;
-    this.resources=new Map();this.depleted=new Map();this.structures=new Map();this.tribes=new Map();
+    this.resources=new Map();this.structures=new Map();this.tribes=new Map();
     this.reservedTribeTags=new Set();
     this.animals=new Map();this.animalRandom=seededRandom(seed^0xfedcba98);
     this.projectiles=new Map();this.nextProjectileSid=1;
