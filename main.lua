@@ -23,6 +23,7 @@ local Upgrades=require("src.game.reference_upgrades")
 local Assets=require("src.game.reference_assets")
 local Camera=require("src.camera")
 local Input=require("src.input")
+local PauseControls=require("src.game.pause_controls")
 local Pack=require("src.protocol.msgpack")
 local client=nil
 -- Account credentials stay in RAM for this LÖVE session; never serialize
@@ -73,6 +74,17 @@ local function currentAttackDir()
   local mx,my=love.mouse.getPosition()
   return angle(my-h/2,mx-w/2)
 end
+-- Release all transient input without changing the server-owned auto-attack toggle.
+-- The V2 server keeps movement direction until it receives packet 9(nil).
+local function pauseGameplayControls()
+  PauseControls.stop(client,Pack.null)
+  input.keys={}
+  lastMove=false
+  movementClock=0
+  mouseAttack=false
+  spaceAttack=false
+end
+
 local function shortenChat(text)
   -- JavaScript chatBox.value.slice(0,30): keep up to 30 UTF-8 characters.
   local count=0
@@ -716,10 +728,7 @@ local function openProfile(sid)
   panels:close()
   clans:close()
   chatOpen=false;chatDraft=""
-  input.keys={};lastMove=false
-  mouseAttack=false;spaceAttack=false
-  client:send("e",{})
-  client:send("F",{0,Pack.null})
+  pauseGameplayControls()
   return true
 end
 
@@ -799,14 +808,8 @@ function love.keypressed(key)
   if (key=="return" or key=="kpenter") and client
     and client.state=="spawn_confirmed" and not died then
     chatOpen=true;chatDraft=""
-    input.keys={}
-    lastMove=false
-    -- A player can open chat while holding mouse/Space. Stop the ongoing
-    -- attack on the real Node server before giving keyboard focus to chat,
-    -- exactly as store/tribe and window focus loss already do.
-    mouseAttack=false;spaceAttack=false
-    client:send("e",{})
-    client:send("F",{0,Pack.null})
+    -- Stop movement and held attack before the chat input captures focus.
+    pauseGameplayControls()
     return
   end
   input:keypressed(key)
@@ -898,11 +901,7 @@ function love.keyreleased(key)
 end
 function love.focus(focused)
   if not focused and client and client.state=="spawn_confirmed" then
-    client:send("e",{})
-    client:send("F",{0,Pack.null})
-    mouseAttack=false;spaceAttack=false
-    input.keys={}
-    lastMove=false
+    pauseGameplayControls()
   end
 end
 function love.mousepressed(x,y,button)
@@ -934,11 +933,8 @@ function love.mousepressed(x,y,button)
       -- Keep the permanent Clan window exclusive with Shop and Tribe,
       -- matching how the original client hides competing overlays.
       -- The account overlay must not cause attacks or movement while typing.
-      input.keys={};lastMove=false
       chatOpen=false;chatDraft=""
-      mouseAttack=false;spaceAttack=false
-      client:send("e",{})
-      client:send("F",{0,Pack.null})
+      pauseGameplayControls()
       return
     end
     local action=panels:click(world,x,y,w,h)
@@ -957,11 +953,7 @@ function love.mousepressed(x,y,button)
         -- stop gathering while the menu takes keyboard/mouse focus.
         chatOpen=false;chatDraft=""
         if panels:isOpen() then
-          input.keys={}
-          lastMove=false
-          mouseAttack=false;spaceAttack=false
-          client:send("e",{})
-          client:send("F",{0,Pack.null})
+          pauseGameplayControls()
         end
       end
       return

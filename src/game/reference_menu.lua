@@ -185,7 +185,7 @@ function Menu:connectionInfo(connectionState,details)
   elseif state=="blocked" then
     if self.technicalMessage:find("build",1,true)
       or self.technicalMessage:find("MOOQUEST_BUILD_FILE",1,true) then
-      return "Bloqueado","Build do protocolo ausente. Reinicie pelo INICIAR-WINDOWS.bat.", "error"
+      return "Bloqueado","Build do protocolo ausente. Reinicie o cliente pelo inicializador do Moo-Quest.", "error"
     end
     return "Bloqueado","Handshake recusado. Veja os detalhes tecnicos.", "error"
   elseif state=="failed" then
