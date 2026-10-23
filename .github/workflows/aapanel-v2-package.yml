@@ -22,6 +22,10 @@ jobs:
           set -euo pipefail
           mkdir -p dist/package
           cp -a server-v2/. dist/package/
+          node --input-type=module -e "import {copyReferenceSources} from './server-v2/scripts/reference-sources.mjs'; console.log('Bundled original config SHA256:',copyReferenceSources('./dist/package'))"
+          for file in config.cjs items.cjs store.cjs aiManager.js ai.js effects.js; do
+            test -s "dist/package/src/reference-source/$file"
+          done
           rm -rf dist/package/var
           rm -f dist/package/.env
           test -s dist/package/bootstrap.js
