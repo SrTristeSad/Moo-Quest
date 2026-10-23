@@ -17,7 +17,8 @@ function Client.new(options)
     socketLib=socket,random=options.secureRandom,sha1=options.sha1,
     state="idle",tcp=nil,out="",input="",events={},error=nil,
     host=nil,port=nil,path=nil,expected=nil,
-    maxBuffer=options.maxBuffer or 1048576
+    maxBuffer=options.maxBuffer or 1048576,
+    maxOutgoing=options.maxOutgoing or 1048576
   },Client)
 end
 function Client:emit(kind,value)
@@ -44,6 +45,7 @@ function Client:connect(host,port,path)
   assert(pathOK(path),"invalid path")
   self.host,self.port,self.path=host,port,path
   self.input,self.out,self.events="","",{}
+  self.error=nil
   local nonce=self.random(16)
   assert(type(nonce)=="string" and #nonce==16,"secureRandom must return 16 bytes")
   local key=Upgrade.base64(nonce)
@@ -65,7 +67,11 @@ function Client:send(payload,opcode)
   if self.state~="open" then return false,"websocket not open" end
   local key=self.random(4)
   assert(type(key)=="string" and #key==4,"secureRandom must return four bytes")
-  self.out=self.out..Frames.clientFrame(payload,opcode or 2,key)
+  local frame=Frames.clientFrame(payload,opcode or 2,key)
+  if #self.out+#frame>self.maxOutgoing then
+    return false,"websocket outgoing queue limit exceeded"
+  end
+  self.out=self.out..frame
   return true
 end
 function Client:close()
@@ -96,6 +102,8 @@ function Client:update()
   if #chunk>0 then self.input=self.input..chunk end
   if #self.input>self.maxBuffer then self:fail("incoming buffer too large");return end
   if self.state=="upgrading" then
+    -- Never accept an unbounded HTTP response header from a broken proxy.
+    if #self.input>16384 then self:fail("websocket upgrade header too large");return end
     local at=self.input:find("\r\n\r\n",1,true)
     if at then
       local header=self.input:sub(1,at+3)
@@ -121,7 +129,7 @@ function Client:update()
       if self.state=="upgrading" or self.state=="tcp_connecting" then
         self:fail("WebSocket encerrado antes do HTTP 101; verifique /s/LC, ticket e proxy.")
       else
-        self:emit("close","socket closed");self:close()
+        self:emit("close","");self:close()
       end
     else self:fail(err) end
   end
