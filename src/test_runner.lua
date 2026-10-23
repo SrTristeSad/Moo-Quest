@@ -32,6 +32,7 @@ M.paths={
   "tests/reference_sprite_catalog.lua",
   "tests/reference_death.lua",
   "tests/reference_camera.lua",
+  "tests/bundled_art.lua",
   "tests/pause_controls.lua",
   "tests/reference_menu.lua",
   "tests/reference_panels.lua",
