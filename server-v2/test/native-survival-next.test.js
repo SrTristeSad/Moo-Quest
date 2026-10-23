@@ -66,7 +66,7 @@ test('natural tree stays solid and visible after unlimited valid hits',()=>{
  assert.equal(p.resources.wood,12);
  assert.equal(w.resources.get(obj.sid),obj);
  assert.equal(obj.hp,startHp);
- assert.equal(w.depleted.has(obj.sid),false);
+ assert.equal(Object.hasOwn(w,'depleted'),false,'no obsolete depletion registry');
  assert.ok(!w.takeEvents().some(e=>e.kind==='destroy'&&e.sid===obj.sid));
  p.x=obj.x-180;p.y=obj.y;p.vx=1;p.vy=0;
  w.tick(0.1);
@@ -119,6 +119,6 @@ test('bush berries remain available without deleting their parent bush',()=>{
  assert.equal(w.resources.get(bush.sid),bush);
  assert.equal(bush.type,1);
  assert.equal(bush.hp,bush.maxHp);
- assert.equal(w.depleted.size,0);
+ assert.equal(Object.hasOwn(w,'depleted'),false,'bush harvest requires no depletion map');
  assert.ok(!w.takeEvents().some(e=>e.kind==='bush_empty'||e.kind==='destroy'));
 });
