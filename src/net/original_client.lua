@@ -250,8 +250,24 @@ function Original:update()
         [4003]="servidor exige conta autenticada",
         [4004]="origem WebSocket nao aceita"
       }
-      local description=code and descriptions[code] or "conexao encerrada"
-      self.status="Servidor original fechou WebSocket: "..(code and tostring(code) or "?").." - "..description
+      local reason=type(raw)=="string" and #raw>2 and raw:sub(3) or nil
+      if reason and (#reason>120 or reason:find("[%c]")) then reason=nil end
+      local policyReasons={
+        invalid_packet="pacote do cliente recusado pelo protocolo V2",
+        rate_limit="limite de mensagens por segundo",
+        account_in_use="esta conta ja possui uma partida aberta",
+        unknown_account="conta nao encontrada no banco de dados",
+        bad_spawn="dados de entrada na partida invalidos",
+        guests_disabled="servidor nao permite convidados",
+        session_revoked="sessao encerrada pelo servidor",
+        packet_error="erro ao codificar resposta do servidor"
+      }
+      local description=(reason and (policyReasons[reason] or reason))
+        or (code and descriptions[code])
+        or (code==1008 and "politica de acesso recusou a conexao (motivo nao enviado)")
+        or "conexao encerrada"
+      local serverLabel=self.nativeSession and "Servidor V2" or "Servidor original"
+      self.status=serverLabel.." fechou WebSocket: "..(code and tostring(code) or "?").." - "..description
       self.error=self.status
     elseif evt.kind=="error" then
       self.state="failed"
