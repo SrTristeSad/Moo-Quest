@@ -50,6 +50,18 @@ assert(c.state=="open")
 local events=c:drain()
 assert(#events==2 and events[1].kind=="open" and events[2].kind=="binary" and events[2].value=="Hi")
 assert(c:send("ok"))
+-- Backpressure: do not accumulate an unbounded number of queued frames.
+local queued=Client.new({
+  socket=lib,
+  secureRandom=function(n)return string.rep("a",n) end,
+  sha1=function()return string.rep("\0",20) end,
+  maxOutgoing=8
+})
+queued.state="open"
+local queuedOK,queuedError=queued:send("a")
+assert(queuedOK)
+local secondOK,secondError=queued:send("a")
+assert(not secondOK and secondError:find("queue limit",1,true))
 c:update()
 assert(#sent==2 and sent[2]:byte(1)==130)
 c:close()
