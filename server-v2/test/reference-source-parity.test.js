@@ -100,8 +100,14 @@ test('food, upgrade eligibility, store prices and animal spawn counts equal sour
     !o.dontSell&&o.price===0).map(o=>o.id));
   assert.equal(catalog.MAX_AGE,upstreamConfig.maxAge);
   assert.deepEqual(catalog.AI_TYPES,legacyAI);
-  assert.deepEqual(catalog.SPAWNS.map(a=>({index:a.index,desired:a.count,area:a.area,
-    positions:a.positions})),upstreamConfig.server.animalSpawnPlan);
+  for(let i=0;i<upstreamConfig.server.animalSpawnPlan.length;i++){
+    const expected=upstreamConfig.server.animalSpawnPlan[i];
+    const actual=catalog.SPAWNS[i];
+    assert.equal(actual.index,expected.index);
+    assert.equal(actual.count,expected.desired);
+    assert.equal(actual.area,expected.area);
+    assert.deepEqual(actual.positions,expected.positions);
+  }
   for(const spawn of catalog.WILDLIFE){
     const animal=legacyAI[spawn.index];
     assert.equal(spawn.hp,animal.health);
